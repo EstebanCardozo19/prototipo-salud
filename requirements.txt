@@ -1,0 +1,21 @@
+# === Fase 1: Core ===
+fastapi>=0.115.0
+uvicorn[standard]>=0.31.1
+sqlmodel>=0.0.22
+sqlalchemy>=2.0.35
+psycopg2-binary>=2.9.9
+pgvector>=0.3.5
+faker>=28.4.1
+numpy>=1.26.4
+python-dotenv>=1.0.1
+
+# === Fase 2: IA y MCP ===
+sentence-transformers>=3.0.1
+mcp>=1.28.1
+requests>=2.33.0
+
+# === Fase 3: Autenticación ===
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+bcrypt>=4.0.0
+python-multipart>=0.0.9

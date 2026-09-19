@@ -1,0 +1,55 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: salud_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-salud_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-salud_secret_2024}
+      POSTGRES_DB: ${POSTGRES_DB:-salud_db}
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-salud_user} -d ${POSTGRES_DB:-salud_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: salud_api
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-salud_user}:${POSTGRES_PASSWORD:-salud_secret_2024}@db:5432/${POSTGRES_DB:-salud_db}
+      SAI_API_KEY: ${SAI_API_KEY:-TU_API_KEY_AQUI}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/code/app
+      - ./seed.py:/code/seed.py
+      - ./seed_with_embeddings.py:/code/seed_with_embeddings.py
+      - ./uploads:/code/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: salud_frontend
+    environment:
+      VITE_API_PROXY_TARGET: http://api:8000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/index.html:/app/index.html
+    depends_on:
+      - api
+
+volumes:
+  pgdata:

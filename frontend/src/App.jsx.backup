@@ -1,0 +1,2634 @@
+import { useState, useRef, useEffect } from 'react';
+import { useTranslation, translations } from './i18n';
+
+// Importar componentes modularizados
+import { LangContext, useLang } from './contexts/LangContext';
+import { AuthScreen, TopBar, Spinner } from './components';
+import { SearchPanel, ProfessionalDetailModal } from './components';
+import { BookingModal } from './components';
+import { ChatPanel } from './components';
+
+// Importar constantes y helpers
+import { SPECIALTIES, LOCALIDADES, BLOOD_TYPES, EMPTY_PATIENT, INPUT_CLASS, LABEL_CLASS } from './constants';
+import { getSpecialtyLabel, getRoleLabel, getMobilityLabel, getEpsList, getPrepaidList, parseList, joinList } from './utils/helpers';
+
+// Los componentes AuthScreen, TopBar ya están modularizados
+
+// ─── BookingModal ─────────────────────────────────────────────
+// Clave localStorage para plantillas de necesidades
+const TEMPLATES_KEY = 'salud_need_templates';
+
+function BookingModal({ professional, token, onClose, onSuccess }) {
+  const { t } = useLang();
+  const today = new Date().toISOString().split('T')[0];
+  const hours = Array.from({ length: 24 }, (_, i) => i);
+
+  // Días seleccionados: array de strings YYYY-MM-DD
+  const [days, setDays] = useState([today]);
+  const [startHour, setStartHour] = useState(8);
+  const [endHour, setEndHour] = useState(12);
+  const [notes, setNotes] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [sent, setSent] = useState([]);
+
+  // ── Familiares registrados ──────────────────────────────────
+  const [familyRecords, setFamilyRecords] = useState([]);
+  const [selectedRecord, setSelectedRecord] = useState(null);
+
+  useEffect(() => {
+    if (!token) return;
+    fetch('/api/clinical-records/', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setFamilyRecords(data))
+      .catch(() => {});
+  }, [token]);
+
+  const handleSelectRecord = (record) => {
+    setSelectedRecord(record);
+    if (!record) { setNotes(''); return; }
+    // Pre-llenar notas con resumen de la ficha
+    const parts = [];
+    parts.push(`Paciente: ${record.patient_name}, ${record.patient_age} años.`);
+    if (record.mobility_level) {
+      const mob = { independiente:'Movilidad independiente', asistida:'Movilidad con asistencia', postrado:'Postrado en cama', silla_ruedas:'En silla de ruedas' }[record.mobility_level] || record.mobility_level;
+      parts.push(mob + '.');
+    }
+    if (record.diagnoses?.length) parts.push(`Diagnósticos: ${record.diagnoses.join(', ')}.`);
+    if (record.medications?.length) parts.push(`Medicamentos: ${record.medications.join(', ')}.`);
+    if (record.allergies?.length) parts.push(`Alergias: ${record.allergies.join(', ')}.`);
+    if (record.special_needs) parts.push(record.special_needs);
+    setNotes(parts.join(' '));
+  };
+
+  // Plantillas guardadas
+  const [templates, setTemplates] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(TEMPLATES_KEY) || '[]'); } catch { return []; }
+  });
+  const [newTpl, setNewTpl] = useState('');
+  const [showTplInput, setShowTplInput] = useState(false);
+
+  const saveTemplate = () => {
+    if (!newTpl.trim()) return;
+    const updated = [...templates, newTpl.trim()];
+    setTemplates(updated);
+    localStorage.setItem(TEMPLATES_KEY, JSON.stringify(updated));
+    setNotes(newTpl.trim());
+    setNewTpl('');
+    setShowTplInput(false);
+  };
+
+  const deleteTemplate = (i) => {
+    const updated = templates.filter((_, idx) => idx !== i);
+    setTemplates(updated);
+    localStorage.setItem(TEMPLATES_KEY, JSON.stringify(updated));
+  };
+
+  const addDay = () => {
+    const last = days[days.length - 1] || today;
+    const next = new Date(last + 'T12:00:00');
+    next.setDate(next.getDate() + 1);
+    const nextStr = next.toISOString().split('T')[0];
+    if (!days.includes(nextStr)) setDays([...days, nextStr]);
+  };
+
+  const removeDay = (d) => setDays(days.filter(x => x !== d));
+
+  const updateDay = (oldD, newD) => {
+    if (!newD) return;
+    setDays(days.map(d => d === oldD ? newD : d));
+  };
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (endHour <= startHour) { setError('La hora de fin debe ser mayor que la de inicio.'); return; }
+    if (!notes.trim()) { setError('La descripción de necesidades es obligatoria.'); return; }
+    if (days.length === 0) { setError('Agregá al menos un día.'); return; }
+    setLoading(true); setError('');
+    const results = [];
+    for (const date of days) {
+      try {
+        const res = await fetch('/api/bookings/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            professional_user_id: professional.user_id,
+            professional_role: professional.role,
+            date,
+            start_hour: startHour,
+            end_hour: endHour,
+            notes: notes.trim(),
+          }),
+        });
+        if (!res.ok) { const d = await res.json(); results.push({ date, ok: false, msg: d.detail || 'Error' }); }
+        else results.push({ date, ok: true });
+      } catch (err) { results.push({ date, ok: false, msg: err.message }); }
+    }
+    setLoading(false);
+    const failed = results.filter(r => !r.ok);
+    if (failed.length === 0) { onSuccess(days.length); }
+    else {
+      setError(`Error en: ${failed.map(r => `${r.date} (${r.msg})`).join(', ')}`);
+      setSent(results.filter(r => r.ok).map(r => r.date));
+    }
+  };
+
+  const iCls = 'w-full h-[42px] px-4 rounded-xl border border-[#c3c6d6] bg-white focus:border-[#0040a1] focus:ring-2 focus:ring-[#0040a1]/15 focus:outline-none text-[14px]';
+  const lCls = 'block text-[12px] font-semibold text-[#424654] mb-1';
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+      style={{ background: 'rgba(26,28,30,0.6)', backdropFilter: 'blur(6px)' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col animate-fade-in-up"
+        style={{ maxHeight: 'min(90vh, 700px)' }}>
+
+        {/* Header fijo */}
+        <div className="bg-[#0040a1] px-6 py-4 flex items-center justify-between rounded-t-2xl shrink-0">
+          <div>
+            <h2 className="text-white font-bold text-[17px]">{t('booking.title')}</h2>
+            <p className="text-white/70 text-[13px] mt-0.5">{professional.name}</p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-all">
+            <span className="material-symbols-outlined text-white text-[20px]">close</span>
+          </button>
+        </div>
+
+        {/* Cuerpo scrolleable */}
+        <div className="overflow-y-auto flex-1 rounded-b-2xl">
+
+        {/* Info profesional */}
+        <div className="px-6 py-3 bg-[#f3f3f6] border-b border-[#c3c6d6]/30 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-[#dae2ff] text-[#0040a1] flex items-center justify-center text-sm font-bold shrink-0">
+            {professional.name.split(' ').map(w => w[0]).slice(0,2).join('')}
+          </div>
+          <div>
+            <p className="text-[13px] font-semibold text-[#1a1c1e]">{professional.specialty}</p>
+            <p className="text-[12px] text-[#424654]">
+              ${Number(professional.price || 0).toLocaleString('es-CO')}{professional.priceUnit}
+              {professional.location && ` · ${professional.location}`}
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={submit} className="p-6 flex flex-col gap-5">
+
+          {/* ── Selector de familiar ── */}
+          {familyRecords.length > 0 && (
+            <div>
+              <label className={lCls}>{t('booking.forPatient')}</label>
+              <div className="flex flex-col gap-2">
+                {familyRecords.map(r => {
+                  const selected = selectedRecord?.id === r.id;
+                  return (
+                    <button key={r.id} type="button" onClick={() => handleSelectRecord(selected ? null : r)}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all
+                        ${selected
+                          ? 'border-[#0040a1] bg-[#0040a1]/5 ring-2 ring-[#0040a1]/20'
+                          : 'border-[#c3c6d6] bg-white hover:border-[#0040a1]/40'}`}>
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-[15px] font-bold shrink-0
+                        ${selected ? 'bg-[#0040a1] text-white' : 'bg-[#dae2ff] text-[#0040a1]'}`}>
+                        {r.patient_name?.charAt(0)?.toUpperCase() || '?'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-[14px] text-[#1a1c1e] truncate">{r.patient_name}</p>
+                        <p className="text-[12px] text-[#737785] truncate">
+                          {r.patient_age} años
+                          {r.diagnoses?.length ? ` · ${r.diagnoses.slice(0,2).join(', ')}` : ''}
+                        </p>
+                      </div>
+                      {selected && <span className="material-symbols-outlined text-[#0040a1] text-[20px] shrink-0">check_circle</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              {selectedRecord && (
+                <p className="mt-1.5 text-[11px] text-[#006a61] flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[13px]">auto_fix_high</span>
+                  {t('booking.notesLoaded')} {selectedRecord.patient_name}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* ── Días ── */}
+          <div>
+            <label className={lCls}>{t('booking.serviceDays')}</label>
+            <div className="flex flex-col gap-2">
+              {days.map((d, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <input className={`${iCls} flex-1`} type="date" min={today} value={d}
+                    onChange={e => updateDay(d, e.target.value)} required />
+                  {days.length > 1 && (
+                    <button type="button" onClick={() => removeDay(d)}
+                      className="w-9 h-9 rounded-xl bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-100 transition-all shrink-0">
+                      <span className="material-symbols-outlined text-[18px]">close</span>
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button type="button" onClick={addDay}
+                className="h-[38px] border border-dashed border-[#0040a1]/40 text-[#0040a1] rounded-xl text-[13px] font-semibold flex items-center justify-center gap-1.5 hover:bg-[#0040a1]/5 transition-all">
+                <span className="material-symbols-outlined text-[17px]">add</span> {t('booking.addDay')}
+              </button>
+            </div>
+          </div>
+
+          {/* ── Horario ── */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={lCls}>{t('booking.startHour')}</label>
+              <select className={iCls} value={startHour} onChange={e => setStartHour(+e.target.value)}>
+                {hours.map(h => <option key={h} value={h}>{String(h).padStart(2,'0')}:00</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={lCls}>{t('booking.endHour')}</label>
+              <select className={iCls} value={endHour} onChange={e => setEndHour(+e.target.value)}>
+                {hours.map(h => <option key={h} value={h}>{String(h).padStart(2,'0')}:00</option>)}
+              </select>
+            </div>
+          </div>
+          <p className="text-[12px] text-[#424654] -mt-3">
+            {t('booking.duration')} {endHour > startHour ? `${endHour - startHour} ${t('booking.hours')}` : <span className="text-red-500">{t('booking.endMustBeGreater')}</span>}
+          </p>
+
+          {/* ── Descripción de necesidades ── */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className={lCls}>{t('booking.needsDesc')} <span className="text-red-500">*</span></label>
+              <button type="button" onClick={() => setShowTplInput(v => !v)}
+                className="text-[11px] text-[#0040a1] font-semibold flex items-center gap-1 hover:underline">
+                <span className="material-symbols-outlined text-[14px]">bookmark</span>
+                {showTplInput ? t('booking.closeTemplate') : t('booking.saveTemplate')}
+              </button>
+            </div>
+
+            {/* Plantillas guardadas */}
+            {templates.length > 0 && (
+              <div className="mb-2 flex flex-col gap-1.5">
+                <p className="text-[11px] text-[#737785] font-semibold">{t('booking.savedTemplates')}</p>
+                {templates.map((tpl, i) => (
+                  <div key={i} className="flex items-start gap-2 bg-[#f3f3f6] rounded-xl px-3 py-2 border border-[#c3c6d6]/30">
+                    <button type="button" onClick={() => setNotes(tpl)}
+                      className="flex-1 text-left text-[12px] text-[#1a1c1e] hover:text-[#0040a1] transition-colors line-clamp-2">
+                      {tpl}
+                    </button>
+                    <button type="button" onClick={() => deleteTemplate(i)}
+                      className="shrink-0 text-[#737785] hover:text-red-500 transition-colors mt-0.5">
+                      <span className="material-symbols-outlined text-[15px]">delete</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <textarea
+              className="w-full px-4 py-3 rounded-xl border border-[#c3c6d6] bg-white focus:border-[#0040a1] focus:ring-2 focus:ring-[#0040a1]/15 focus:outline-none text-[14px] resize-none"
+              rows={4}
+              placeholder={t('booking.needsPlaceholder')}
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              required
+            />
+
+            {/* Guardar como nueva plantilla */}
+            {showTplInput && (
+              <div className="mt-2 flex gap-2">
+                <textarea
+                  className="flex-1 px-3 py-2 rounded-xl border border-[#c3c6d6] text-[13px] focus:border-[#0040a1] focus:outline-none resize-none"
+                  rows={2}
+                  placeholder="Escribe la descripción a guardar como plantilla..."
+                  value={newTpl}
+                  onChange={e => setNewTpl(e.target.value)}
+                />
+                <button type="button" onClick={saveTemplate}
+                  className="px-4 bg-[#0040a1] text-white rounded-xl text-[13px] font-semibold hover:bg-[#003080] transition-all">
+                  Guardar
+                </button>
+              </div>
+            )}
+          </div>
+
+          {error && (
+            <div className="px-4 py-2 bg-red-50 border border-red-200 text-red-700 rounded-xl text-[13px]">
+              {error}
+            </div>
+          )}
+          {sent.length > 0 && (
+            <div className="px-4 py-2 bg-green-50 border border-green-200 text-green-700 rounded-xl text-[13px]">
+              ✅ Enviadas para: {sent.join(', ')}
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <button type="button" onClick={onClose}
+              className="flex-1 h-[44px] border border-[#c3c6d6] text-[#424654] rounded-xl font-semibold text-[14px] hover:bg-[#f3f3f6] transition-all">
+              Cancelar
+            </button>
+            <button type="submit" disabled={loading}
+              className="flex-1 h-[44px] bg-[#0040a1] text-white rounded-xl font-bold text-[14px] hover:bg-[#003080] transition-all flex items-center justify-center gap-2 disabled:opacity-60">
+              {loading
+                ? <Spinner sm />
+                : <>{days.length > 1 ? `Enviar ${days.length} solicitudes` : 'Enviar solicitud'} <span className="material-symbols-outlined text-[18px]">send</span></>}
+            </button>
+          </div>
+        </form>
+        </div>{/* fin cuerpo scrolleable */}
+      </div>
+    </div>
+  );
+}
+
+// ─── ProfessionalCard ────────────────────────────────────────
+function ProfessionalCard({ name, photoUrl, specialty, rating, price, priceUnit = '/h', institution, location, experienceYears, bio, reviews = [], professionalUserId, professionalRole, token, index = 0 }) {
+  const initials = (name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  const [showReviews, setShowReviews] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [successMsg, setSuccessMsg] = useState('');
+
+  const handleSuccess = (count = 1) => {
+    setShowModal(false);
+    setSuccessMsg(`✅ ${count > 1 ? `${count} solicitudes enviadas` : 'Solicitud enviada'}. El profesional las revisará pronto.`);
+    setTimeout(() => setSuccessMsg(''), 5000);
+  };
+  return (
+    <>
+    <div className="professional-card animate-fade-in-up bg-white border border-[#c3c6d6]/50
+                    hover:border-[#0040a1]/50 hover:shadow-xl hover:scale-[1.02] rounded-2xl p-6
+                    shadow-sm transition-all duration-300 flex flex-col gap-4 relative overflow-hidden group"
+      style={{ animationDelay: `${index * 0.12}s` }}>
+      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#0040a1] to-[#8df1e3] opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+      <div className="flex items-start gap-4">
+        {photoUrl ? (
+          <img src={photoUrl} alt={name} className="w-16 h-16 rounded-2xl object-cover shrink-0 border border-[#c3c6d6]/30 shadow-sm" />
+        ) : (
+          <div className="w-16 h-16 rounded-2xl bg-[#dae2ff] text-[#0040a1] flex items-center justify-center text-xl font-bold shrink-0 border border-[#c3c6d6]/30">{initials}</div>
+        )}
+        <div className="flex-1 min-w-0">
+          <h2 className="text-[18px] leading-tight font-bold text-[#1a1c1e] group-hover:text-[#0040a1] transition-colors truncate">{name}</h2>
+          <div className="flex flex-wrap items-center gap-2 mt-1.5">
+            {specialty && <span className="bg-[#0040a1]/10 text-[#0040a1] text-[12px] font-semibold px-2.5 py-0.5 rounded-lg">{specialty}</span>}
+            {rating != null && (
+              <div className="flex items-center bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-100">
+                <span className="material-symbols-outlined text-amber-500 text-[15px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                <span className="ml-0.5 text-amber-700 text-[13px] font-semibold">{rating}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="text-[24px] font-bold text-[#0040a1] flex items-baseline gap-1">
+        ${Number(price || 0).toLocaleString('es-CO')}
+        <span className="text-[13px] font-normal text-[#424654]">{priceUnit}</span>
+      </div>
+      <div className="flex flex-col gap-2 text-[#424654] text-[14px] bg-[#f9f9fc] p-3.5 rounded-xl border border-[#c3c6d6]/30 group-hover:bg-white transition-colors">
+        {institution && <span className="flex items-center gap-2.5"><span className="material-symbols-outlined text-[18px] text-[#0040a1]/60">local_hospital</span>{institution}</span>}
+        {location && <span className="flex items-center gap-2.5"><span className="material-symbols-outlined text-[18px] text-[#0040a1]/60">location_on</span>{location}</span>}
+        {experienceYears != null && <span className="flex items-center gap-2.5"><span className="material-symbols-outlined text-[18px] text-[#0040a1]/60">schedule</span>{experienceYears} años exp.</span>}
+      </div>
+      {bio && <p className="text-[13px] text-[#424654] leading-relaxed line-clamp-2">{bio}</p>}
+
+      {/* Reseñas expandibles */}
+      <button
+        onClick={() => setShowReviews(v => !v)}
+        className="flex items-center justify-between w-full text-[13px] font-semibold text-[#0040a1] py-1 border-t border-[#c3c6d6]/30 pt-3"
+      >
+        <span className="flex items-center gap-1.5">
+          <span className="material-symbols-outlined text-[16px]">chat_bubble</span>
+          Comentarios {reviews.length > 0 ? `(${reviews.length})` : ''}
+        </span>
+        <span className="material-symbols-outlined text-[18px]">{showReviews ? 'expand_less' : 'expand_more'}</span>
+      </button>
+      {showReviews && (
+        <div className="flex flex-col gap-2.5 -mt-2">
+          {reviews.length === 0 ? (
+            <p className="text-[12px] text-[#737785] italic py-1">{t('professional.noComments')}</p>
+          ) : (
+            reviews.map((r, i) => (
+              <div key={i} className="bg-[#f9f9fc] rounded-xl p-3 border border-[#c3c6d6]/30">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[12px] font-semibold text-[#1a1c1e]">{r.family_name || 'Familiar'}</span>
+                  <span className="text-amber-400 text-[12px]">{'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</span>
+                </div>
+                {r.comment && <p className="text-[12px] text-[#424654]">{r.comment}</p>}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {successMsg && (
+        <div className="px-3 py-2 bg-green-50 border border-green-200 text-green-700 rounded-xl text-[13px] flex items-center gap-2">
+          <span className="material-symbols-outlined text-[16px]">check_circle</span>
+          {successMsg}
+        </div>
+      )}
+
+      <button
+        onClick={() => token ? setShowModal(true) : null}
+        className="mt-auto bg-[#0040a1] text-white h-[46px] rounded-xl font-bold text-[15px] hover:bg-[#003080] transition-all shadow-md flex items-center justify-center gap-2 w-full hover:shadow-lg active:scale-95"
+        style={{ opacity: token ? 1 : 0.5, cursor: token ? 'pointer' : 'not-allowed' }}
+        title={token ? t('professional.requestService') : t('professional.loginToRequest')}
+      >
+        {t('professional.requestService')}
+        <span className="material-symbols-outlined text-[18px] transition-transform group-hover:translate-x-1">arrow_forward</span>
+      </button>
+    </div>
+
+    {/* Modal fuera del div con overflow-hidden para que aparezca centrado en pantalla */}
+    {showModal && (
+      <BookingModal
+        professional={{ user_id: professionalUserId, role: professionalRole, name, specialty, price, priceUnit, location }}
+        token={token}
+        onClose={() => setShowModal(false)}
+        onSuccess={handleSuccess}
+      />
+    )}
+    </>
+  );
+}
+
+function CaregiverCard({ caregiver, reviews = [], token, index = 0 }) {
+  const specialty = (caregiver.specialties || []).map(s => SPECIALTIES[s] || s).slice(0, 2).join(', ') || 'Cuidador';
+  return <ProfessionalCard index={index} name={caregiver.full_name || 'Cuidador'} photoUrl={caregiver.photo_url}
+    specialty={specialty} rating={caregiver.rating} price={caregiver.hourly_rate} priceUnit="/h"
+    location={caregiver.location} experienceYears={caregiver.experience_years}
+    bio={caregiver.bio} reviews={reviews}
+    professionalUserId={caregiver.user_id} professionalRole="caregiver" token={token} />;
+}
+
+function NurseCard({ doctor, reviews = [], token, index = 0 }) {
+  return <ProfessionalCard index={index} name={doctor.full_name} photoUrl={doctor.photo_url}
+    specialty={SPECIALTIES[doctor.specialty] || doctor.specialty} rating={doctor.rating}
+    price={doctor.hourly_rate} priceUnit="/visita" institution={doctor.institution}
+    location={doctor.location} experienceYears={doctor.experience_years}
+    bio={doctor.bio} reviews={reviews}
+    professionalUserId={doctor.user_id} professionalRole="nurse" token={token} />;
+}
+
+// ─── SearchPanel ─────────────────────────────────────────────
+function SearchPanel({ token, activeTab, onTabChange }) {
+  const [searchText, setSearchText] = useState('');
+  const [localidad, setLocalidad] = useState('');
+  const [caregivers, setCaregivers] = useState([]);
+  const [doctors, setDoctors] = useState([]);
+  const [reviewsMap, setReviewsMap] = useState({});
+  const [loading, setLoading] = useState(false);
+
+  // ── Filtros ──────────────────────────────────────────────
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState({
+    gender: '',           // 'M' | 'F' | ''
+    specialty: '',        // clave del SPECIALTIES
+    minExp: '',           // años mínimos
+    maxPrice: '',         // tarifa máxima
+    minRating: '',        // calificación mínima (1-5)
+    sortBy: 'rating',     // 'rating' | 'price_asc' | 'price_desc' | 'exp'
+  });
+
+  // Detecta género por nombre — normaliza tildes
+  const guessGender = (name = '') => {
+    if (!name) return '?';
+    const normalize = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const first = normalize(name.trim().split(' ')[0]);
+    const femPrefixes = ['maria','ana','laura','claudia','sandra','patricia','valentina','luz','diana','sofia','andrea',
+      'carmen','rosa','isabel','monica','paula','marcela','alejandra','natalia','lorena','beatriz','pilar','olga','lucy'];
+    return femPrefixes.some(n => first.startsWith(n)) ? 'F' : 'M';
+  };
+
+  const applyFilters = (list) => {
+    let result = [...list];
+
+    if (filters.gender) {
+      result = result.filter(p => guessGender(p.full_name) === filters.gender);
+    }
+
+    if (filters.specialty) {
+      const term = filters.specialty.toLowerCase();
+      result = result.filter(p => {
+        // Cuidadores: specialties es array de strings en español
+        const spArr = (p.specialties || []).map(s => s.toLowerCase());
+        // Enfermeros: specialty es clave del enum
+        const spKey = (p.specialty || '').toLowerCase();
+        const spLabel = (SPECIALTIES[p.specialty] || '').toLowerCase();
+        return spArr.some(s => s.includes(term)) || spKey.includes(term) || spLabel.includes(term);
+      });
+    }
+
+    if (filters.minExp !== '') {
+      result = result.filter(p => Number(p.experience_years || 0) >= Number(filters.minExp));
+    }
+
+    if (filters.maxPrice !== '') {
+      result = result.filter(p => Number(p.hourly_rate || 0) <= Number(filters.maxPrice));
+    }
+
+    if (filters.minRating !== '') {
+      result = result.filter(p => {
+        const revs = reviewsMap[p.user_id || p.id] || [];
+        if (revs.length === 0) return false;
+        const avg = revs.reduce((s, r) => s + r.rating, 0) / revs.length;
+        return avg >= Number(filters.minRating);
+      });
+    }
+
+    // Ordenamiento
+    result.sort((a, b) => {
+      if (filters.sortBy === 'price_asc')  return Number(a.hourly_rate||0) - Number(b.hourly_rate||0);
+      if (filters.sortBy === 'price_desc') return Number(b.hourly_rate||0) - Number(a.hourly_rate||0);
+      if (filters.sortBy === 'exp')        return Number(b.experience_years||0) - Number(a.experience_years||0);
+      const ra = reviewsMap[a.user_id||a.id] || [];
+      const rb = reviewsMap[b.user_id||b.id] || [];
+      const avgA = ra.length ? ra.reduce((s,r)=>s+r.rating,0)/ra.length : 0;
+      const avgB = rb.length ? rb.reduce((s,r)=>s+r.rating,0)/rb.length : 0;
+      return avgB - avgA;
+    });
+
+    return result;
+  };
+
+  const activeFilterCount = Object.entries(filters).filter(([k,v]) => v !== '' && k !== 'sortBy').length;
+
+  useEffect(() => { loadAll(); }, []);
+
+  const loadAll = async () => {
+    setLoading(true);
+    try {
+      const [cgRes, nRes] = await Promise.all([
+        fetch('/api/caregivers/', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/nurses/', { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      const cgList = cgRes.ok ? await cgRes.json() : [];
+      const nList  = nRes.ok  ? await nRes.json()  : [];
+      setCaregivers(cgList);
+      setDoctors(nList);
+      // Cargar reseñas de todos los profesionales en paralelo
+      const allProfs = [...cgList, ...nList];
+      const entries = await Promise.all(
+        allProfs.map(async p => {
+          try {
+            const r = await fetch(`/api/bookings/reviews/${p.user_id || p.id}`, { headers: { Authorization: `Bearer ${token}` } });
+            return [p.user_id || p.id, r.ok ? await r.json() : []];
+          } catch { return [p.user_id || p.id, []]; }
+        })
+      );
+      setReviewsMap(Object.fromEntries(entries));
+    } catch (e) {} finally { setLoading(false); }
+  };
+
+  const buscar = async (e) => {
+    e?.preventDefault();
+    const q = searchText.trim();
+    if (!q) { loadAll(); return; }
+    setLoading(true);
+    try {
+      // Búsqueda directa por nombre/especialidad en el API (más rápida y precisa para texto literal)
+      const params = new URLSearchParams({ search: q, ...(localidad && { location: localidad }) });
+      const [cgRes, nRes] = await Promise.all([
+        fetch(`/api/caregivers/?${params}`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`/api/nurses/?${params}`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      const cgList = cgRes.ok ? await cgRes.json() : [];
+      const nList  = nRes.ok  ? await nRes.json()  : [];
+      setCaregivers(cgList);
+      setDoctors(nList);
+
+      // Si no hay resultados textuales, intentar búsqueda semántica como fallback
+      if (cgList.length === 0 && nList.length === 0) {
+        const body = { mensaje: q, ...(localidad && { localidad }) };
+        const semRes = await fetch('/api/chat/local', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(body),
+        });
+        if (semRes.ok) {
+          const d = await semRes.json();
+          if (d.profesionales && d.profesionales.length > 0) {
+            setCaregivers(d.profesionales.filter(p => p.role === 'caregiver'));
+            setDoctors(d.profesionales.filter(p => p.role === 'nurse'));
+          }
+        }
+      }
+    } catch (e) {} finally { setLoading(false); }
+  };
+
+  const parseCaregiverResults = (text) => {
+    if (!text || text.includes('No se encontraron')) return [];
+    const blocks = text.split('--- Cuidador #');
+    return blocks.filter(Boolean).reduce((acc, block) => {
+      const lines = block.split('\n'); const obj = {};
+      lines.forEach(l => {
+        if (l.includes('Nombre:')) obj.full_name = l.split('Nombre:')[1]?.trim();
+        if (l.includes('Localidad:')) obj.location = l.split('Localidad:')[1]?.trim();
+        if (l.includes('Experiencia:')) obj.experience_years = parseInt(l.match(/\d+/)?.[0] || '0');
+        if (l.includes('Especialidades:')) obj.specialties = l.split('Especialidades:')[1]?.trim().split(', ');
+        if (l.includes('Tarifa:')) { const m = l.match(/[\d,.]+/); obj.hourly_rate = m ? parseInt(m[0].replace(/[.,]/g, '')) : 0; }
+      });
+      if (obj.full_name) acc.push(obj);
+      return acc;
+    }, []);
+  };
+
+  const [myRequests, setMyRequests] = useState([]);
+  const [loadingRequests, setLoadingRequests] = useState(false);
+
+  const loadMyRequests = async () => {
+    setLoadingRequests(true);
+    try {
+      const res = await fetch('/api/bookings/my-requests', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setMyRequests(await res.json());
+      else setMyRequests([]);
+    } catch (e) { setMyRequests([]); }
+    finally { setLoadingRequests(false); }
+  };
+
+  // Cargar mis solicitudes cada vez que se activa esa pestaña
+  useEffect(() => {
+    if (activeTab === 'my-requests') loadMyRequests();
+  }, [activeTab]);
+
+  const currentList = applyFilters(activeTab === 'caregivers' ? caregivers : doctors);
+  const btnBase = 'h-[40px] px-5 rounded-xl font-semibold text-[14px] flex items-center gap-2 transition-all border';
+  const btnActive = 'bg-[#0040a1] text-white border-[#0040a1] shadow-md';
+  const btnInactive = 'bg-white text-[#424654] border-[#c3c6d6] hover:bg-[#f3f3f6]';
+
+  const selCls = 'h-[38px] pl-3 pr-8 rounded-xl border border-[#c3c6d6] bg-white appearance-none focus:border-[#0040a1] focus:outline-none text-[13px] cursor-pointer w-full';
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Cabecera sticky — solo en tabs de búsqueda */}
+      {activeTab !== 'my-requests' && (
+        <div className="px-6 pt-5 pb-4 border-b border-[#c3c6d6]/30 bg-white sticky top-0 z-20 shadow-sm">
+          {/* Fila 1: buscador */}
+          <form onSubmit={buscar} className="relative mb-3">
+            <input className="w-full h-[50px] pl-5 pr-[56px] rounded-2xl border border-[#c3c6d6] bg-white
+                              focus:border-[#0040a1] focus:ring-4 focus:ring-[#0040a1]/15 focus:outline-none text-[15px] shadow-sm"
+              placeholder="Buscar por condición, especialidad..." value={searchText} onChange={e => setSearchText(e.target.value)} />
+            <button type="submit" disabled={loading}
+              className="absolute right-2 top-2 bottom-2 w-[40px] bg-[#0040a1] text-white rounded-xl flex items-center justify-center hover:bg-[#003080] transition-all active:scale-95">
+              <span className="material-symbols-outlined text-[20px]">search</span>
+            </button>
+          </form>
+
+          {/* Fila 2: localidad + botón filtros */}
+          <div className="flex items-center gap-3">
+            {/* Localidad */}
+            <div className="relative flex-1 max-w-[220px]">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#0040a1]/60 text-[18px] pointer-events-none">location_on</span>
+              <select className="w-full h-[38px] pl-9 pr-8 rounded-xl border border-[#c3c6d6] bg-white appearance-none focus:border-[#0040a1] focus:outline-none text-[13px] cursor-pointer"
+                value={localidad} onChange={e => setLocalidad(e.target.value)}>
+                <option value="">Todas las localidades</option>
+                {LOCALIDADES.filter(Boolean).map(l => <option key={l} value={l}>{l}</option>)}
+              </select>
+              <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[#737785] text-[18px]">expand_more</span>
+            </div>
+
+            {/* Ordenar por */}
+            <div className="relative flex-1 max-w-[180px]">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#0040a1]/60 text-[18px] pointer-events-none">sort</span>
+              <select className="w-full h-[38px] pl-9 pr-8 rounded-xl border border-[#c3c6d6] bg-white appearance-none focus:border-[#0040a1] focus:outline-none text-[13px] cursor-pointer"
+                value={filters.sortBy} onChange={e => setFilters(f => ({...f, sortBy: e.target.value}))}>
+                <option value="rating">Mejor calificación</option>
+                <option value="price_asc">Menor precio</option>
+                <option value="price_desc">Mayor precio</option>
+                <option value="exp">Más experiencia</option>
+              </select>
+              <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[#737785] text-[18px]">expand_more</span>
+            </div>
+
+            {/* Botón filtros */}
+            <button onClick={() => setShowFilters(v => !v)}
+              className={`h-[38px] px-4 rounded-xl font-semibold text-[13px] flex items-center gap-2 transition-all border shrink-0
+                ${showFilters ? 'bg-[#0040a1] text-white border-[#0040a1]' : 'bg-white text-[#424654] border-[#c3c6d6] hover:border-[#0040a1]/40'}`}>
+              <span className="material-symbols-outlined text-[18px]">tune</span>
+              Filtros
+              {activeFilterCount > 0 && (
+                <span className={`text-[11px] font-bold w-5 h-5 rounded-full flex items-center justify-center
+                  ${showFilters ? 'bg-white text-[#0040a1]' : 'bg-[#0040a1] text-white'}`}>
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+
+            {/* Limpiar filtros */}
+            {activeFilterCount > 0 && (
+              <button onClick={() => setFilters({ gender:'', specialty:'', minExp:'', maxPrice:'', minRating:'', sortBy:'rating' })}
+                className="h-[38px] px-3 rounded-xl text-[12px] text-red-500 border border-red-200 bg-red-50 hover:bg-red-100 transition-all flex items-center gap-1 shrink-0">
+                <span className="material-symbols-outlined text-[15px]">close</span>
+                Limpiar
+              </button>
+            )}
+          </div>
+
+          {/* Panel de filtros expandible */}
+          {showFilters && (
+            <div className="mt-3 p-4 bg-[#f3f3f6] rounded-2xl border border-[#c3c6d6]/40">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+
+                {/* Género */}
+                <div>
+                  <label className="block text-[11px] font-bold text-[#424654] mb-1.5 uppercase tracking-wide">Género</label>
+                  <div className="flex gap-2">
+                    {[['', 'Todos'], ['F', '👩 Mujer'], ['M', '👨 Hombre']].map(([v, lbl]) => (
+                      <button key={v} type="button"
+                        onClick={() => setFilters(f => ({...f, gender: v}))}
+                        className={`flex-1 h-[34px] rounded-xl text-[12px] font-semibold border transition-all
+                          ${filters.gender === v ? 'bg-[#0040a1] text-white border-[#0040a1]' : 'bg-white text-[#424654] border-[#c3c6d6] hover:border-[#0040a1]/40'}`}>
+                        {lbl}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Especialidad */}
+                <div>
+                  <label className="block text-[11px] font-bold text-[#424654] mb-1.5 uppercase tracking-wide">Especialidad</label>
+                  {activeTab === 'nurses' ? (
+                    <div className="relative">
+                      <select className={selCls} value={filters.specialty} onChange={e => setFilters(f => ({...f, specialty: e.target.value}))}>
+                        <option value="">Todas</option>
+                        {Object.entries(SPECIALTIES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                      </select>
+                      <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[#737785] text-[17px]">expand_more</span>
+                    </div>
+                  ) : (
+                    <input
+                      className="w-full h-[38px] px-3 rounded-xl border border-[#c3c6d6] bg-white focus:border-[#0040a1] focus:outline-none text-[13px]"
+                      placeholder="Ej: Alzheimer, Parkinson..."
+                      value={filters.specialty}
+                      onChange={e => setFilters(f => ({...f, specialty: e.target.value}))}
+                    />
+                  )}
+                </div>
+
+                {/* Experiencia mínima */}
+                <div>
+                  <label className="block text-[11px] font-bold text-[#424654] mb-1.5 uppercase tracking-wide">Exp. mínima</label>
+                  <div className="relative">
+                    <select className={selCls} value={filters.minExp} onChange={e => setFilters(f => ({...f, minExp: e.target.value}))}>
+                      <option value="">Cualquiera</option>
+                      {[1,2,3,5,8,10,15].map(y => <option key={y} value={y}>{y}+ años</option>)}
+                    </select>
+                    <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[#737785] text-[17px]">expand_more</span>
+                  </div>
+                </div>
+
+                {/* Calificación mínima */}
+                <div>
+                  <label className="block text-[11px] font-bold text-[#424654] mb-1.5 uppercase tracking-wide">Calificación</label>
+                  <div className="flex gap-1">
+                    {['', '3', '4', '5'].map((v) => (
+                      <button key={v} type="button"
+                        onClick={() => setFilters(f => ({...f, minRating: v}))}
+                        className={`flex-1 h-[34px] rounded-xl text-[12px] font-semibold border transition-all flex items-center justify-center gap-0.5
+                          ${filters.minRating === v ? 'bg-amber-400 text-white border-amber-400' : 'bg-white text-[#424654] border-[#c3c6d6] hover:border-amber-300'}`}>
+                        {v === '' ? 'Todo' : <><span className="text-[11px]">★</span>{v}+</>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Precio máximo */}
+                <div className="col-span-2 md:col-span-4">
+                  <label className="block text-[11px] font-bold text-[#424654] mb-1.5 uppercase tracking-wide">
+                    Precio máximo: {filters.maxPrice ? `$${Number(filters.maxPrice).toLocaleString('es-CO')}/h` : 'Sin límite'}
+                  </label>
+                  <input type="range" min="0" max="200000" step="5000"
+                    value={filters.maxPrice === '' ? 200000 : Number(filters.maxPrice)}
+                    onChange={e => setFilters(f => ({...f, maxPrice: +e.target.value >= 200000 ? '' : e.target.value}))}
+                    className="w-full h-2 rounded-full appearance-none cursor-pointer"
+                    style={{ accentColor: '#0040a1' }}
+                  />
+                  <div className="flex justify-between text-[11px] text-[#737785] mt-1">
+                    <span>$0</span>
+                    <span className="text-[#0040a1] font-semibold">
+                      {filters.maxPrice ? `Máx $${Number(filters.maxPrice).toLocaleString('es-CO')}` : 'Sin límite'}
+                    </span>
+                    <span>$200.000/h</span>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      {/* Grid */}
+      <div className="flex-1 overflow-y-auto p-8 bg-[#f3f3f6]/50">
+        {loading && activeTab !== 'my-requests' && <div className="flex flex-col items-center py-16 text-[#424654]"><Spinner /><p className="mt-3 text-[15px]">Buscando...</p></div>}
+
+        {/* ── Mis Solicitudes ── */}
+        {activeTab === 'my-requests' && (
+          <div className="max-w-2xl mx-auto">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-[18px] font-bold text-[#1a1c1e] flex items-center gap-2">
+                <span className="material-symbols-outlined text-[22px] text-[#0040a1]">assignment</span>
+                Mis solicitudes de servicio
+              </h2>
+              <button onClick={loadMyRequests}
+                className="text-[13px] text-[#0040a1] font-semibold flex items-center gap-1 hover:underline">
+                <span className="material-symbols-outlined text-[16px]">refresh</span> Actualizar
+              </button>
+            </div>
+
+            {loadingRequests && (
+              <div className="flex flex-col items-center py-16">
+                <Spinner /><p className="mt-3 text-[15px] text-[#424654]">Cargando solicitudes...</p>
+              </div>
+            )}
+
+            {!loadingRequests && myRequests.length === 0 && (
+              <div className="flex flex-col items-center py-16 text-[#424654]">
+                <span className="material-symbols-outlined text-[52px] text-[#c3c6d6] mb-3">assignment</span>
+                <p className="text-[16px] font-semibold">No has enviado solicitudes aún</p>
+                <p className="text-[13px] text-[#737785] mt-1">Buscá un cuidador o enfermero y hacé clic en "Solicitar servicio"</p>
+              </div>
+            )}
+
+            {!loadingRequests && myRequests.length > 0 && (
+              <div className="flex flex-col gap-3">
+                {myRequests.map(b => {
+                  const statusCfg = {
+                    pending:   { label: 'Pendiente',  bgCls: 'bg-amber-100',  textCls: 'text-amber-700',  icon: 'schedule' },
+                    approved:  { label: 'Aprobada',   bgCls: 'bg-green-100',  textCls: 'text-green-700',  icon: 'check_circle' },
+                    rejected:  { label: 'Rechazada',  bgCls: 'bg-red-100',    textCls: 'text-red-700',    icon: 'cancel' },
+                    completed: { label: 'Completada', bgCls: 'bg-blue-100',   textCls: 'text-blue-700',   icon: 'task_alt' },
+                    cancelled: { label: 'Cancelada',  bgCls: 'bg-gray-100',   textCls: 'text-gray-600',   icon: 'block' },
+                  }[b.status] || { label: b.status, bgCls: 'bg-gray-100', textCls: 'text-gray-600', icon: 'info' };
+
+                  return (
+                    <div key={b.id} className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm p-4 flex flex-col gap-3">
+                      {/* Cabecera */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-bold text-[15px] text-[#1a1c1e]">{b.professional_name || '—'}</p>
+                          <p className="text-[12px] text-[#424654] mt-0.5 capitalize">
+                            {b.professional_role === 'caregiver' ? 'Cuidador/a' : 'Enfermero/a'}
+                          </p>
+                        </div>
+                        <span className={`flex items-center gap-1 text-[12px] font-bold px-2.5 py-1 rounded-full shrink-0 ${statusCfg.bgCls} ${statusCfg.textCls}`}
+                          style={{ whiteSpace: 'nowrap' }}>
+                          <span className="material-symbols-outlined text-[14px]">{statusCfg.icon}</span>
+                          {statusCfg.label}
+                        </span>
+                      </div>
+                      {/* Detalles */}
+                      <div className="flex flex-wrap gap-3 text-[13px] text-[#424654] bg-[#f9f9fc] rounded-xl px-4 py-2.5 border border-[#c3c6d6]/30">
+                        <span className="flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-[16px] text-[#0040a1]/60">calendar_today</span>
+                          {b.date}
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-[16px] text-[#0040a1]/60">schedule</span>
+                          {String(b.start_hour).padStart(2,'0')}:00 — {String(b.end_hour).padStart(2,'0')}:00
+                        </span>
+                      </div>
+                      {/* Notas */}
+                      {b.notes && (
+                        <p className="text-[13px] text-[#424654] bg-[#f9f9fc] rounded-xl px-4 py-2.5 border border-[#c3c6d6]/30 italic">
+                          "{b.notes}"
+                        </p>
+                      )}
+                      {/* Motivo de rechazo */}
+                      {b.rejection_reason && (
+                        <div className="flex items-start gap-2 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
+                          <span className="material-symbols-outlined text-red-500 text-[16px] mt-0.5 shrink-0">info</span>
+                          <p className="text-[12px] text-red-700">{b.rejection_reason}</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Grid cuidadores / enfermeros ── */}
+        {!loading && activeTab !== 'my-requests' && currentList.length === 0 && (
+          <div className="flex flex-col items-center py-16 text-[#424654]">
+            <span className="material-symbols-outlined text-[52px] text-[#c3c6d6] mb-3">{activeTab === 'caregivers' ? 'group' : 'medical_services'}</span>
+            <p className="text-[16px]">{activeTab === 'caregivers' ? 'No se encontraron cuidadores' : 'No hay enfermeros registrados'}</p>
+          </div>
+        )}
+        {!loading && activeTab !== 'my-requests' && currentList.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            {activeTab === 'caregivers'
+              ? caregivers.map((cg, i) => <CaregiverCard key={cg.user_id || i} caregiver={cg} index={i} reviews={reviewsMap[cg.user_id || cg.id] || []} token={token} />)
+              : doctors.map((d, i) => <NurseCard key={d.user_id || i} doctor={d} index={i} reviews={reviewsMap[d.user_id || d.id] || []} token={token} />)}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── ProfessionalDetailModal ──────────────────────────────────
+function ProfessionalDetailModal({ professional, token, reviews, onClose }) {
+  const [showBooking, setShowBooking] = useState(false);
+  const initials = (professional.full_name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  const avgRating = reviews.length
+    ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)
+    : null;
+
+  return (
+    <>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+      style={{ background: 'rgba(26,28,30,0.65)', backdropFilter: 'blur(8px)' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col animate-fade-in-up"
+        style={{ maxHeight: 'min(92vh, 720px)' }}>
+
+        {/* Hero con foto */}
+        <div className="relative bg-gradient-to-br from-[#0040a1] to-[#0056d2] rounded-t-2xl p-6 flex items-center gap-5 shrink-0">
+          <button onClick={onClose}
+            className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/15 flex items-center justify-center hover:bg-white/25 transition-all">
+            <span className="material-symbols-outlined text-white text-[20px]">close</span>
+          </button>
+          {professional.photo_url ? (
+            <img src={professional.photo_url} alt={professional.full_name}
+              className="w-20 h-20 rounded-2xl object-cover border-2 border-white/30 shadow-lg shrink-0" />
+          ) : (
+            <div className="w-20 h-20 rounded-2xl bg-white/20 text-white flex items-center justify-center text-3xl font-bold shrink-0 border-2 border-white/30">
+              {initials}
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <h2 className="text-white font-bold text-[20px] leading-tight">{professional.full_name}</h2>
+            <p className="text-white/70 text-[13px] mt-1">
+              {professional.role === 'caregiver' ? 'Cuidador/a' : 'Enfermero/a'}
+              {professional.location && ` · ${professional.location}`}
+            </p>
+            <div className="flex items-center gap-3 mt-2">
+              <span className="text-white font-bold text-[22px]">
+                ${Number(professional.hourly_rate || 0).toLocaleString('es-CO')}
+                <span className="text-[13px] font-normal text-white/60 ml-1">/h</span>
+              </span>
+              {avgRating && (
+                <div className="flex items-center gap-1 bg-amber-400/20 border border-amber-300/30 rounded-lg px-2 py-0.5">
+                  <span className="material-symbols-outlined text-amber-300 text-[15px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                  <span className="text-amber-200 font-bold text-[14px]">{avgRating}</span>
+                  <span className="text-amber-300/70 text-[11px]">({reviews.length})</span>
+                </div>
+              )}
+              {professional.similitud && (
+                <span className="text-[11px] bg-[#8df1e3]/20 text-[#8df1e3] border border-[#8df1e3]/30 px-2 py-0.5 rounded-lg font-semibold">
+                  {Math.round(professional.similitud * 100)}% compatibilidad
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Cuerpo scrolleable */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="p-6 flex flex-col gap-5">
+
+            {/* Experiencia */}
+            <div className="flex items-center gap-3 bg-[#f3f3f6] rounded-xl px-4 py-3 border border-[#c3c6d6]/30">
+              <span className="material-symbols-outlined text-[#0040a1]/60 text-[22px]">schedule</span>
+              <div>
+                <p className="text-[11px] font-bold text-[#737785] uppercase tracking-wide">Experiencia</p>
+                <p className="text-[15px] font-semibold text-[#1a1c1e]">{professional.experience_years} años</p>
+              </div>
+            </div>
+
+            {/* Especialidades */}
+            {(professional.specialties || []).length > 0 && (
+              <div>
+                <p className="text-[11px] font-bold text-[#737785] uppercase tracking-wide mb-2">Especialidades</p>
+                <div className="flex flex-wrap gap-2">
+                  {(professional.specialties).map((s, i) => (
+                    <span key={i} className="bg-[#dae2ff] text-[#0040a1] text-[12px] font-semibold px-3 py-1 rounded-full">
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Bio */}
+            {professional.bio && (
+              <div>
+                <p className="text-[11px] font-bold text-[#737785] uppercase tracking-wide mb-2">Sobre mí</p>
+                <p className="text-[14px] text-[#424654] leading-relaxed bg-[#f9f9fc] rounded-xl p-4 border border-[#c3c6d6]/30">
+                  {professional.bio}
+                </p>
+              </div>
+            )}
+
+            {/* Reseñas */}
+            <div>
+              <p className="text-[11px] font-bold text-[#737785] uppercase tracking-wide mb-2">
+                Comentarios {reviews.length > 0 ? `(${reviews.length})` : ''}
+              </p>
+              {reviews.length === 0 ? (
+              <p className="text-[13px] text-[#737785] italic">{t('professional.noComments')}</p>
+              ) : (
+                <div className="flex flex-col gap-2.5">
+                  {reviews.map((r, i) => (
+                    <div key={i} className="bg-[#f9f9fc] rounded-xl p-3.5 border border-[#c3c6d6]/30">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[13px] font-semibold text-[#1a1c1e]">{r.family_name || 'Familiar'}</span>
+                        <div className="flex">
+                          {[1,2,3,4,5].map(n => (
+                            <span key={n} className={`text-[14px] ${n <= r.rating ? 'text-amber-400' : 'text-[#c3c6d6]'}`}>★</span>
+                          ))}
+                        </div>
+                      </div>
+                      {r.comment && <p className="text-[13px] text-[#424654]">{r.comment}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer con botones */}
+        <div className="p-5 border-t border-[#c3c6d6]/30 bg-white rounded-b-2xl flex gap-3 shrink-0">
+          <button onClick={onClose}
+            className="flex-1 h-[44px] border border-[#c3c6d6] text-[#424654] rounded-xl font-semibold text-[14px] hover:bg-[#f3f3f6] transition-all">
+            Cerrar
+          </button>
+          <button onClick={() => setShowBooking(true)}
+            className="flex-1 h-[44px] bg-[#0040a1] text-white rounded-xl font-bold text-[14px] hover:bg-[#003080] transition-all flex items-center justify-center gap-2 shadow-md">
+            <span className="material-symbols-outlined text-[18px]">calendar_add_on</span>
+            Solicitar servicio
+          </button>
+        </div>
+      </div>
+    </div>
+    {showBooking && (
+      <BookingModal
+        professional={{ user_id: professional.user_id, role: professional.role, name: professional.full_name, specialty: professional.specialty_display || (professional.specialties||[]).join(', '), price: professional.hourly_rate, priceUnit: '/h', location: professional.location }}
+        token={token}
+        onClose={() => setShowBooking(false)}
+        onSuccess={(count) => { setShowBooking(false); onClose(); }}
+      />
+    )}
+    </>
+  );
+}
+
+// ─── ChatPanel ───────────────────────────────────────────────
+function ChatPanel({ user, token }) {
+  const [messages, setMessages] = useState([{
+    role: 'assistant',
+    content: `¡Hola ${user.full_name}! Describe las necesidades de tu familiar y te recomendaré los mejores profesionales disponibles en tu área.`,
+    profesionales: [],
+  }]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [detailProf, setDetailProf] = useState(null); // profesional para el modal de detalle
+  const [reviewsCache, setReviewsCache] = useState({});
+  const bottomRef = useRef(null);
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+
+  const fetchReviews = async (userId) => {
+    if (reviewsCache[userId]) return reviewsCache[userId];
+    try {
+      const res = await fetch(`/api/bookings/reviews/${userId}`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = res.ok ? await res.json() : [];
+      setReviewsCache(c => ({ ...c, [userId]: data }));
+      return data;
+    } catch { return []; }
+  };
+
+  const openDetail = async (prof) => {
+    const reviews = await fetchReviews(prof.user_id);
+    setDetailProf({ ...prof, reviews });
+  };
+
+  const enviar = async (e) => {
+    e.preventDefault(); if (!input.trim()) return;
+    const text = input;
+    setMessages(p => [...p, { role: 'user', content: text, profesionales: [] }]);
+    setInput(''); setLoading(true);
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ mensaje: text }),
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Error'); }
+      const data = await res.json();
+      setMessages(p => [...p, {
+        role: 'assistant',
+        content: data.respuesta,
+        profesionales: data.profesionales || [],
+      }]);
+    } catch (err) {
+      setMessages(p => [...p, { role: 'assistant', content: `❌ ${err.message}`, error: true, profesionales: [] }]);
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="flex flex-col h-full bg-white border-l border-[#c3c6d6]/30">
+      {/* Header */}
+      <div className="px-6 py-4 border-b border-[#c3c6d6]/30 flex items-center gap-4 bg-gradient-to-b from-[#f3f3f6]/50 to-transparent shrink-0">
+        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#0040a1] to-[#0056d2] text-white flex items-center justify-center shadow-lg">
+          <span className="material-symbols-outlined text-[24px]">smart_toy</span>
+        </div>
+        <div>
+          <h2 className="font-bold text-[17px] text-[#0040a1]">Asistente IA</h2>
+          <p className="text-[12px] text-[#424654]">Pregúntame sobre cuidadores o enfermeros</p>
+        </div>
+      </div>
+
+      {/* Mensajes */}
+      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 bg-[#f9f9fc]/60">
+        {messages.map((msg, i) => (
+          <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+            {/* Burbuja de texto */}
+            <div className={`max-w-[92%] rounded-2xl px-4 py-3 text-[14px] leading-relaxed shadow-sm
+              ${msg.role === 'user'
+                ? 'bg-[#0040a1] text-white rounded-tr-sm'
+                : msg.error
+                  ? 'bg-red-50 text-red-700 border border-red-100 rounded-tl-sm'
+                  : 'bg-white text-[#1a1c1e] border border-[#c3c6d6]/40 rounded-tl-sm'}`}>
+              {msg.role === 'assistant' && !msg.error && (
+                <span className="material-symbols-outlined text-[#0040a1] text-[15px] mr-1.5 align-middle">smart_toy</span>
+              )}
+              <span style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</span>
+            </div>
+
+            {/* Mini-cards de profesionales */}
+            {msg.profesionales && msg.profesionales.length > 0 && (
+              <div className="w-full mt-2 flex flex-col gap-2">
+                {msg.profesionales.map((prof, j) => {
+                  const initials = prof.full_name.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
+                  const specs = (prof.specialties || []).slice(0, 2);
+                  return (
+                    <div key={j}
+                      className="bg-white border border-[#c3c6d6]/50 rounded-2xl p-3.5 shadow-sm
+                                 hover:border-[#0040a1]/40 hover:shadow-md transition-all duration-200
+                                 animate-fade-in-up"
+                      style={{ animationDelay: `${j * 0.1}s` }}>
+                      <div className="flex items-center gap-3">
+                        {/* Avatar */}
+                        {prof.photo_url ? (
+                          <img src={prof.photo_url} alt={prof.full_name}
+                            className="w-12 h-12 rounded-xl object-cover shrink-0 border border-[#c3c6d6]/30" />
+                        ) : (
+                          <div className="w-12 h-12 rounded-xl bg-[#dae2ff] text-[#0040a1] flex items-center justify-center font-bold text-[15px] shrink-0">
+                            {initials}
+                          </div>
+                        )}
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-[14px] text-[#1a1c1e] truncate">{prof.full_name}</p>
+                          <div className="flex flex-wrap gap-1 mt-0.5">
+                            {specs.map((s, k) => (
+                              <span key={k} className="bg-[#0040a1]/10 text-[#0040a1] text-[11px] font-semibold px-2 py-0.5 rounded-lg">{s}</span>
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[13px] font-bold text-[#0040a1]">
+                              ${Number(prof.hourly_rate).toLocaleString('es-CO')}/h
+                            </span>
+                            <span className="text-[11px] text-[#424654] flex items-center gap-1">
+                              <span className="material-symbols-outlined text-[13px] text-[#0040a1]/50">location_on</span>
+                              {prof.location}
+                            </span>
+                            {prof.similitud && (
+                              <span className="text-[10px] bg-green-50 text-green-700 border border-green-200 px-1.5 py-0.5 rounded-lg font-semibold ml-auto">
+                                {Math.round(prof.similitud * 100)}% compatib.
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      {/* Botones */}
+                      <div className="flex gap-2 mt-3">
+                        <button onClick={() => openDetail(prof)}
+                          className="flex-1 h-[34px] border border-[#0040a1]/30 text-[#0040a1] rounded-xl text-[12px] font-semibold hover:bg-[#0040a1]/5 transition-all flex items-center justify-center gap-1">
+                          <span className="material-symbols-outlined text-[15px]">info</span>
+                          Ver más
+                        </button>
+                        <button onClick={() => openDetail(prof)}
+                          className="flex-1 h-[34px] bg-[#0040a1] text-white rounded-xl text-[12px] font-bold hover:bg-[#003080] transition-all flex items-center justify-center gap-1 shadow-sm">
+                          <span className="material-symbols-outlined text-[15px]">calendar_add_on</span>
+                          Solicitar
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ))}
+
+        {loading && (
+          <div className="flex justify-start">
+            <div className="bg-white border border-[#c3c6d6]/40 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm flex items-center gap-2">
+              <Spinner sm />
+              <span className="text-[13px] text-[#424654]">Buscando profesionales...</span>
+            </div>
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input */}
+      <div className="p-4 border-t border-[#c3c6d6]/30 bg-white shrink-0">
+        <form onSubmit={enviar} className="relative flex items-center">
+          <input
+            className="w-full h-[46px] pl-4 pr-12 rounded-xl border border-[#c3c6d6] bg-[#f3f3f6]
+                       focus:bg-white focus:border-[#0040a1] focus:ring-2 focus:ring-[#0040a1]/15
+                       focus:outline-none text-[14px] transition-all"
+            placeholder="Describe las necesidades..." value={input}
+            onChange={e => setInput(e.target.value)} disabled={loading} />
+          <button type="submit" disabled={loading || !input.trim()}
+            className="absolute right-2 w-[34px] h-[34px] bg-[#0040a1] text-white rounded-lg
+                       flex items-center justify-center hover:bg-[#003080] transition-all
+                       disabled:opacity-40 active:scale-95">
+            <span className="material-symbols-outlined text-[17px]">send</span>
+          </button>
+        </form>
+        <button onClick={() => setMessages([{ role: 'assistant', content: `¡Hola ${user.full_name}! ¿En qué puedo ayudarte?`, profesionales: [] }])}
+          className="mt-2.5 w-full h-[38px] border border-[#0040a1]/30 text-[#0040a1] bg-[#0040a1]/5
+                     font-semibold text-[13px] rounded-xl hover:bg-[#0040a1]/10 transition-all
+                     flex items-center justify-center gap-1.5">
+          <span className="material-symbols-outlined text-[16px]">add</span> Nueva Consulta
+        </button>
+      </div>
+
+      {/* Modal de detalle del profesional */}
+      {detailProf && (
+        <ProfessionalDetailModal
+          professional={detailProf}
+          token={token}
+          reviews={detailProf.reviews || []}
+          onClose={() => setDetailProf(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── FormField helpers ───────────────────────────────────────
+const inputCls = 'w-full h-[42px] px-4 rounded-xl border border-[#c3c6d6] bg-white focus:border-[#0040a1] focus:ring-2 focus:ring-[#0040a1]/15 focus:outline-none text-[14px]';
+const labelCls = 'block text-[12px] font-semibold text-[#424654] mb-1';
+
+// ─── CaregiverDashboard ──────────────────────────────────────
+function CaregiverDashboard({ user, token }) {
+  const [profile, setProfile] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { loadProfile(); }, []);
+
+  const loadProfile = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/caregivers/', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) { const all = await res.json(); const mine = all.find(c => c.email === user.email); if (mine) { setProfile(mine); setForm(mine); } }
+    } catch (e) {} finally { setLoading(false); }
+  };
+
+  const save = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('/api/caregivers/me', { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ bio: form.bio, location: form.location, experience_years: form.experience_years, hourly_rate: form.hourly_rate }) });
+      if (res.ok) { const d = await res.json(); setProfile(d); setEditing(false); }
+    } catch (e) {}
+  };
+
+  if (loading) return <div className="flex items-center justify-center h-full"><Spinner /></div>;
+
+  return (
+    <div className="p-8 overflow-y-auto h-full">
+      <h2 className="text-[22px] font-bold text-[#0040a1] mb-6 flex items-center gap-3">
+        <span className="material-symbols-outlined text-[26px]">account_circle</span> Mi Perfil de Cuidador
+      </h2>
+      {!profile ? (
+        <div className="bg-[#dae2ff]/40 border border-[#0040a1]/20 rounded-2xl p-6 text-[#0040a1]">Tu perfil está pendiente de aprobación.</div>
+      ) : !editing ? (
+        <div className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm p-6 space-y-3 max-w-xl">
+          {[['Nombre', profile.full_name], ['Localidad', profile.location], ['Experiencia', `${profile.experience_years} años`], ['Tarifa', `$${profile.hourly_rate?.toLocaleString()}/h`], ['Bio', profile.bio || 'Sin bio']].map(([k, v]) => (
+            <p key={k} className="text-[14px]"><span className="font-semibold text-[#424654]">{k}:</span> <span className="text-[#1a1c1e]">{v}</span></p>
+          ))}
+          <span className={`inline-block text-[12px] font-bold px-3 py-1 rounded-full ${profile.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>{profile.status}</span>
+          <button onClick={() => setEditing(true)} className="mt-4 block h-[40px] px-6 bg-[#0040a1] text-white rounded-xl font-semibold text-[14px] hover:bg-[#003080] transition-all">Editar Perfil</button>
+        </div>
+      ) : (
+        <form onSubmit={save} className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm p-6 space-y-4 max-w-xl">
+          {[['Localidad','text','location'],['Años de experiencia','number','experience_years'],['Tarifa (COP/h)','number','hourly_rate']].map(([lbl,type,key]) => (
+            <div key={key}><label className={labelCls}>{lbl}</label><input className={inputCls} type={type} value={form[key] || ''} onChange={e => setForm({...form, [key]: type === 'number' ? +e.target.value : e.target.value})} /></div>
+          ))}
+          <div><label className={labelCls}>Bio</label><textarea className="w-full px-4 py-2 rounded-xl border border-[#c3c6d6] focus:border-[#0040a1] focus:ring-2 focus:ring-[#0040a1]/15 focus:outline-none text-[14px]" rows={3} value={form.bio || ''} onChange={e => setForm({...form, bio: e.target.value})} /></div>
+          <div className="flex gap-3 pt-2">
+            <button type="submit" className="h-[40px] px-6 bg-[#0040a1] text-white rounded-xl font-semibold text-[14px] hover:bg-[#003080] transition-all">Guardar</button>
+            <button type="button" onClick={() => setEditing(false)} className="h-[40px] px-6 bg-[#f3f3f6] text-[#424654] rounded-xl font-semibold text-[14px] hover:bg-[#e8e8ea] transition-all">Cancelar</button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
+// ─── NurseDashboard ──────────────────────────────────────────
+function NurseDashboard({ user, token }) {
+  const [profile, setProfile] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { loadProfile(); }, []);
+
+  const loadProfile = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/nurses/', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) { const all = await res.json(); const mine = all.find(d => d.email === user.email); if (mine) { setProfile(mine); setForm(mine); } }
+    } catch (e) {} finally { setLoading(false); }
+  };
+
+  const save = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('/api/nurses/me', { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ bio: form.bio, location: form.location, experience_years: form.experience_years, hourly_rate: form.hourly_rate, institution: form.institution, accepts_home_visits: form.accepts_home_visits }) });
+      if (res.ok) { const d = await res.json(); setProfile(d); setEditing(false); }
+    } catch (e) {}
+  };
+
+  if (loading) return <div className="flex items-center justify-center h-full"><Spinner /></div>;
+
+  return (
+    <div className="p-8 overflow-y-auto h-full">
+      <h2 className="text-[22px] font-bold text-[#0040a1] mb-6 flex items-center gap-3">
+        <span className="material-symbols-outlined text-[26px]">medical_services</span> Mi Perfil de Enfermería
+      </h2>
+      {!profile ? (
+        <div className="bg-[#dae2ff]/40 border border-[#0040a1]/20 rounded-2xl p-6 text-[#0040a1]">Tu perfil está pendiente de aprobación.</div>
+      ) : !editing ? (
+        <div className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm p-6 space-y-3 max-w-xl">
+          {[['Nombre', profile.full_name], ['Especialidad', SPECIALTIES[profile.specialty] || profile.specialty], ['Reg. Profesional', profile.license_number], ['Institución', profile.institution || 'N/A'], ['Localidad', profile.location], ['Experiencia', `${profile.experience_years} años`], ['Tarifa', `$${profile.hourly_rate?.toLocaleString()}/h`], ['Visita domiciliaria', profile.accepts_home_visits ? '✅ Sí' : '❌ No'], ['Bio', profile.bio || 'Sin bio']].map(([k, v]) => (
+            <p key={k} className="text-[14px]"><span className="font-semibold text-[#424654]">{k}:</span> <span className="text-[#1a1c1e]">{v}</span></p>
+          ))}
+          <span className={`inline-block text-[12px] font-bold px-3 py-1 rounded-full ${profile.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>{profile.status}</span>
+          <button onClick={() => setEditing(true)} className="mt-4 block h-[40px] px-6 bg-[#0040a1] text-white rounded-xl font-semibold text-[14px] hover:bg-[#003080] transition-all">Editar Perfil</button>
+        </div>
+      ) : (
+        <form onSubmit={save} className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm p-6 space-y-4 max-w-xl">
+          {[['Institución','text','institution'],['Localidad','text','location'],['Experiencia (años)','number','experience_years'],['Tarifa (COP/h)','number','hourly_rate']].map(([lbl,type,key]) => (
+            <div key={key}><label className={labelCls}>{lbl}</label><input className={inputCls} type={type} value={form[key] || ''} onChange={e => setForm({...form, [key]: type === 'number' ? +e.target.value : e.target.value})} /></div>
+          ))}
+          <div><label className={labelCls}>Bio</label><textarea className="w-full px-4 py-2 rounded-xl border border-[#c3c6d6] focus:border-[#0040a1] focus:ring-2 focus:ring-[#0040a1]/15 focus:outline-none text-[14px]" rows={3} value={form.bio || ''} onChange={e => setForm({...form, bio: e.target.value})} /></div>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <div className={`w-10 h-6 rounded-full transition-colors ${form.accepts_home_visits ? 'bg-[#0040a1]' : 'bg-[#c3c6d6]'}`} onClick={() => setForm({...form, accepts_home_visits: !form.accepts_home_visits})}>
+              <div className={`w-5 h-5 bg-white rounded-full shadow mt-0.5 transition-transform ${form.accepts_home_visits ? 'translate-x-4 ml-0.5' : 'translate-x-0.5'}`} />
+            </div>
+            <span className="text-[14px] text-[#424654]">Acepto visitas domiciliarias</span>
+          </label>
+          <div className="flex gap-3 pt-2">
+            <button type="submit" className="h-[40px] px-6 bg-[#0040a1] text-white rounded-xl font-semibold text-[14px] hover:bg-[#003080] transition-all">Guardar</button>
+            <button type="button" onClick={() => setEditing(false)} className="h-[40px] px-6 bg-[#f3f3f6] text-[#424654] rounded-xl font-semibold text-[14px] hover:bg-[#e8e8ea] transition-all">Cancelar</button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
+// ─── AdminDashboard ──────────────────────────────────────────
+function AdminDashboard({ token }) {
+  const [users, setUsers] = useState([]);
+  const [pending, setPending] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { load(); }, []);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [uRes, pRes] = await Promise.all([
+        fetch('/api/admin/users?limit=100', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/admin/profiles/pending', { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      if (uRes.ok) setUsers(await uRes.json());
+      if (pRes.ok) setPending(await pRes.json());
+    } catch (e) {} finally { setLoading(false); }
+  };
+
+  const approve = async (id, status) => {
+    await fetch(`/api/admin/profiles/${id}/approve`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ status }) });
+    load();
+  };
+
+  const toggle = async (id) => {
+    await fetch(`/api/admin/users/${id}/toggle-active`, { method: 'PUT', headers: { Authorization: `Bearer ${token}` } });
+    load();
+  };
+
+  const roleBadge = { admin: 'bg-gray-800 text-white', nurse: 'bg-[#006a61] text-white', caregiver: 'bg-[#006a61]/20 text-[#006a61]', family: 'bg-[#0040a1]/10 text-[#0040a1]' };
+
+  if (loading) return <div className="flex items-center justify-center h-full"><Spinner /></div>;
+
+  return (
+    <div className="p-8 overflow-y-auto h-full">
+      <h2 className="text-[22px] font-bold text-[#0040a1] mb-6 flex items-center gap-3">
+        <span className="material-symbols-outlined text-[26px]">admin_panel_settings</span> Panel de Administración
+      </h2>
+      {pending.length > 0 && (
+        <div className="mb-6">
+          <h3 className="font-bold text-[16px] text-amber-700 mb-3 flex items-center gap-2">
+            <span className="material-symbols-outlined text-[20px]">pending</span> Perfiles Pendientes ({pending.length})
+          </h3>
+          <div className="bg-white rounded-2xl border border-amber-200 shadow-sm overflow-hidden">
+            <table className="w-full text-[13px]">
+              <thead className="bg-amber-50 text-amber-800"><tr>{['Nombre','Email','Localidad','Acciones'].map(h => <th key={h} className="px-4 py-3 text-left font-semibold">{h}</th>)}</tr></thead>
+              <tbody>{pending.map(p => (
+                <tr key={p.id} className="border-t border-amber-100">
+                  <td className="px-4 py-3 font-medium">{p.full_name}</td>
+                  <td className="px-4 py-3 text-[#424654]">{p.email}</td>
+                  <td className="px-4 py-3 text-[#424654]">{p.location}</td>
+                  <td className="px-4 py-3 flex gap-2">
+                    <button onClick={() => approve(p.id, 'approved')} className="px-3 py-1 bg-green-500 text-white rounded-lg text-[12px] font-semibold hover:bg-green-600 transition-all">Aprobar</button>
+                    <button onClick={() => approve(p.id, 'rejected')} className="px-3 py-1 bg-red-100 text-red-600 rounded-lg text-[12px] font-semibold hover:bg-red-200 transition-all">Rechazar</button>
+                  </td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        </div>
+      )}
+      <h3 className="font-bold text-[16px] text-[#1a1c1e] mb-3">Usuarios Registrados ({users.length})</h3>
+      <div className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm overflow-hidden">
+        <table className="w-full text-[13px]">
+          <thead className="bg-[#f3f3f6] text-[#424654]"><tr>{['ID','Nombre','Email','Rol','Activo','Acción'].map(h => <th key={h} className="px-4 py-3 text-left font-semibold">{h}</th>)}</tr></thead>
+          <tbody>{users.map(u => (
+            <tr key={u.id} className="border-t border-[#c3c6d6]/30 hover:bg-[#f9f9fc] transition-colors">
+              <td className="px-4 py-3 text-[#424654]">{u.id}</td>
+              <td className="px-4 py-3 font-medium">{u.full_name}</td>
+              <td className="px-4 py-3 text-[#424654]">{u.email}</td>
+              <td className="px-4 py-3"><span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${roleBadge[u.role] || 'bg-gray-100 text-gray-600'}`}>{u.role}</span></td>
+              <td className="px-4 py-3">{u.is_active ? '✅' : '❌'}</td>
+              <td className="px-4 py-3"><button onClick={() => toggle(u.id)} className="px-3 py-1 border border-[#c3c6d6] text-[#424654] rounded-lg text-[12px] font-semibold hover:bg-[#f3f3f6] transition-all">{u.is_active ? 'Desactivar' : 'Activar'}</button></td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── ProfessionalPanel (solicitudes, calendario, reseñas) ────
+function ProfessionalPanel({ user, token }) {
+  const [bookings, setBookings] = useState([]);
+  const [reviews, setReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState('pending');
+
+  useEffect(() => { load(); }, []);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [bRes, rRes] = await Promise.all([
+        fetch('/api/bookings/incoming', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`/api/bookings/reviews/${user.id}`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      if (bRes.ok) setBookings(await bRes.json());
+      if (rRes.ok) setReviews(await rRes.json());
+    } catch (e) {} finally { setLoading(false); }
+  };
+
+  const decide = async (id, status) => {
+    await fetch(`/api/bookings/${id}/decide`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ status }) });
+    load();
+  };
+
+  const pendingItems = bookings.filter(b => b.status === 'pending');
+  const approved = bookings.filter(b => b.status === 'approved');
+
+  const tabs = [
+    { key: 'pending', label: 'Solicitudes', count: pendingItems.length, color: 'amber' },
+    { key: 'calendar', label: 'Calendario', count: approved.length, color: 'green' },
+    { key: 'reviews', label: 'Reseñas', count: reviews.length, color: 'blue' },
+  ];
+
+  if (loading) return <div className="flex items-center justify-center h-full"><Spinner /></div>;
+
+  return (
+    <div className="flex flex-col h-full bg-white border-l border-[#c3c6d6]/30">
+      <div className="px-6 pt-5 pb-0 border-b border-[#c3c6d6]/30">
+        <div className="flex gap-1">
+          {tabs.map(t => (
+            <button key={t.key} onClick={() => setTab(t.key)}
+              className={`px-4 py-2.5 text-[13px] font-semibold rounded-t-xl border-b-2 transition-all flex items-center gap-1.5
+                ${tab === t.key ? 'border-[#0040a1] text-[#0040a1] bg-[#f3f3f6]' : 'border-transparent text-[#424654] hover:text-[#0040a1]'}`}>
+              {t.label}
+              <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${t.count > 0 ? 'bg-[#0040a1]/10 text-[#0040a1]' : 'bg-[#f3f3f6] text-[#737785]'}`}>{t.count}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto p-5 bg-[#f9f9fc]/60 flex flex-col gap-3">
+        {tab === 'pending' && (
+          pendingItems.length === 0
+            ? <p className="text-center text-[#424654] text-[14px] py-10">No hay solicitudes pendientes</p>
+            : pendingItems.map(b => (
+              <div key={b.id} className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm p-4">
+                <div className="flex justify-between items-start mb-2">
+                  <div><p className="font-bold text-[14px]">{b.family_name}</p><p className="text-[#424654] text-[12px]">{b.date} · {b.start_hour}:00 - {b.end_hour}:00</p></div>
+                  <span className="text-[11px] font-bold px-2.5 py-1 bg-amber-100 text-amber-700 rounded-full">Pendiente</span>
+                </div>
+                {b.notes && <p className="text-[13px] text-[#424654] mb-3">{b.notes}</p>}
+                <div className="flex gap-2">
+                  <button onClick={() => decide(b.id, 'approved')} className="px-4 py-1.5 bg-green-500 text-white rounded-lg text-[13px] font-semibold hover:bg-green-600 transition-all">✓ Aprobar</button>
+                  <button onClick={() => decide(b.id, 'rejected')} className="px-4 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-lg text-[13px] font-semibold hover:bg-red-100 transition-all">✗ Rechazar</button>
+                </div>
+              </div>
+            ))
+        )}
+        {tab === 'calendar' && (
+          approved.length === 0
+            ? <p className="text-center text-[#424654] text-[14px] py-10">No hay citas programadas</p>
+            : approved.map(b => (
+              <div key={b.id} className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm px-4 py-3 flex justify-between items-center">
+                <div><p className="font-bold text-[14px]">{b.date}</p><p className="text-[#424654] text-[12px]">{b.start_hour}:00 - {b.end_hour}:00</p></div>
+                <span className="text-[12px] font-semibold px-3 py-1 bg-[#0040a1]/10 text-[#0040a1] rounded-full">{b.family_name}</span>
+              </div>
+            ))
+        )}
+        {tab === 'reviews' && (
+          reviews.length === 0
+            ? <p className="text-center text-[#424654] text-[14px] py-10">Aún no tienes reseñas</p>
+            : reviews.map(r => (
+              <div key={r.id} className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm px-4 py-3">
+                <div className="flex justify-between items-center mb-1">
+                  <p className="font-bold text-[14px]">{r.family_name}</p>
+                  <span className="text-amber-500">{'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</span>
+                </div>
+                {r.comment && <p className="text-[13px] text-[#424654]">{r.comment}</p>}
+              </div>
+            ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── FamilyPatientPanel — CRUD fichas de pacientes ───────────
+const EPS_LIST = translations.eps.list.es;
+const PREPAID_LIST = translations.prepaid.list.es;
+
+function getEpsList(lang) { return translations.eps.list[lang] || translations.eps.list.es; }
+function getPrepaidList(lang) { return translations.prepaid.list[lang] || translations.prepaid.list.es; }
+
+const MOBILITY_OPTIONS_KEYS = ['independiente','asistida','postrado','silla_ruedas'];
+const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+
+const EMPTY_PATIENT = {
+  patient_name: '', patient_age: '', blood_type: '',
+  diagnoses: '', medications: '', allergies: '',
+  mobility_level: 'independiente', special_needs: '', emergency_contact: '',
+  address: '', neighborhood: '', city: 'Bogotá',
+  floor_number: '', is_apartment: false, has_elevator: false, housing_notes: '',
+  eps: '', prepaid_medicine: 'No tiene', preferred_hospital: '',
+};
+
+function parseList(val) {
+  if (!val) return [];
+  if (Array.isArray(val)) return val;
+  return val.split(',').map(s => s.trim()).filter(Boolean);
+}
+function joinList(arr) {
+  if (!arr || arr.length === 0) return '';
+  return arr.join(', ');
+}
+
+// ── Modal de formulario ──────────────────────────────────────
+function PatientFormModal({ initial, onSave, onCancel, saving, error }) {
+  const { t, lang } = useLang();
+  const epsList = getEpsList(lang);
+  const prepaidList = getPrepaidList(lang);
+  const mobilityOptions = MOBILITY_OPTIONS_KEYS.map(k => ({ value: k, label: getMobilityLabel(k, lang) }));
+  const [form, setForm] = useState(() => ({
+    ...EMPTY_PATIENT,
+    ...initial,
+    diagnoses:        joinList(initial?.diagnoses),
+    medications:      joinList(initial?.medications),
+    allergies:        joinList(initial?.allergies),
+    floor_number:     initial?.floor_number ?? '',
+    is_apartment:     initial?.is_apartment ?? false,
+    has_elevator:     initial?.has_elevator ?? false,
+    city:             initial?.city || 'Bogotá',
+    prepaid_medicine: initial?.prepaid_medicine || 'No tiene',
+  }));
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const iCls = 'w-full h-[42px] px-4 rounded-xl border border-[#c3c6d6] bg-white focus:border-[#0040a1] focus:ring-2 focus:ring-[#0040a1]/15 focus:outline-none text-[14px]';
+  const lCls = 'block text-[12px] font-semibold text-[#424654] mb-1';
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave({
+      patient_name:       form.patient_name,
+      patient_age:        parseInt(form.patient_age) || 0,
+      blood_type:         form.blood_type || null,
+      diagnoses:          parseList(form.diagnoses),
+      medications:        parseList(form.medications),
+      allergies:          parseList(form.allergies),
+      mobility_level:     form.mobility_level || null,
+      special_needs:      form.special_needs || null,
+      emergency_contact:  form.emergency_contact || null,
+      address:            form.address || null,
+      neighborhood:       form.neighborhood || null,
+      city:               form.city || null,
+      floor_number:       form.floor_number !== '' ? parseInt(form.floor_number) : null,
+      is_apartment:       form.is_apartment,
+      has_elevator:       form.has_elevator,
+      housing_notes:      form.housing_notes || null,
+      eps:                form.eps || null,
+      prepaid_medicine:   form.prepaid_medicine === 'No tiene' ? null : form.prepaid_medicine,
+      preferred_hospital: form.preferred_hospital || null,
+    });
+  };
+
+  const isEditing = !!initial?.id;
+
+  // Secciones del formulario con stepper visual
+  const sections = [
+    { id: 'basic',    icon: 'person',             label: t('patients.sectionBasic')   },
+    { id: 'medical',  icon: 'medical_information', label: t('patients.sectionMedical') },
+    { id: 'address',  icon: 'home',               label: t('patients.sectionAddress') },
+    { id: 'health',   icon: 'local_hospital',     label: t('patients.sectionHealth')  },
+  ];
+  const [activeSection, setActiveSection] = useState('basic');
+
+  return (
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6"
+      style={{ background: 'rgba(10,15,30,0.65)', backdropFilter: 'blur(8px)' }}
+      onClick={e => { if (e.target === e.currentTarget) onCancel(); }}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full flex flex-col"
+        style={{ maxWidth: 680, maxHeight: '92vh' }}>
+
+        {/* ── Header ── */}
+        <div className="bg-gradient-to-r from-[#0040a1] to-[#0056d2] px-6 py-5 rounded-t-2xl flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+              <span className="material-symbols-outlined text-white text-[22px]">
+                {isEditing ? 'edit_note' : 'person_add'}
+              </span>
+            </div>
+            <div>
+              <h2 className="text-white font-bold text-[18px] leading-tight">
+                {isEditing ? t('patients.editTitle') : t('patients.newTitle')}
+              </h2>
+              {isEditing && <p className="text-white/70 text-[13px]">{initial.patient_name}</p>}
+            </div>
+          </div>
+          <button onClick={onCancel}
+            className="w-9 h-9 rounded-full bg-white/15 flex items-center justify-center hover:bg-white/25 transition-all">
+            <span className="material-symbols-outlined text-white text-[20px]">close</span>
+          </button>
+        </div>
+
+        {/* ── Tabs de sección ── */}
+        <div className="flex border-b border-[#c3c6d6]/40 bg-[#f9f9fc] shrink-0 overflow-x-auto">
+          {sections.map(s => (
+            <button key={s.id} onClick={() => setActiveSection(s.id)}
+              className={`flex items-center gap-1.5 px-4 py-3 text-[13px] font-semibold whitespace-nowrap border-b-2 transition-all
+                ${activeSection === s.id
+                  ? 'border-[#0040a1] text-[#0040a1] bg-white'
+                  : 'border-transparent text-[#737785] hover:text-[#424654]'}`}>
+              <span className="material-symbols-outlined text-[16px]">{s.icon}</span>
+              <span className="hidden sm:inline">{s.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* ── Cuerpo scrolleable ── */}
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+          <div className="flex-1 overflow-y-auto px-6 py-5">
+
+            {/* ─ Datos básicos ─ */}
+            {activeSection === 'basic' && (
+              <div className="flex flex-col gap-4">
+                <div>
+                  <label className={lCls}>{t('patients.patientName')} <span className="text-red-500">*</span></label>
+                  <input className={iCls} value={form.patient_name}
+                    onChange={e => set('patient_name', e.target.value)} required
+                    placeholder={t('patients.patientNamePh')} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className={lCls}>{t('patients.age')} <span className="text-red-500">*</span></label>
+                    <input className={iCls} type="number" min="0" max="120"
+                      value={form.patient_age} onChange={e => set('patient_age', e.target.value)} required />
+                  </div>
+                  <div>
+                    <label className={lCls}>{t('patients.bloodType')}</label>
+                    <select className={iCls} value={form.blood_type} onChange={e => set('blood_type', e.target.value)}>
+                      <option value="">{t('patients.bloodTypeNa')}</option>
+                      {BLOOD_TYPES.map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className={lCls}>{t('patients.mobilityLabel')}</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {mobilityOptions.map(o => (
+                      <button key={o.value} type="button" onClick={() => set('mobility_level', o.value)}
+                        className={`h-[40px] rounded-xl text-[12px] font-semibold border transition-all
+                          ${form.mobility_level === o.value
+                            ? 'bg-[#0040a1] text-white border-[#0040a1]'
+                            : 'bg-white text-[#424654] border-[#c3c6d6] hover:border-[#0040a1]/40'}`}>
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className={lCls}>{t('patients.emergencyContact')}</label>
+                  <input className={iCls} value={form.emergency_contact}
+                    onChange={e => set('emergency_contact', e.target.value)}
+                    placeholder={t('patients.emergencyPh')} />
+                </div>
+              </div>
+            )}
+
+            {/* ─ Condición médica ─ */}
+            {activeSection === 'medical' && (
+              <div className="flex flex-col gap-4">
+                <div>
+                  <label className={lCls}>{t('patients.diagnoses')} <span className="text-[11px] text-[#737785] font-normal">{t('patients.separatedByComma')}</span></label>
+                  <input className={iCls} value={form.diagnoses} onChange={e => set('diagnoses', e.target.value)} placeholder={t('patients.diagPh')} />
+                  {form.diagnoses && (<div className="flex flex-wrap gap-1.5 mt-2">{parseList(form.diagnoses).map((d,i)=><span key={i} className="bg-orange-50 text-orange-700 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-orange-100">{d}</span>)}</div>)}
+                </div>
+                <div>
+                  <label className={lCls}>{t('patients.medications')} <span className="text-[11px] text-[#737785] font-normal">{t('patients.separatedByComma')}</span></label>
+                  <input className={iCls} value={form.medications} onChange={e => set('medications', e.target.value)} placeholder={t('patients.medPh')} />
+                  {form.medications && (<div className="flex flex-wrap gap-1.5 mt-2">{parseList(form.medications).map((m,i)=><span key={i} className="bg-blue-50 text-blue-700 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-blue-100">{m}</span>)}</div>)}
+                </div>
+                <div>
+                  <label className={lCls}>{t('patients.allergies')} <span className="text-[11px] text-[#737785] font-normal">{t('patients.separatedByComma')}</span></label>
+                  <input className={iCls} value={form.allergies} onChange={e => set('allergies', e.target.value)} placeholder={t('patients.allergyPh')} />
+                  {form.allergies && (<div className="flex flex-wrap gap-1.5 mt-2">{parseList(form.allergies).map((a,i)=><span key={i} className="bg-red-50 text-red-600 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-red-100">{a}</span>)}</div>)}
+                </div>
+                <div>
+                  <label className={lCls}>{t('patients.specialNeeds')}</label>
+                  <textarea className="w-full px-4 py-3 rounded-xl border border-[#c3c6d6] bg-white focus:border-[#0040a1] focus:ring-2 focus:ring-[#0040a1]/15 focus:outline-none text-[14px] resize-none"
+                    rows={4} value={form.special_needs} onChange={e => set('special_needs', e.target.value)} placeholder={t('patients.specialNeedsPh')} />
+                </div>
+              </div>
+            )}
+
+            {activeSection === 'address' && (
+              <div className="flex flex-col gap-4">
+                <div>
+                  <label className={lCls}>{t('patients.address')}</label>
+                  <input className={iCls} value={form.address} onChange={e => set('address', e.target.value)} placeholder={t('patients.addressPh')} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className={lCls}>{t('patients.neighborhood')}</label>
+                    <input className={iCls} value={form.neighborhood} onChange={e => set('neighborhood', e.target.value)} placeholder={t('patients.neighborhoodPh')} />
+                  </div>
+                  <div>
+                    <label className={lCls}>{t('patients.city')}</label>
+                    <input className={iCls} value={form.city} onChange={e => set('city', e.target.value)} placeholder={t('patients.cityDefault')} />
+                  </div>
+                </div>
+                <div>
+                  <label className={lCls}>{t('patients.housingType')}</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[['is_apartment','house',t('patients.isApartment')],['has_elevator','elevator',t('patients.hasElevator')]].map(([key,icon,label])=>(
+                      <button key={key} type="button" onClick={()=>set(key,!form[key])}
+                        className={`h-[48px] rounded-xl border text-[13px] font-semibold flex items-center justify-center gap-2 transition-all ${form[key]?'bg-[#0040a1] text-white border-[#0040a1]':'bg-white text-[#424654] border-[#c3c6d6] hover:border-[#0040a1]/40'}`}>
+                        <span className="material-symbols-outlined text-[18px]">{icon}</span>{label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className={lCls}>{t('patients.floor')} <span className="text-[11px] text-[#737785] font-normal">{t('patients.floorHint')}</span></label>
+                  <input className={iCls} type="number" min="1" max="50" value={form.floor_number} onChange={e=>set('floor_number',e.target.value)} placeholder={t('patients.floorPh')} />
+                </div>
+                <div>
+                  <label className={lCls}>{t('patients.housingNotes')}</label>
+                  <input className={iCls} value={form.housing_notes} onChange={e=>set('housing_notes',e.target.value)} placeholder={t('patients.housingNotesPh')} />
+                </div>
+              </div>
+            )}
+
+            {activeSection === 'health' && (
+              <div className="flex flex-col gap-4">
+                <div>
+                  <label className={lCls}>{t('patients.eps')}</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {epsList.map(ep=>(
+                      <button key={ep} type="button" onClick={()=>set('eps',ep===form.eps?'':ep)}
+                        className={`h-[40px] rounded-xl border text-[12px] font-semibold transition-all px-3 ${form.eps===ep?'bg-[#0040a1] text-white border-[#0040a1]':'bg-white text-[#424654] border-[#c3c6d6] hover:border-[#0040a1]/40'}`}>
+                        {ep}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className={lCls}>{t('patients.prepaidMed')}</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {prepaidList.map(p=>(
+                      <button key={p} type="button" onClick={()=>set('prepaid_medicine',p)}
+                        className={`h-[40px] rounded-xl border text-[12px] font-semibold transition-all px-3 ${form.prepaid_medicine===p?'bg-[#006a61] text-white border-[#006a61]':'bg-white text-[#424654] border-[#c3c6d6] hover:border-[#006a61]/40'}`}>
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className={lCls}>{t('patients.preferredHosp')}</label>
+                  <input className={iCls} value={form.preferred_hospital} onChange={e=>set('preferred_hospital',e.target.value)} placeholder={t('patients.preferredHospPh')} />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── Footer con navegación y guardar ── */}
+          <div className="px-6 py-4 border-t border-[#c3c6d6]/30 bg-white rounded-b-2xl shrink-0">
+            {error && (
+              <div className="mb-3 px-4 py-2 bg-red-50 border border-red-200 text-red-700 rounded-xl text-[13px] flex items-center gap-2">
+                <span className="material-symbols-outlined text-[16px]">error</span>{error}
+              </div>
+            )}
+            <div className="flex items-center gap-3">
+              {/* Prev */}
+              <button type="button"
+                onClick={() => {
+                  const idx = sections.findIndex(s => s.id === activeSection);
+                  if (idx > 0) setActiveSection(sections[idx - 1].id);
+                }}
+                disabled={activeSection === sections[0].id}
+                className="h-[42px] px-4 border border-[#c3c6d6] text-[#424654] rounded-xl font-semibold text-[13px] disabled:opacity-30 hover:bg-[#f3f3f6] transition-all flex items-center gap-1">
+                <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+                <span className="hidden sm:inline">{t('patients.previous')}</span>
+              </button>
+
+              {/* Dots */}
+              <div className="flex gap-1.5 flex-1 justify-center">
+                {sections.map(s => (
+                  <button key={s.id} type="button" onClick={() => setActiveSection(s.id)}
+                    className={`rounded-full transition-all ${activeSection === s.id ? 'w-6 h-2.5 bg-[#0040a1]' : 'w-2.5 h-2.5 bg-[#c3c6d6] hover:bg-[#0040a1]/40'}`} />
+                ))}
+              </div>
+
+              {activeSection !== sections[sections.length - 1].id ? (
+                <button type="button"
+                  onClick={() => {
+                    const idx = sections.findIndex(s => s.id === activeSection);
+                    setActiveSection(sections[idx + 1].id);
+                  }}
+                  className="h-[42px] px-4 bg-[#0040a1] text-white rounded-xl font-semibold text-[13px] hover:bg-[#003080] transition-all flex items-center gap-1">
+                  <span className="hidden sm:inline">{t('patients.next')}</span>
+                  <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                </button>
+              ) : (
+                <button type="submit" disabled={saving}
+                  className="h-[42px] px-5 bg-[#0040a1] text-white rounded-xl font-bold text-[14px] hover:bg-[#003080] transition-all flex items-center gap-2 disabled:opacity-60">
+                  {saving ? <Spinner sm /> : <><span className="material-symbols-outlined text-[18px]">save</span> {t('patients.save_short')}</>}
+                </button>
+              )}
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Tarjeta de paciente ──────────────────────────────────────
+function PatientCard({ record, onEdit, onDelete }) {
+  const { t, lang } = useLang();
+  const [expanded, setExpanded] = useState(false);
+  const mobility = getMobilityLabel(record.mobility_level, lang);
+
+  return (
+    <div className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm hover:shadow-md hover:border-[#0040a1]/30 transition-all overflow-hidden">
+
+      {/* Cabecera */}
+      <div className="p-4 sm:p-5 flex items-start gap-4">
+        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#dae2ff] to-[#c5d0f5] text-[#0040a1] flex items-center justify-center text-xl font-bold shrink-0">
+          {record.patient_name?.charAt(0)?.toUpperCase() || '?'}
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="font-bold text-[16px] text-[#1a1c1e] truncate">{record.patient_name}</h3>
+          <div className="flex flex-wrap items-center gap-2 mt-1.5">
+            <span className="flex items-center gap-1 text-[12px] text-[#424654] bg-[#f3f3f6] px-2.5 py-0.5 rounded-full">
+              <span className="material-symbols-outlined text-[13px]">cake</span>{record.patient_age} años
+            </span>
+            {record.blood_type && (
+              <span className="bg-red-50 text-red-600 text-[11px] font-bold px-2 py-0.5 rounded-full border border-red-100">
+                {record.blood_type}
+              </span>
+            )}
+            {record.mobility_level && (
+              <span className="bg-[#f3f3f6] text-[#424654] text-[11px] font-semibold px-2 py-0.5 rounded-full">
+                {mobility}
+              </span>
+            )}
+          </div>
+          {/* Pills rápidos */}
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {record.eps && (
+              <span className="flex items-center gap-1 text-[11px] text-[#0040a1] bg-[#0040a1]/10 px-2.5 py-0.5 rounded-full font-semibold">
+                <span className="material-symbols-outlined text-[12px]">health_and_safety</span>{record.eps}
+              </span>
+            )}
+            {record.address && (
+              <span className="flex items-center gap-1 text-[11px] text-[#424654] bg-[#f3f3f6] px-2.5 py-0.5 rounded-full border border-[#c3c6d6]/40">
+                <span className="material-symbols-outlined text-[12px]">location_on</span>
+                {record.neighborhood || record.city || record.address}
+                {record.is_apartment && ' · Apto'}
+                {record.floor_number ? ` P${record.floor_number}` : ''}
+              </span>
+            )}
+            {record.diagnoses?.length > 0 && (
+              <span className="flex items-center gap-1 text-[11px] text-orange-700 bg-orange-50 px-2.5 py-0.5 rounded-full border border-orange-100">
+                <span className="material-symbols-outlined text-[12px]">monitor_heart</span>
+                {record.diagnoses.length} {record.diagnoses.length !== 1 ? t('patients.diagnoses_countPl') : t('patients.diagnoses_count')}
+              </span>
+            )}
+          </div>
+        </div>
+        {/* Acciones */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button onClick={onEdit}
+            className="w-9 h-9 rounded-xl bg-[#0040a1]/10 text-[#0040a1] flex items-center justify-center hover:bg-[#0040a1]/20 transition-all"
+            title="Editar ficha">
+            <span className="material-symbols-outlined text-[18px]">edit</span>
+          </button>
+          <button onClick={onDelete}
+            className="w-9 h-9 rounded-xl bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-100 transition-all"
+            title="Eliminar ficha">
+            <span className="material-symbols-outlined text-[18px]">delete</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Toggle detalles */}
+      <button onClick={() => setExpanded(v => !v)}
+        className="w-full px-5 py-2.5 flex items-center justify-between border-t border-[#c3c6d6]/30 text-[12px] font-semibold text-[#0040a1] hover:bg-[#f9f9fc] transition-colors">
+        <span>{expanded ? t('patients.hideDetails') : t('patients.viewDetails')}</span>
+        <span className="material-symbols-outlined text-[17px]">{expanded ? 'expand_less' : 'expand_more'}</span>
+      </button>
+
+      {/* Detalle expandido */}
+      {expanded && (
+        <div className="px-5 pb-5 flex flex-col gap-4 border-t border-[#c3c6d6]/30 bg-[#fafafa]">
+
+          {(record.diagnoses?.length > 0 || record.medications?.length > 0 || record.allergies?.length > 0) && (
+            <div className="pt-4 flex flex-col gap-3">
+              <p className="text-[10px] font-bold text-[#737785] uppercase tracking-widest">{t('patients.medicalCondition')}</p>
+              {record.diagnoses?.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-semibold text-[#424654] mb-1.5">{t('patients.diagnoses')}</p>
+                  <div className="flex flex-wrap gap-1.5">{record.diagnoses.map((d,i)=><span key={i} className="bg-orange-50 text-orange-700 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-orange-100">{d}</span>)}</div>
+                </div>
+              )}
+              {record.medications?.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-semibold text-[#424654] mb-1.5">{t('patients.medications')}</p>
+                  <div className="flex flex-wrap gap-1.5">{record.medications.map((m,i)=><span key={i} className="bg-blue-50 text-blue-700 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-blue-100">{m}</span>)}</div>
+                </div>
+              )}
+              {record.allergies?.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-semibold text-[#424654] mb-1.5">{t('patients.allergies')}</p>
+                  <div className="flex flex-wrap gap-1.5">{record.allergies.map((a,i)=><span key={i} className="bg-red-50 text-red-600 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-red-100">{a}</span>)}</div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {record.special_needs && (
+            <div>
+              <p className="text-[10px] font-bold text-[#737785] uppercase tracking-widest mb-1.5">Necesidades especiales</p>
+              <p className="text-[13px] text-[#424654] bg-white rounded-xl p-3 border border-[#c3c6d6]/30 italic">{record.special_needs}</p>
+            </div>
+          )}
+
+          {(record.address || record.housing_notes) && (
+            <div>
+              <p className="text-[10px] font-bold text-[#737785] uppercase tracking-widest mb-2">Vivienda</p>
+              <div className="bg-white rounded-xl p-3 border border-[#c3c6d6]/30 flex flex-col gap-1.5 text-[13px] text-[#424654]">
+                {record.address && <span className="flex items-center gap-2"><span className="material-symbols-outlined text-[15px] text-[#0040a1]/50">location_on</span>{record.address}{record.neighborhood ? `, ${record.neighborhood}` : ''}{record.city ? `, ${record.city}` : ''}</span>}
+                <div className="flex flex-wrap gap-2">
+                  {record.floor_number && <span className="bg-[#f3f3f6] px-2.5 py-0.5 rounded-full text-[12px]">Piso {record.floor_number}</span>}
+                  {record.is_apartment && <span className="bg-[#f3f3f6] px-2.5 py-0.5 rounded-full text-[12px]">Apartamento</span>}
+                  {record.has_elevator && <span className="bg-[#f3f3f6] px-2.5 py-0.5 rounded-full text-[12px]">Con ascensor</span>}
+                </div>
+                {record.housing_notes && <span className="text-[12px] italic text-[#737785]">{record.housing_notes}</span>}
+              </div>
+            </div>
+          )}
+
+          {(record.eps || record.prepaid_medicine || record.preferred_hospital) && (
+            <div>
+              <p className="text-[10px] font-bold text-[#737785] uppercase tracking-widest mb-2">{t('patients.socialSecurity')}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {record.eps && <div className="bg-white rounded-xl p-3 border border-[#c3c6d6]/30"><p className="text-[10px] font-bold text-[#737785] uppercase mb-0.5">{t('patients.eps')}</p><p className="text-[13px] font-semibold text-[#1a1c1e]">{record.eps}</p></div>}
+                {record.prepaid_medicine && <div className="bg-white rounded-xl p-3 border border-[#c3c6d6]/30"><p className="text-[10px] font-bold text-[#737785] uppercase mb-0.5">{t('patients.prepaidLabel')}</p><p className="text-[13px] font-semibold text-[#1a1c1e]">{record.prepaid_medicine}</p></div>}
+                {record.preferred_hospital && <div className="bg-white rounded-xl p-3 border border-[#c3c6d6]/30 sm:col-span-2"><p className="text-[10px] font-bold text-[#737785] uppercase mb-0.5">{t('patients.preferredHospLabel')}</p><p className="text-[13px] font-semibold text-[#1a1c1e]">{record.preferred_hospital}</p></div>}
+              </div>
+            </div>
+          )}
+
+          {record.emergency_contact && (
+            <div className="flex items-center gap-3 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+              <span className="material-symbols-outlined text-red-500 text-[20px] shrink-0">emergency</span>
+              <div>
+                <p className="text-[10px] font-bold text-red-400 uppercase">{t('patients.emergencyLabel')}</p>
+                <p className="text-[13px] font-semibold text-red-700">{record.emergency_contact}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Panel principal de familiares ────────────────────────────
+function FamilyPatientPanel({ token }) {
+  const { t, lang } = useLang();
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [modalMode, setModalMode] = useState(null); // null | 'create' | 'edit'
+  const [editing, setEditing] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(null);
+
+  useEffect(() => { loadRecords(); }, []);
+
+  const loadRecords = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/clinical-records/', { headers: { Authorization: `Bearer ${token}` } });
+      setRecords(res.ok ? await res.json() : []);
+    } catch { setRecords([]); }
+    finally { setLoading(false); }
+  };
+
+  const closeModal = () => { setModalMode(null); setEditing(null); setError(''); };
+
+  const handleCreate = async (data) => {
+    setSaving(true); setError('');
+    try {
+      const res = await fetch('/api/clinical-records/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.detail || 'Error al crear'); }
+      await loadRecords(); closeModal();
+    } catch (e) { setError(e.message); }
+    finally { setSaving(false); }
+  };
+
+  const handleUpdate = async (data) => {
+    setSaving(true); setError('');
+    try {
+      const res = await fetch(`/api/clinical-records/${editing.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.detail || 'Error al actualizar'); }
+      await loadRecords(); closeModal();
+    } catch (e) { setError(e.message); }
+    finally { setSaving(false); }
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      await fetch(`/api/clinical-records/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      setConfirmDelete(null); await loadRecords();
+    } catch {}
+  };
+
+  if (loading) return <div className="flex items-center justify-center h-full"><Spinner /></div>;
+
+  return (
+    <div className="flex flex-col h-full bg-[#f3f3f6]">
+
+      {/* Header sticky */}
+      <div className="px-6 sm:px-8 pt-6 pb-4 bg-white border-b border-[#c3c6d6]/40 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-[20px] sm:text-[22px] font-bold text-[#0040a1] flex items-center gap-3">
+              <span className="material-symbols-outlined text-[24px]">folder_shared</span>
+              {t('patients.title')}
+            </h2>
+            <p className="text-[13px] text-[#737785] mt-0.5">
+              {records.length === 0
+                ? t('patients.subtitle')
+                : `${records.length} ${records.length !== 1 ? t('patients.registeredPl') : t('patients.registered')}`}
+            </p>
+          </div>
+          <button onClick={() => { setError(''); setModalMode('create'); }}
+            className="h-[42px] px-4 sm:px-5 bg-[#0040a1] text-white rounded-xl font-semibold text-[14px] hover:bg-[#003080] transition-all flex items-center gap-2 shadow-md">
+            <span className="material-symbols-outlined text-[18px]">add</span>
+            <span className="hidden sm:inline">{t('patients.newRecord')}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Lista */}
+      <div className="flex-1 overflow-y-auto p-6 sm:p-8">
+        {records.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24 text-center px-4">
+            <div className="w-20 h-20 rounded-3xl bg-[#dae2ff] flex items-center justify-center mb-5">
+              <span className="material-symbols-outlined text-[42px] text-[#0040a1]">folder_open</span>
+            </div>
+            <p className="text-[18px] font-bold text-[#1a1c1e]">{t('patients.noRecords')}</p>
+            <p className="text-[14px] text-[#737785] mt-2 mb-7 max-w-sm">{t('patients.noRecordsHint')}</p>
+            <button onClick={() => setModalMode('create')}
+              className="h-[46px] px-7 bg-[#0040a1] text-white rounded-xl font-bold text-[15px] hover:bg-[#003080] transition-all flex items-center gap-2 shadow-md">
+              <span className="material-symbols-outlined text-[20px]">add</span>
+              {t('patients.registerFirst')}
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-4xl">
+            {records.map(r => (
+              <PatientCard
+                key={r.id}
+                record={r}
+                onEdit={() => { setEditing(r); setError(''); setModalMode('edit'); }}
+                onDelete={() => setConfirmDelete(r)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Modal formulario */}
+      {(modalMode === 'create' || modalMode === 'edit') && (
+        <PatientFormModal
+          initial={modalMode === 'edit' ? editing : EMPTY_PATIENT}
+          onSave={modalMode === 'edit' ? handleUpdate : handleCreate}
+          onCancel={closeModal}
+          saving={saving}
+          error={error}
+        />
+      )}
+
+      {/* Modal confirmar eliminación */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+          style={{ background: 'rgba(10,15,30,0.65)', backdropFilter: 'blur(8px)' }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-red-500 text-[26px]">delete_forever</span>
+              </div>
+              <div>
+                <p className="font-bold text-[16px] text-[#1a1c1e]">{t('patients.deleteTitle')}</p>
+                <p className="text-[13px] text-[#424654]">{confirmDelete.patient_name}</p>
+              </div>
+            </div>
+            <p className="text-[13px] text-[#737785]">{t('patients.deleteMsg')}</p>
+            <div className="flex gap-3 pt-1">
+              <button onClick={() => setConfirmDelete(null)}
+                className="flex-1 h-[42px] border border-[#c3c6d6] text-[#424654] rounded-xl font-semibold text-[14px] hover:bg-[#f3f3f6] transition-all">
+                {t('common.cancel')}
+              </button>
+              <button onClick={() => handleDelete(confirmDelete.id)}
+                className="flex-1 h-[42px] bg-red-500 text-white rounded-xl font-bold text-[14px] hover:bg-red-600 transition-all flex items-center justify-center gap-2">
+                <span className="material-symbols-outlined text-[18px]">delete</span> {t('patients.deleteBtn')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── AccountPanel — edición de perfil para todos los roles ──
+function AccountPanel({ user, token, onUserUpdate }) {
+  const { t, lang } = useLang();
+  const [activeTab, setActiveTab] = useState('profile');
+  const [form, setForm] = useState({ full_name: user.full_name, email: user.email, phone: '' });
+  const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
+  const [saving, setSaving] = useState(false);
+  const [savingPw, setSavingPw] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [pwMsg, setPwMsg] = useState(null);
+  const [notifEmail, setNotifEmail] = useState(true);
+  const [notifSms, setNotifSms] = useState(false);
+
+  // ── Foto de perfil ──────────────────────────────────────────
+  const [photoUrl, setPhotoUrl] = useState(user.photo_url || null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoMsg, setPhotoMsg] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const handlePhotoChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingPhoto(true); setPhotoMsg(null);
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await fetch('/api/upload/profile-photo', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.detail || 'Error al subir foto'); }
+      const updated = await res.json();
+      setPhotoUrl(updated.photo_url);
+      const stored = JSON.parse(localStorage.getItem('user') || '{}');
+      const newUser = { ...stored, photo_url: updated.photo_url };
+      localStorage.setItem('user', JSON.stringify(newUser));
+      if (onUserUpdate) onUserUpdate(newUser);
+      setPhotoMsg({ type: 'ok', text: t('account.photoOk') });
+    } catch (err) { setPhotoMsg({ type: 'err', text: err.message || t('account.photoError') }); }
+    finally { setUploadingPhoto(false); e.target.value = ''; }
+  };
+
+  const handleDeletePhoto = async () => {
+    setUploadingPhoto(true); setPhotoMsg(null);
+    try {
+      await fetch('/api/upload/profile-photo', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setPhotoUrl(null);
+      const stored = JSON.parse(localStorage.getItem('user') || '{}');
+      const newUser = { ...stored, photo_url: null };
+      localStorage.setItem('user', JSON.stringify(newUser));
+      if (onUserUpdate) onUserUpdate(newUser);
+      setPhotoMsg({ type: 'ok', text: t('account.photoDeleted') });
+    } catch { setPhotoMsg({ type: 'err', text: t('account.deletePhotoError') }); }
+    finally { setUploadingPhoto(false); }
+  };
+
+  const iCls = 'w-full h-[46px] px-4 rounded-xl border border-[#c3c6d6] bg-white focus:border-[#0040a1] focus:ring-2 focus:ring-[#0040a1]/15 focus:outline-none text-[15px]';
+  const lCls = 'block text-[13px] font-semibold text-[#424654] mb-1.5';
+
+  const initials = user.full_name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+
+  const roleBadgeStyle = {
+    family:   { bg: '#dae2ff', color: '#0040a1' },
+    caregiver:{ bg: '#d1fae5', color: '#065f46' },
+    nurse:    { bg: '#ccfbf1', color: '#0f766e' },
+    admin:    { bg: '#1f2937', color: '#ffffff' },
+  }[user.role] || { bg: '#e5e7eb', color: '#374151' };
+
+  const saveProfile = async (e) => {
+    e.preventDefault(); setSaving(true); setMsg(null);
+    try {
+      const stored = JSON.parse(localStorage.getItem('user') || '{}');
+      const updated = { ...stored, full_name: form.full_name };
+      localStorage.setItem('user', JSON.stringify(updated));
+      if (onUserUpdate) onUserUpdate(updated);
+      setMsg({ type: 'ok', text: t('account.savedOk') });
+    } catch { setMsg({ type: 'err', text: t('account.saveError') }); }
+    finally { setSaving(false); }
+  };
+
+  const savePassword = async (e) => {
+    e.preventDefault(); setPwMsg(null);
+    if (pwForm.next !== pwForm.confirm) { setPwMsg({ type: 'err', text: t('account.passwordMismatch') }); return; }
+    if (pwForm.next.length < 6) { setPwMsg({ type: 'err', text: t('account.passwordShort') }); return; }
+    setSavingPw(true);
+    try {
+      const res = await fetch('/api/auth/change-password', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ current_password: pwForm.current, new_password: pwForm.next }),
+      });
+      if (res.ok) { setPwMsg({ type: 'ok', text: t('account.passwordOk') }); setPwForm({ current: '', next: '', confirm: '' }); }
+      else { const d = await res.json(); setPwMsg({ type: 'err', text: d.detail || t('account.passwordError') }); }
+    } catch { setPwMsg({ type: 'err', text: t('account.noConnection') }); }
+    finally { setSavingPw(false); }
+  };
+
+  const sideNavItems = [
+    { key: 'profile',     icon: 'person',   label: t('account.profile')     },
+    { key: 'security',    icon: 'security', label: t('account.security')    },
+    { key: 'preferences', icon: 'settings', label: t('account.preferences') },
+    ...(user.role === 'family' ? [{ key: 'family', icon: 'group', label: t('account.myFamily') }] : []),
+  ];
+
+  return (
+    <div className="flex h-full bg-[#f3f3f6] overflow-hidden">
+
+      {/* ── Sidebar ─────────────────────────────────────────── */}
+      <div className="w-[220px] shrink-0 bg-white border-r border-[#c3c6d6]/40 flex flex-col py-8 px-4 gap-6">
+        {/* Avatar y nombre */}
+        <div className="flex flex-col items-center gap-2 pb-6 border-b border-[#c3c6d6]/40">
+          {/* Avatar con botón de cambio */}
+          <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+            {photoUrl ? (
+              <img src={photoUrl} alt={user.full_name}
+                className="w-16 h-16 rounded-full object-cover border-2 border-[#0040a1]/20 shadow-md" />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-[#0040a1] text-white flex items-center justify-center text-2xl font-bold shadow-md">
+                {initials}
+              </div>
+            )}
+            <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              {uploadingPhoto
+                ? <Spinner sm />
+                : <span className="material-symbols-outlined text-white text-[20px]">photo_camera</span>}
+            </div>
+          </div>
+          <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp"
+            className="hidden" onChange={handlePhotoChange} />
+          <p className="font-bold text-[15px] text-[#1a1c1e] text-center leading-tight">{user.full_name}</p>
+          <p className="text-[12px] text-[#737785]">{user.email}</p>
+        </div>
+
+        {/* Nav items */}
+        <nav className="flex flex-col gap-1">
+          {sideNavItems.map(item => (
+            <button key={item.key} onClick={() => setActiveTab(item.key)}
+              className={`flex items-center gap-3 px-4 h-[42px] rounded-xl text-[14px] font-semibold transition-all text-left
+                ${activeTab === item.key
+                  ? 'bg-[#f3f3f6] text-[#0040a1]'
+                  : 'text-[#424654] hover:bg-[#f3f3f6] hover:text-[#0040a1]'}`}>
+              <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
+        </nav>
+
+        {/* Guardar en sidebar (solo profile) */}
+        {activeTab === 'profile' && (
+          <div className="mt-auto pt-6 border-t border-[#c3c6d6]/40">
+            <button onClick={saveProfile} disabled={saving}
+              className="w-full h-[42px] bg-[#0040a1] text-white rounded-xl font-bold text-[14px] hover:bg-[#003080] transition-all flex items-center justify-center gap-2 disabled:opacity-60">
+              {saving ? <Spinner sm /> : t('account.saveChanges')}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Contenido principal ──────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto p-8">
+        <h2 className="text-[26px] font-bold text-[#0040a1] mb-8 flex items-center gap-3">
+          <span className="material-symbols-outlined text-[28px]">manage_accounts</span>
+          {t('account.title')}
+        </h2>
+
+        {/* ─ Profile ─ */}
+        {activeTab === 'profile' && (
+          <div className="max-w-2xl">
+            <div className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm p-6">
+              {/* Header tarjeta */}
+              <div className="flex items-center gap-4 mb-6 pb-5 border-b border-[#c3c6d6]/30">
+                {/* Avatar grande con overlay */}
+                <div className="relative group shrink-0">
+                  <div className="relative cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                    {photoUrl ? (
+                      <img src={photoUrl} alt={user.full_name}
+                        className="w-20 h-20 rounded-full object-cover border-2 border-[#0040a1]/20 shadow-md" />
+                    ) : (
+                      <div className="w-20 h-20 rounded-full bg-[#0040a1] text-white flex items-center justify-center text-3xl font-bold shadow-md">
+                        {initials}
+                      </div>
+                    )}
+                    <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      {uploadingPhoto ? <Spinner sm /> : <span className="material-symbols-outlined text-white text-[22px]">photo_camera</span>}
+                    </div>
+                  </div>
+                  {/* Botón eliminar foto */}
+                  {photoUrl && (
+                    <button type="button" onClick={handleDeletePhoto} disabled={uploadingPhoto}
+                      className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-all shadow-md"
+                      title="Eliminar foto">
+                      <span className="material-symbols-outlined text-[13px]">close</span>
+                    </button>
+                  )}
+                </div>
+                <div>
+                  <p className="font-bold text-[18px] text-[#1a1c1e]">{user.full_name}</p>
+                  <p className="text-[13px] text-[#737785]">{user.email}</p>
+                  <span className="inline-block mt-1.5 text-[11px] font-bold px-3 py-0.5 rounded-full"
+                    style={{ background: roleBadgeStyle.bg, color: roleBadgeStyle.color }}>
+                    {getRoleLabel(user.role, lang)}
+                  </span>
+                  <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploadingPhoto}
+                    className="mt-2 flex items-center gap-1 text-[12px] text-[#0040a1] font-semibold hover:underline disabled:opacity-50">
+                    <span className="material-symbols-outlined text-[14px]">upload</span>
+                    {uploadingPhoto ? t('account.uploading') : t('account.changePhoto')}
+                  </button>
+                  {photoMsg && (
+                    <p className={`text-[12px] mt-1 ${photoMsg.type === 'ok' ? 'text-green-600' : 'text-red-500'}`}>
+                      {photoMsg.text}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <form onSubmit={saveProfile} className="flex flex-col gap-5">
+                <div>
+                  <label className={lCls}>{t('account.fullName')}</label>
+                  <input className={iCls} value={form.full_name}
+                    onChange={e => setForm({ ...form, full_name: e.target.value })} required />
+                </div>
+                <div>
+                  <label className={lCls}>{t('account.email')}</label>
+                  <input className={`${iCls} bg-[#f3f3f6] cursor-not-allowed opacity-70`}
+                    value={form.email} disabled title={lang === 'es' ? 'El email no se puede cambiar' : 'Email cannot be changed'} />
+                </div>
+                <div>
+                  <label className={lCls}>{t('account.phone')}</label>
+                  <input className={iCls} type="tel" value={form.phone}
+                    onChange={e => setForm({ ...form, phone: e.target.value })}
+                    placeholder={t('account.phonePlaceholder')} />
+                </div>
+                {msg && <p className={`text-[13px] ${msg.type === 'ok' ? 'text-green-600' : 'text-red-600'}`}>{msg.text}</p>}
+                <button type="submit" disabled={saving}
+                  className="h-[46px] bg-[#0040a1] text-white rounded-xl font-bold text-[15px] hover:bg-[#003080] transition-all flex items-center justify-center gap-2 disabled:opacity-60">
+                  {saving ? <Spinner sm /> : t('account.saveChanges')}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ─ Security ─ */}
+        {activeTab === 'security' && (
+          <div className="max-w-xl">
+            <div className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm p-6">
+              <h3 className="font-bold text-[17px] text-[#1a1c1e] mb-5 flex items-center gap-2">
+                <span className="material-symbols-outlined text-[22px] text-[#0040a1]">lock</span>
+                {t('account.changePassword')}
+              </h3>
+              <form onSubmit={savePassword} className="flex flex-col gap-5">
+                <div>
+                  <label className={lCls}>{t('account.currentPassword')}</label>
+                  <input className={iCls} type="password" value={pwForm.current}
+                    onChange={e => setPwForm({ ...pwForm, current: e.target.value })} required />
+                </div>
+                <div>
+                  <label className={lCls}>{t('account.newPassword')}</label>
+                  <input className={iCls} type="password" value={pwForm.next}
+                    onChange={e => setPwForm({ ...pwForm, next: e.target.value })} required minLength={6} />
+                </div>
+                <div>
+                  <label className={lCls}>{t('account.confirmPassword')}</label>
+                  <input className={iCls} type="password" value={pwForm.confirm}
+                    onChange={e => setPwForm({ ...pwForm, confirm: e.target.value })} required minLength={6} />
+                </div>
+                {pwMsg && (
+                  <p className={`text-[13px] ${pwMsg.type === 'ok' ? 'text-green-600' : 'text-red-600'}`}>{pwMsg.text}</p>
+                )}
+                <button type="submit" disabled={savingPw}
+                  className="h-[46px] bg-[#0040a1] text-white rounded-xl font-bold text-[15px] hover:bg-[#003080] transition-all flex items-center justify-center gap-2 disabled:opacity-60">
+                  {savingPw ? <Spinner sm /> : t('account.updatePassword')}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ─ Preferences ─ */}
+        {activeTab === 'preferences' && (
+          <div className="max-w-xl">
+            <div className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm p-6">
+              <h3 className="font-bold text-[17px] text-[#1a1c1e] mb-5 flex items-center gap-2">
+                <span className="material-symbols-outlined text-[22px] text-[#0040a1]">notifications</span>
+                {t('account.notifTitle')}
+              </h3>
+              <div className="flex flex-col gap-5">
+                {[
+                  { key: 'email', label: t('account.notifEmail'), desc: t('account.notifEmailDesc'), val: notifEmail, set: setNotifEmail },
+                  { key: 'sms',   label: t('account.notifSms'),   desc: t('account.notifSmsDesc'),   val: notifSms,   set: setNotifSms   },
+                ].map(item => (
+                  <div key={item.key} className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="font-semibold text-[14px] text-[#1a1c1e]">{item.label}</p>
+                      <p className="text-[12px] text-[#737785]">{item.desc}</p>
+                    </div>
+                    <button type="button" onClick={() => item.set(v => !v)}
+                      className={`w-12 h-6 rounded-full transition-colors shrink-0 relative ${item.val ? 'bg-[#0040a1]' : 'bg-[#c3c6d6]'}`}>
+                      <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${item.val ? 'left-6' : 'left-0.5'}`} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─ My Family (CRUD completo) ─ */}
+        {activeTab === 'family' && user.role === 'family' && (
+          <FamilyPatientPanel token={token} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── MainScreen ──────────────────────────────────────────────
+function MainScreen({ user, token, onLogout, onUserUpdate }) {
+  const [activeNav, setActiveNav] = useState(
+    user.role === 'family' || user.role === 'admin' ? 'caregivers' : 'account'
+  );
+
+  const handleNav = (key) => setActiveNav(key);
+
+  // 'account' es transversal a todos los roles
+  if (activeNav === 'account') {
+    return (
+      <div className="h-screen flex flex-col bg-[#f3f3f6] font-sans overflow-hidden">
+        <TopBar user={user} activeNav={activeNav} onNav={handleNav} onLogout={onLogout} />
+        <main className="flex-1 overflow-hidden relative z-10">
+          <AccountPanel user={user} token={token} onUserUpdate={onUserUpdate} />
+        </main>
+      </div>
+    );
+  }
+
+  const renderMain = () => {
+    if (user.role === 'family') {
+      return (
+        <div className="flex h-full">
+          <div className="flex-1 overflow-hidden border-r border-[#c3c6d6]/30">
+            <SearchPanel token={token} activeTab={activeNav} onTabChange={setActiveNav} />
+          </div>
+          <div className="w-[300px] xl:w-[340px] shrink-0">
+            <ChatPanel user={user} token={token} />
+          </div>
+        </div>
+      );
+    }
+    if (user.role === 'caregiver') {
+      return (
+        <div className="flex h-full">
+          <div className="flex-1 overflow-hidden border-r border-[#c3c6d6]/30"><CaregiverDashboard user={user} token={token} /></div>
+          <div className="w-[320px] shrink-0"><ProfessionalPanel user={user} token={token} /></div>
+        </div>
+      );
+    }
+    if (user.role === 'nurse') {
+      return (
+        <div className="flex h-full">
+          <div className="flex-1 overflow-hidden border-r border-[#c3c6d6]/30"><NurseDashboard user={user} token={token} /></div>
+          <div className="w-[320px] shrink-0"><ProfessionalPanel user={user} token={token} /></div>
+        </div>
+      );
+    }
+    if (user.role === 'admin') {
+      return (
+        <div className="flex h-full">
+          <div className="flex-1 overflow-hidden border-r border-[#c3c6d6]/30"><AdminDashboard token={token} /></div>
+          <div className="w-[320px] xl:w-[360px] shrink-0">
+            <SearchPanel token={token} activeTab="caregivers" onTabChange={() => {}} />
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="p-8">
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-amber-800">Sesión inválida. Por favor cerrá sesión y volvé a entrar.</div>
+        <button onClick={onLogout} className="mt-4 h-[40px] px-6 bg-[#0040a1] text-white rounded-xl font-semibold">Cerrar Sesión</button>
+      </div>
+    );
+  };
+
+  return (
+    <div className="h-screen flex flex-col bg-[#f3f3f6] font-sans overflow-hidden">
+      <div className="bg-shape bg-[#0040a1]/15 w-[500px] h-[500px] -top-20 -left-32" />
+      <div className="bg-shape bg-[#8df1e3]/20 w-[600px] h-[600px] top-1/3 right-1/4" style={{ animationDelay: '-5s' }} />
+      <div className="bg-shape bg-[#dae2ff]/20 w-[400px] h-[400px] -bottom-20 right-10" style={{ animationDelay: '-10s' }} />
+      <TopBar user={user} activeNav={activeNav} onNav={handleNav} onLogout={onLogout} />
+      <main className="flex-1 overflow-hidden relative z-10">
+        {renderMain()}
+      </main>
+    </div>
+  );
+}
+
+// ─── App ─────────────────────────────────────────────────────
+function App() {
+  const i18n = useTranslation();
+  const [user, setUser] = useState(() => { try { const s = localStorage.getItem('user'); return s ? JSON.parse(s) : null; } catch { return null; } });
+  const [token, setToken] = useState(() => localStorage.getItem('token') || null);
+  const handleLogin = (u, t) => { setUser(u); setToken(t); };
+  const handleLogout = () => { localStorage.removeItem('token'); localStorage.removeItem('user'); setUser(null); setToken(null); };
+  const handleUserUpdate = (u) => { setUser(u); localStorage.setItem('user', JSON.stringify(u)); };
+  return (
+    <LangContext.Provider value={i18n}>
+      {!user || !token
+        ? <AuthScreen onLogin={handleLogin} />
+        : <MainScreen user={user} token={token} onLogout={handleLogout} onUserUpdate={handleUserUpdate} />}
+    </LangContext.Provider>
+  );
+}
+
+export default App;
