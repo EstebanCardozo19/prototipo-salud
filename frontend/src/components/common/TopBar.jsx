@@ -63,7 +63,7 @@ export default function TopBar({ user, token, activeNav, onNav, onLogout, onOpen
       </nav>
 
       <div className="flex items-center gap-3">
-        <NotificationCenter token={token} onNavigate={onNav} onOpenMessages={onOpenMessages} />
+        <NotificationCenter token={token} role={user.role} onNavigate={onNav} onOpenMessages={onOpenMessages} />
         <div className="flex items-center gap-2 text-[14px] font-semibold">
           <span className="material-symbols-outlined text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>
             account_circle

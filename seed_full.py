@@ -85,6 +85,8 @@ def run():
         conn.execute(text("ALTER TABLE clinical_records ADD COLUMN IF NOT EXISTS eps VARCHAR(150)"))
         conn.execute(text("ALTER TABLE clinical_records ADD COLUMN IF NOT EXISTS prepaid_medicine VARCHAR(150)"))
         conn.execute(text("ALTER TABLE clinical_records ADD COLUMN IF NOT EXISTS preferred_hospital VARCHAR(200)"))
+        conn.execute(text("ALTER TABLE clinical_records ADD COLUMN IF NOT EXISTS takes_medications BOOLEAN NOT NULL DEFAULT FALSE"))
+        conn.execute(text("UPDATE clinical_records SET takes_medications = TRUE WHERE medications IS NOT NULL"))
         # Limpiar todo
         conn.execute(text("DELETE FROM reviews"))
         conn.execute(text("DELETE FROM bookings"))

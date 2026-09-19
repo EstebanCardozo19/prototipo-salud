@@ -6,6 +6,7 @@ import RateServiceModal from '../bookings/RateServiceModal';
 import BookingFamilyInfo from '../bookings/BookingFamilyInfo';
 import ServiceChatModal from '../bookings/ServiceChatModal';
 import ServiceCarePlanModal from '../bookings/ServiceCarePlanModal';
+import ProfessionalPatientAssistantModal from '../bookings/ProfessionalPatientAssistantModal';
 import { INPUT_CLASS, LABEL_CLASS } from '../../constants';
 import { getSpecialtyLabel } from '../../utils/helpers';
 import { getCitiesList, getLocalidadesForCity } from '../../constants/colombiaGeo';
@@ -35,6 +36,7 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
   const [ratingModal, setRatingModal] = useState(null);
   const [chatBooking, setChatBooking] = useState(null);
   const [carePlanBooking, setCarePlanBooking] = useState(null);
+  const [assistantBooking, setAssistantBooking] = useState(null);
   const [myReviews, setMyReviews] = useState([]);
 
   const [selectedCity, setSelectedCity] = useState('Bogotá D.C.');
@@ -318,6 +320,9 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
                           <button onClick={() => setCarePlanBooking(b)} className="h-[34px] px-4 bg-cyan-700 text-white rounded-xl text-[12px] font-semibold hover:bg-cyan-800 transition-all flex items-center gap-1.5">
                             <span className="material-symbols-outlined text-[15px]">medication</span>Plan y asistente
                           </button>
+                          <button onClick={() => setAssistantBooking(b)} className="h-[34px] px-4 bg-violet-700 text-white rounded-xl text-[12px] font-semibold hover:bg-violet-800 transition-all flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-[15px]">clinical_notes</span>Asistente del paciente
+                          </button>
                           <button onClick={() => handleComplete(b.id)} disabled={completing === b.id} className="h-[34px] px-4 bg-green-600 text-white rounded-xl text-[12px] font-semibold hover:bg-green-700 transition-all flex items-center gap-1.5 disabled:opacity-60">
                             {completing === b.id ? <Spinner sm /> : <><span className="material-symbols-outlined text-[15px]">task_alt</span>Marcar completado</>}
                           </button>
@@ -356,6 +361,7 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
       )}
       {chatBooking && <ServiceChatModal booking={chatBooking} user={user} token={token} onClose={() => setChatBooking(null)} />}
       {carePlanBooking && <ServiceCarePlanModal booking={carePlanBooking} user={user} token={token} onClose={() => setCarePlanBooking(null)} />}
+      {assistantBooking && <ProfessionalPatientAssistantModal booking={assistantBooking} token={token} onClose={() => setAssistantBooking(null)} />}
     </div>
   );
 }

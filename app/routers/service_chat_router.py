@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from app.auth import get_current_user
+from app.security.encryption import user_full_name
 from app.database import get_session
 from app.models import Booking, BookingStatus, ServiceChatMessage, User
 from app.routers.notifications_router import create_notification
@@ -93,7 +94,7 @@ def send_message(
             recipient_id,
             "message",
             "Nuevo mensaje del servicio",
-            f"{current_user.full_name} te escribió sobre el servicio del {booking.date}.",
+            f"{user_full_name(current_user)} te escribió sobre el servicio del {booking.date}.",
             booking.id,
         )
         session.commit()
@@ -105,7 +106,7 @@ def send_message(
         id=message.id,
         booking_id=message.booking_id,
         sender_user_id=message.sender_user_id,
-        sender_name=current_user.full_name,
+        sender_name=user_full_name(current_user),
         content=message.content,
         created_at=message.created_at,
     )

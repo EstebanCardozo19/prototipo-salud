@@ -67,6 +67,7 @@ export default function PatientFormModal({ initial, onSave, onCancel, saving, er
     ...EMPTY_PATIENT,
     ...initial,
     diagnoses:        joinList(initial?.diagnoses),
+    takes_medications: initial?.takes_medications ?? (initial?.medications?.length > 0),
     medications:      joinList(initial?.medications),
     allergies:        joinList(initial?.allergies),
     floor_number:     initial?.floor_number ?? '',
@@ -163,7 +164,8 @@ export default function PatientFormModal({ initial, onSave, onCancel, saving, er
       patient_age:        parseInt(form.patient_age) || 0,
       blood_type:         form.blood_type || null,
       diagnoses:          parseList(form.diagnoses),
-      medications:        parseList(form.medications),
+      takes_medications:  form.takes_medications,
+      medications:        form.takes_medications ? parseList(form.medications) : [],
       allergies:          parseList(form.allergies),
       mobility_level:     form.mobility_level || null,
       special_needs:      form.special_needs || null,
@@ -344,22 +346,37 @@ export default function PatientFormModal({ initial, onSave, onCancel, saving, er
                   )}
                 </div>
                 <div>
-                  <label className={LABEL_CLASS}>
-                    {t('patients.medications')} <span className="text-[11px] text-[#737785] font-normal">{t('patients.separatedByComma')}</span>
-                  </label>
-                  <input
-                    className={INPUT_CLASS}
-                    value={form.medications}
-                    onChange={e => set('medications', e.target.value)}
-                    placeholder={t('patients.medPh')}
-                  />
-                  {form.medications && (
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {parseList(form.medications).map((m, i) => (
-                        <span key={i} className="bg-blue-50 text-blue-700 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-blue-100">
-                          {m}
-                        </span>
-                      ))}
+                  <p className={LABEL_CLASS}>{t('patients.takesMedications')}</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button type="button" onClick={() => set('takes_medications', true)}
+                      className={`h-[42px] rounded-xl border text-[13px] font-semibold transition-all ${form.takes_medications ? 'border-[#0040a1] bg-[#0040a1] text-white' : 'border-[#c3c6d6] bg-white text-[#424654]'}`}>
+                      {t('common.yes')}
+                    </button>
+                    <button type="button" onClick={() => setForm(current => ({ ...current, takes_medications: false, medications: '' }))}
+                      className={`h-[42px] rounded-xl border text-[13px] font-semibold transition-all ${!form.takes_medications ? 'border-[#0040a1] bg-[#0040a1] text-white' : 'border-[#c3c6d6] bg-white text-[#424654]'}`}>
+                      {t('common.no')}
+                    </button>
+                  </div>
+                  {form.takes_medications && (
+                    <div className="mt-3">
+                      <label className={LABEL_CLASS}>
+                        {t('patients.medications')} <span className="text-[11px] text-[#737785] font-normal">{t('patients.separatedByComma')}</span>
+                      </label>
+                      <input
+                        className={INPUT_CLASS}
+                        value={form.medications}
+                        onChange={e => set('medications', e.target.value)}
+                        placeholder={t('patients.medPh')}
+                      />
+                      {form.medications && (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {parseList(form.medications).map((m, i) => (
+                            <span key={i} className="bg-blue-50 text-blue-700 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-blue-100">
+                              {m}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

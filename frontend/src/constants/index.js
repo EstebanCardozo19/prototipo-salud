@@ -39,6 +39,7 @@ export const EMPTY_PATIENT = {
   patient_age: '',
   blood_type: '',
   diagnoses: '',
+  takes_medications: false,
   medications: '',
   allergies: '',
   mobility_level: 'independiente',

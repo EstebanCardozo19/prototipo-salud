@@ -16,6 +16,7 @@ from app.models import (
 )
 from app.auth import get_current_user, require_role
 from app.routers.notifications_router import create_notification
+from app.security.encryption import user_full_name
 
 router = APIRouter(prefix="/api/bookings", tags=["Solicitudes y Calendario"])
 
@@ -225,7 +226,7 @@ def create_booking(
         professional.id,
         "booking",
         "Nueva solicitud de servicio",
-        f"{current_user.full_name} te envió una solicitud para el {booking.date}.",
+        f"{user_full_name(current_user)} te envió una solicitud para el {booking.date}.",
         booking.id,
     )
     session.commit()
@@ -241,7 +242,7 @@ def create_booking(
         date=booking.date, start_hour=booking.start_hour, end_hour=booking.end_hour,
         notes=booking.notes, status=booking.status.value,
         rejection_reason=booking.rejection_reason,
-        family_name=current_user.full_name,
+        family_name=user_full_name(current_user),
         professional_name=professional.full_name,
     )
 
@@ -289,7 +290,7 @@ def list_my_requests(
             date=b.date, start_hour=b.start_hour, end_hour=b.end_hour,
             notes=b.notes, status=b.status.value,
             rejection_reason=b.rejection_reason,
-            family_name=current_user.full_name,
+            family_name=user_full_name(current_user),
             professional_name=prof.full_name if prof else None,
             reviewed_by_family=b.id in reviewed_ids,
             professional_photo_url=prof.photo_url if prof else None,
@@ -332,7 +333,7 @@ def get_family_calendar(
             professional_user_id=b.professional_user_id, professional_role=b.professional_role,
             date=b.date, start_hour=b.start_hour, end_hour=b.end_hour, notes=b.notes,
             status=b.status.value, rejection_reason=b.rejection_reason,
-            family_name=current_user.full_name,
+            family_name=user_full_name(current_user),
             professional_name=professional.full_name if professional else None,
         ))
     return results
@@ -371,7 +372,7 @@ def list_incoming_requests(
             date=b.date, start_hour=b.start_hour, end_hour=b.end_hour,
             notes=b.notes, status=b.status.value,
             rejection_reason=b.rejection_reason,
-            family_name=family.full_name if family else None,
+            family_name=user_full_name(family) if family else None,
             family_photo_url=family.photo_url if family else None,
             professional_name=current_user.full_name,
             reviewed_by_professional=b.id in prof_reviewed_ids,
@@ -430,7 +431,7 @@ def decide_booking(
         date=booking.date, start_hour=booking.start_hour, end_hour=booking.end_hour,
         notes=booking.notes, status=booking.status.value,
         rejection_reason=booking.rejection_reason,
-        family_name=family.full_name if family else None,
+        family_name=user_full_name(family) if family else None,
         professional_name=current_user.full_name,
     )
 
@@ -471,7 +472,7 @@ def complete_booking(
         date=booking.date, start_hour=booking.start_hour, end_hour=booking.end_hour,
         notes=booking.notes, status=booking.status.value,
         rejection_reason=booking.rejection_reason,
-        family_name=family.full_name if family else None,
+        family_name=user_full_name(family) if family else None,
         professional_name=current_user.full_name,
     )
 
@@ -499,7 +500,7 @@ def get_professional_calendar(
             professional_role=b.professional_role,
             date=b.date, start_hour=b.start_hour, end_hour=b.end_hour,
             notes=b.notes, status=b.status.value, rejection_reason=None,
-            family_name=family.full_name if family else None,
+            family_name=user_full_name(family) if family else None,
             professional_name=prof.full_name if prof else None,
         ))
     return results
@@ -635,7 +636,7 @@ def create_review(
         professional_user_id=review.professional_user_id,
         booking_id=review.booking_id,
         rating=review.rating, comment=review.comment,
-        family_name=current_user.full_name,
+        family_name=user_full_name(current_user),
         created_at=review.created_at.isoformat() if review.created_at else None,
     )
 
@@ -660,7 +661,7 @@ def get_professional_reviews(
             professional_user_id=r.professional_user_id,
             booking_id=r.booking_id,
             rating=r.rating, comment=r.comment,
-            family_name=family.full_name if family else None,
+            family_name=user_full_name(family) if family else None,
             created_at=r.created_at.isoformat() if r.created_at else None,
         ))
     return results

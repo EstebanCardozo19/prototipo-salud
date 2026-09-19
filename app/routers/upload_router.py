@@ -12,6 +12,7 @@ from sqlmodel import Session
 from app.auth import UserResponse, get_current_user
 from app.database import get_session
 from app.models import User
+from app.security.encryption import user_email, user_full_name
 
 router = APIRouter(prefix="/api/upload", tags=["Fotos de perfil"])
 
@@ -80,8 +81,8 @@ async def upload_profile_photo(
 
     return UserResponse(
         id=db_user.id,
-        email=db_user.email,
-        full_name=db_user.full_name,
+        email=user_email(db_user),
+        full_name=user_full_name(db_user),
         role=db_user.role.value,
         is_active=db_user.is_active,
         photo_url=db_user.photo_url,

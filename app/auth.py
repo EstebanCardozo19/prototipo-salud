@@ -16,7 +16,7 @@ from app.models import User, UserRole
 from app.database import get_session
 
 # --- Configuración ---
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "clave-secreta-cambiar-en-produccion-2024")
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 horas
 
@@ -76,6 +76,12 @@ def hash_password(password: str) -> str:
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return _verify_password_impl(plain_password, hashed_password)
+
+
+def validate_authentication_configuration() -> None:
+    """Evita iniciar la API con una clave JWT ausente o débil."""
+    if len(SECRET_KEY) < 32:
+        raise RuntimeError("JWT_SECRET_KEY debe contener al menos 32 caracteres aleatorios.")
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:

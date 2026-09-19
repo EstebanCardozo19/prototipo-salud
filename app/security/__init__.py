@@ -1,0 +1,1 @@
+"""Primitivas de seguridad internas de la aplicación."""

@@ -2,8 +2,9 @@ import enum
 from typing import Optional, List
 from datetime import datetime
 from sqlmodel import SQLModel, Field, Relationship
-from sqlalchemy import Column, String, Enum as SAEnum, JSON, DateTime, func
+from sqlalchemy import Column, String, Enum as SAEnum, JSON, DateTime, Text, UniqueConstraint, func
 from pgvector.sqlalchemy import Vector
+from app.security.encryption import EncryptedJSON, EncryptedText
 
 
 class UserRole(str, enum.Enum):
@@ -46,9 +47,11 @@ class User(SQLModel, table=True):
     __tablename__ = "users"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    email: str = Field(sa_column=Column(String(255), unique=True, nullable=False, index=True))
+    email: str = Field(sa_column=Column(Text, unique=True, nullable=False, index=True))
+    # Índice HMAC no reversible para cuentas familiares cifradas.
+    email_lookup: Optional[str] = Field(default=None, sa_column=Column(String(64), unique=True, index=True, nullable=True))
     password_hash: str = Field(max_length=255)
-    full_name: str = Field(max_length=150)
+    full_name: str = Field(sa_column=Column(Text, nullable=False))
     role: UserRole = Field(sa_column=Column(SAEnum(UserRole, name="userrole"), nullable=False))
     is_active: bool = Field(default=True)
     photo_url: Optional[str] = Field(default=None, max_length=500)
@@ -118,30 +121,34 @@ class ClinicalRecord(SQLModel, table=True):
     family_user_id: int = Field(foreign_key="users.id", nullable=False)
 
     # ── Datos básicos del paciente ───────────────────────────────
-    patient_name: str = Field(max_length=150)
+    patient_name: str = Field(sa_column=Column(EncryptedText, nullable=False))
     patient_age: int = Field(default=0)
-    diagnoses: Optional[List[str]] = Field(default=None, sa_column=Column(JSON))
-    medications: Optional[List[str]] = Field(default=None, sa_column=Column(JSON))
-    allergies: Optional[List[str]] = Field(default=None, sa_column=Column(JSON))
-    mobility_level: Optional[str] = Field(default=None, max_length=50)  # independiente, asistida, postrado
-    special_needs: Optional[str] = Field(default=None, max_length=1000)
-    emergency_contact: Optional[str] = Field(default=None, max_length=255)
+    diagnoses: Optional[List[str]] = Field(default=None, sa_column=Column(EncryptedJSON))
+    takes_medications: bool = Field(default=False, nullable=False)
+    medications: Optional[List[str]] = Field(default=None, sa_column=Column(EncryptedJSON))
+    allergies: Optional[List[str]] = Field(default=None, sa_column=Column(EncryptedJSON))
+    mobility_level: Optional[str] = Field(default=None, sa_column=Column(EncryptedText))
+    special_needs: Optional[str] = Field(default=None, sa_column=Column(EncryptedText))
+    emergency_contact: Optional[str] = Field(default=None, sa_column=Column(EncryptedText))
 
     # ── Dirección y características de la vivienda ───────────────
-    address: Optional[str] = Field(default=None, max_length=300)          # Dirección completa (formato colombiano)
-    neighborhood: Optional[str] = Field(default=None, max_length=100)     # Localidad / Comuna
-    sector: Optional[str] = Field(default=None, max_length=100)           # Barrio / Sector específico
-    city: Optional[str] = Field(default=None, max_length=100)             # Ciudad
+    address: Optional[str] = Field(default=None, sa_column=Column(EncryptedText))
+    neighborhood: Optional[str] = Field(default=None, sa_column=Column(EncryptedText))
+    sector: Optional[str] = Field(default=None, sa_column=Column(EncryptedText))
+    city: Optional[str] = Field(default=None, sa_column=Column(EncryptedText))
     floor_number: Optional[int] = Field(default=None)                     # Piso (null = planta baja)
     is_apartment: Optional[bool] = Field(default=None)                    # True=apartamento, False=casa
     has_elevator: Optional[bool] = Field(default=None)                    # ¿Tiene ascensor?
-    housing_notes: Optional[str] = Field(default=None, max_length=500)    # Observaciones de acceso
+    housing_notes: Optional[str] = Field(default=None, sa_column=Column(EncryptedText))
 
     # ── Información médico-administrativa ────────────────────────
-    eps: Optional[str] = Field(default=None, max_length=150)              # EPS del paciente
-    prepaid_medicine: Optional[str] = Field(default=None, max_length=150) # Medicina prepagada (null si no tiene)
-    preferred_hospital: Optional[str] = Field(default=None, max_length=200) # Hospital/clínica preferida
-    blood_type: Optional[str] = Field(default=None, max_length=10)        # Tipo de sangre (A+, O-, etc.)
+    eps: Optional[str] = Field(default=None, sa_column=Column(EncryptedText))
+    prepaid_medicine: Optional[str] = Field(default=None, sa_column=Column(EncryptedText))
+    preferred_hospital: Optional[str] = Field(default=None, sa_column=Column(EncryptedText))
+    blood_type: Optional[str] = Field(default=None, sa_column=Column(EncryptedText))
+    # Consentimiento explícito de la familia para usar adjuntos con el asistente
+    # del profesional asignado durante un servicio activo.
+    allow_professional_document_access: bool = Field(default=False, nullable=False)
 
     created_at: Optional[datetime] = Field(
         default=None,
@@ -153,6 +160,24 @@ class ClinicalRecord(SQLModel, table=True):
     )
 
     family_user: Optional[User] = Relationship(back_populates="clinical_records")
+
+
+class ClinicalRecordDocument(SQLModel, table=True):
+    """Archivo clínico privado adjuntado a la ficha de un paciente."""
+    __tablename__ = "clinical_record_documents"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    clinical_record_id: int = Field(foreign_key="clinical_records.id", nullable=False, index=True)
+    original_filename: str = Field(max_length=255)
+    stored_filename: str = Field(max_length=255, unique=True)
+    content_type: str = Field(max_length=100)
+    size_bytes: int
+    # El texto extraído se guarda cifrado; nunca se expone en listados o descargas.
+    extracted_text: Optional[str] = Field(default=None, sa_column=Column(EncryptedText))
+    uploaded_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), server_default=func.now()),
+    )
 
 
 class NurseProfile(SQLModel, table=True):
@@ -248,6 +273,49 @@ class Booking(SQLModel, table=True):
 
 
 # ============================================================
+# Citas médicas y acompañamiento
+# ============================================================
+
+class AppointmentAccompanimentStatus(str, enum.Enum):
+    none = "none"
+    pending = "pending"
+    accepted = "accepted"
+    rejected = "rejected"
+    cancelled = "cancelled"
+
+
+class MedicalAppointment(SQLModel, table=True):
+    """Cita médica registrada por una familia para uno de sus pacientes."""
+    __tablename__ = "medical_appointments"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    family_user_id: int = Field(foreign_key="users.id", nullable=False, index=True)
+    clinical_record_id: int = Field(foreign_key="clinical_records.id", nullable=False, index=True)
+    appointment_type: str = Field(max_length=120)
+    date: str = Field(max_length=10, index=True)  # YYYY-MM-DD
+    time: str = Field(max_length=5)  # HH:MM
+    location: Optional[str] = Field(default=None, max_length=250)
+    treating_professional: Optional[str] = Field(default=None, max_length=150)
+    notes: Optional[str] = Field(default=None, max_length=1000)
+    recurrence_frequency: Optional[str] = Field(default=None, max_length=20)  # weekly | monthly
+    recurrence_group_id: Optional[str] = Field(default=None, max_length=36, index=True)
+    accompaniment_required: bool = Field(default=False, nullable=False)
+    accompaniment_professional_user_id: Optional[int] = Field(default=None, foreign_key="users.id", index=True)
+    accompaniment_status: AppointmentAccompanimentStatus = Field(
+        default=AppointmentAccompanimentStatus.none,
+        sa_column=Column(
+            SAEnum(AppointmentAccompanimentStatus, name="appointmentaccompanimentstatus"),
+            nullable=False,
+            server_default="none",
+        ),
+    )
+    created_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), server_default=func.now())
+    )
+
+
+# ============================================================
 # Chat de servicio
 # ============================================================
 
@@ -286,6 +354,25 @@ class ServiceCarePlan(SQLModel, table=True):
 
 
 # ============================================================
+# Auditoría de acceso del asistente profesional
+# ============================================================
+
+class ProfessionalAssistantAuditLog(SQLModel, table=True):
+    """Audita accesos al asistente sin guardar el contenido sensible de la consulta."""
+    __tablename__ = "professional_assistant_audit_logs"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    professional_user_id: int = Field(foreign_key="users.id", nullable=False, index=True)
+    booking_id: int = Field(foreign_key="bookings.id", nullable=False, index=True)
+    clinical_record_id: int = Field(foreign_key="clinical_records.id", nullable=False, index=True)
+    action: str = Field(max_length=50)
+    created_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), server_default=func.now())
+    )
+
+
+# ============================================================
 # Notificaciones internas
 # ============================================================
 
@@ -300,6 +387,35 @@ class Notification(SQLModel, table=True):
     body: str = Field(max_length=500)
     booking_id: Optional[int] = Field(default=None, foreign_key="bookings.id", index=True)
     is_read: bool = Field(default=False, nullable=False)
+    created_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), server_default=func.now())
+    )
+
+
+class PushSubscription(SQLModel, table=True):
+    """Suscripción Web Push de un dispositivo de un profesional."""
+    __tablename__ = "push_subscriptions"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="users.id", nullable=False, index=True)
+    endpoint: str = Field(sa_column=Column(Text, unique=True, nullable=False))
+    subscription_data: dict = Field(sa_column=Column(JSON, nullable=False))
+    created_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), server_default=func.now())
+    )
+
+
+class MedicationReminderDelivery(SQLModel, table=True):
+    """Registro idempotente de los recordatorios enviados por pauta y día."""
+    __tablename__ = "medication_reminder_deliveries"
+    __table_args__ = (UniqueConstraint("booking_id", "schedule_key", "reminder_date", name="uq_medication_reminder_delivery"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    booking_id: int = Field(foreign_key="bookings.id", nullable=False, index=True)
+    schedule_key: str = Field(max_length=64, nullable=False, index=True)
+    reminder_date: str = Field(max_length=10, nullable=False, index=True)
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime(timezone=True), server_default=func.now())

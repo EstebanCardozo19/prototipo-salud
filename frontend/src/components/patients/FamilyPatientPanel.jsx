@@ -148,8 +148,14 @@ export default function FamilyPatientPanel({ token }) {
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-4xl">
               {records.map(r => (
-                <PatientCard key={r.id} record={r}
-                  onEdit={() => { setEditing(r); setError(''); setModalMode('edit'); }}
+                <PatientCard key={r.id} record={r} token={token}
+                  onEdit={(updatedRecord) => {
+                    if (updatedRecord) {
+                      setRecords(current => current.map(item => item.id === updatedRecord.id ? updatedRecord : item));
+                      return;
+                    }
+                    setEditing(r); setError(''); setModalMode('edit');
+                  }}
                   onDelete={() => setConfirmDelete(r)} />
               ))}
             </div>

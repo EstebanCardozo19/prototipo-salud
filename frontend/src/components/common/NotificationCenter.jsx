@@ -5,6 +5,8 @@ const TYPE_ICON = {
   booking_status: 'event_available',
   message: 'forum',
   verification: 'verified_user',
+  medication_reminder: 'medication',
+  appointment_accompaniment: 'medical_services',
 };
 
 function formatDate(value) {
@@ -12,9 +14,10 @@ function formatDate(value) {
   return new Intl.DateTimeFormat('es-CO', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value));
 }
 
-export default function NotificationCenter({ token, onNavigate, onOpenMessages }) {
+export default function NotificationCenter({ token, role, onNavigate, onOpenMessages }) {
   const [notifications, setNotifications] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
+  const [pushMessage, setPushMessage] = useState('');
   const containerRef = useRef(null);
 
   const loadNotifications = async () => {
@@ -50,6 +53,7 @@ export default function NotificationCenter({ token, onNavigate, onOpenMessages }
       } catch (error) { console.error(error); }
     }
     if (notification.type === 'message' && notification.booking_id && onOpenMessages) onOpenMessages(notification.booking_id);
+    else if (notification.type === 'appointment_accompaniment') onNavigate('calendar');
     else if (notification.booking_id) onNavigate('my-requests');
     setIsOpen(false);
   };
@@ -59,6 +63,27 @@ export default function NotificationCenter({ token, onNavigate, onOpenMessages }
       const response = await fetch('/api/notifications/read-all', { method: 'PUT', headers: { Authorization: `Bearer ${token}` } });
       if (response.ok) setNotifications(items => items.map(item => ({ ...item, is_read: true })));
     } catch (error) { console.error(error); }
+  };
+
+  const enablePush = async () => {
+    setPushMessage('');
+    try {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) throw new Error('Este navegador no admite notificaciones push.');
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') throw new Error('Debes permitir las notificaciones para activarlas.');
+      const keyResponse = await fetch('/api/notifications/push/public-key', { headers: { Authorization: `Bearer ${token}` } });
+      if (!keyResponse.ok) throw new Error((await keyResponse.json().catch(() => ({}))).detail || 'Las notificaciones push no están configuradas.');
+      const { public_key } = await keyResponse.json();
+      const registration = await navigator.serviceWorker.register('/service-worker.js');
+      const padded = `${public_key}${'='.repeat((4 - public_key.length % 4) % 4)}`.replace(/-/g, '+').replace(/_/g, '/');
+      const applicationServerKey = Uint8Array.from(atob(padded), character => character.charCodeAt(0));
+      const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey });
+      const response = await fetch('/api/notifications/push/subscriptions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(subscription) });
+      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || 'No fue posible guardar la suscripción.');
+      setPushMessage('Recordatorios push activados en este dispositivo.');
+    } catch (error) {
+      setPushMessage(error.message);
+    }
   };
 
   const unreadCount = notifications.filter(item => !item.is_read).length;
@@ -74,6 +99,7 @@ export default function NotificationCenter({ token, onNavigate, onOpenMessages }
     </button>
     {isOpen && <section className="absolute right-0 top-[calc(100%+12px)] z-[100] w-[min(380px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-[#dae2ff] bg-white text-[#1a1c1e] shadow-2xl">
       <header className="flex items-center justify-between border-b border-[#e7eaf3] px-4 py-3"><div><h2 className="text-[15px] font-bold">Notificaciones</h2><p className="text-[11px] text-[#737785]">{unreadCount ? `${unreadCount} sin leer` : 'Estás al día'}</p></div>{unreadCount > 0 && <button type="button" onClick={markAllRead} className="text-[12px] font-semibold text-[#0040a1] hover:underline">Marcar todo leído</button>}</header>
+      {['caregiver', 'nurse'].includes(role) && <div className="border-b border-[#e7eaf3] px-4 py-2"><button type="button" onClick={enablePush} className="text-[12px] font-semibold text-[#0040a1] hover:underline">Activar recordatorios push</button>{pushMessage && <p className="mt-1 text-[11px] text-[#5d6170]">{pushMessage}</p>}</div>}
       <div className="max-h-[420px] overflow-y-auto">
         {!notifications.length ? <div className="px-6 py-10 text-center text-[#737785]"><span className="material-symbols-outlined text-[34px] text-[#c3c6d6]">notifications_off</span><p className="mt-2 text-[13px]">No tienes notificaciones.</p></div> : notifications.map(notification => <button type="button" key={notification.id} onClick={() => markRead(notification)} className={`flex w-full gap-3 border-b border-[#f0f1f6] px-4 py-3 text-left transition-colors hover:bg-[#f7f9ff] ${notification.is_read ? '' : 'bg-[#eef4ff]'}`}><span className={`material-symbols-outlined mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[17px] ${notification.is_read ? 'bg-[#f1f2f6] text-[#737785]' : 'bg-[#dae2ff] text-[#0040a1]'}`}>{TYPE_ICON[notification.type] || 'notifications'}</span><span className="min-w-0 flex-1"><span className="flex items-center gap-2"><strong className="truncate text-[13px]">{notification.title}</strong>{!notification.is_read && <i className="h-2 w-2 shrink-0 rounded-full bg-[#0040a1]" />}</span><span className="mt-0.5 block text-[12px] leading-4 text-[#5d6170]">{notification.body}</span><time className="mt-1 block text-[10px] text-[#8a8e9d]">{formatDate(notification.created_at)}</time></span></button>)}</div>
     </section>}

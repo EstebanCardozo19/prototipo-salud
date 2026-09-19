@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLang } from '../../contexts/LangContext';
 import Spinner from '../common/Spinner';
 import CalendarSchedule from '../common/CalendarSchedule';
+import AppointmentAccompanimentPanel from './AppointmentAccompanimentPanel';
 
 const STATUS = {
   pending: 'bg-amber-100 text-amber-700',
@@ -57,6 +58,7 @@ export default function ProfessionalCalendar({ token }) {
           </div> : <div className="py-8 text-center"><span className="material-symbols-outlined text-[40px] text-[#c3c6d6]">touch_app</span><p className="mt-3 text-[13px] font-semibold text-[#424654]">{bookings.length ? t('calendar.selectService') : t('calendar.noProfessionalServices')}</p></div>}
         </aside>
       </div>}
+      <AppointmentAccompanimentPanel token={token} />
     </div>
   </section>;
 }

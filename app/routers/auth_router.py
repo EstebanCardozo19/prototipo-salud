@@ -16,6 +16,7 @@ from app.auth import (
     create_access_token,
     get_current_user,
 )
+from app.security.encryption import email_lookup, encrypt_text, normalized_email, user_email, user_full_name
 
 router = APIRouter(prefix="/api/auth", tags=["Autenticación"])
 
@@ -26,14 +27,19 @@ def register(request: RegisterRequest, session: Session = Depends(get_session)):
     if request.role not in ("family", "caregiver", "nurse"):
         raise HTTPException(status_code=400, detail="Rol debe ser 'family', 'caregiver' o 'nurse'")
 
-    existing = session.exec(select(User).where(User.email == request.email)).first()
+    lookup = email_lookup(request.email)
+    existing = session.exec(select(User).where(User.email_lookup == lookup)).first()
+    if not existing:
+        # Compatibilidad temporal con cuentas profesionales heredadas sin índice.
+        existing = session.exec(select(User).where(User.email == normalized_email(request.email))).first()
     if existing:
         raise HTTPException(status_code=409, detail="El email ya está registrado")
 
     user = User(
-        email=request.email,
+        email=encrypt_text(normalized_email(request.email)) if request.role == "family" else normalized_email(request.email),
+        email_lookup=lookup,
         password_hash=hash_password(request.password),
-        full_name=request.full_name,
+        full_name=encrypt_text(request.full_name.strip()) if request.role == "family" else request.full_name.strip(),
         role=UserRole(request.role),
         is_active=True,
     )
@@ -64,8 +70,8 @@ def register(request: RegisterRequest, session: Session = Depends(get_session)):
 
     return UserResponse(
         id=user.id,
-        email=user.email,
-        full_name=user.full_name,
+        email=user_email(user),
+        full_name=user_full_name(user),
         role=user.role.value,
         is_active=user.is_active,
         photo_url=user.photo_url,
@@ -75,7 +81,10 @@ def register(request: RegisterRequest, session: Session = Depends(get_session)):
 @router.post("/login", response_model=Token)
 def login(request: LoginRequest, session: Session = Depends(get_session)):
     """Inicia sesión y retorna un token JWT."""
-    user = session.exec(select(User).where(User.email == request.email)).first()
+    lookup = email_lookup(request.email)
+    user = session.exec(select(User).where(User.email_lookup == lookup)).first()
+    if not user:
+        user = session.exec(select(User).where(User.email == normalized_email(request.email))).first()
     if not user or not verify_password(request.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -87,7 +96,7 @@ def login(request: LoginRequest, session: Session = Depends(get_session)):
 
     token = create_access_token(data={
         "sub": str(user.id),
-        "email": user.email,
+        "email": normalized_email(request.email),
         "role": user.role.value,
     })
 
@@ -99,8 +108,8 @@ def get_me(current_user: User = Depends(get_current_user)):
     """Retorna la información del usuario autenticado."""
     return UserResponse(
         id=current_user.id,
-        email=current_user.email,
-        full_name=current_user.full_name,
+        email=user_email(current_user),
+        full_name=user_full_name(current_user),
         role=current_user.role.value,
         is_active=current_user.is_active,
         photo_url=current_user.photo_url,

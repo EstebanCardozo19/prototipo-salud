@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from sqlmodel import Session
 from sqlalchemy import text
 
-from app.models import CaregiverProfile, User
+from app.models import Booking, CaregiverProfile, ClinicalRecord, ServiceCarePlan, User
 from app.services.embedding_service import generar_embedding
 from app.database import engine
 
@@ -87,6 +87,49 @@ def buscar_cuidadores_similares(descripcion_paciente: str, localidad: str = None
 
     texto = "Encontré estos profesionales para ti:\n" + "\n".join(texto_lines)
     return json.dumps({"texto": texto, "profesionales": profesionales}, ensure_ascii=False)
+
+
+def obtener_contexto_paciente_asignado(
+    booking: Booking,
+    clinical_record: ClinicalRecord,
+    care_plan: ServiceCarePlan | None = None,
+    include_clinical_details: bool = False,
+) -> dict:
+    """Construye contexto mínimo para un profesional autorizado previamente.
+
+    No recibe IDs ni abre una sesión de base de datos: el router es responsable de
+    validar relación profesional-servicio-ficha antes de invocar esta herramienta.
+    Nunca devuelve dirección, contactos de emergencia, EPS ni aseguramiento. Los
+    datos clínicos ampliados se exponen únicamente cuando el router los autoriza
+    para el rol de enfermería.
+    """
+    context = {
+        "service": {
+            "booking_id": booking.id,
+            "date": booking.date,
+            "start_hour": booking.start_hour,
+            "end_hour": booking.end_hour,
+            "professional_role": booking.professional_role,
+        },
+        "patient": {
+            "name": clinical_record.patient_name,
+            "age": clinical_record.patient_age,
+            "allergies": clinical_record.allergies or [],
+            "mobility_level": clinical_record.mobility_level,
+            "special_needs": clinical_record.special_needs,
+        },
+        "care_plan": {
+            "medication_schedule": care_plan.medication_schedule or [] if care_plan else [],
+            "emergency_protocol": care_plan.emergency_protocol if care_plan else None,
+        },
+    }
+    if include_clinical_details:
+        context["patient"].update({
+            "blood_type": clinical_record.blood_type,
+            "diagnoses": clinical_record.diagnoses or [],
+            "medications_registered": clinical_record.medications or [],
+        })
+    return context
 
 
 # Función auxiliar para obtener el schema de la herramienta (usado por el cliente)

@@ -3,6 +3,7 @@ import { useTranslation } from './i18n';
 import { LangContext } from './contexts/LangContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { AuthScreen, MainScreen } from './components';
+import LandingPage from './components/common/LandingPage';
 
 export default function App() {
   const i18n = useTranslation();
@@ -15,6 +16,7 @@ export default function App() {
     }
   });
   const [token, setToken] = useState(() => localStorage.getItem('token') || null);
+  const [publicView, setPublicView] = useState('home');
 
   const handleLogin = (u, t) => {
     setUser(u);
@@ -60,7 +62,9 @@ export default function App() {
     <LangContext.Provider value={i18n}>
       <ToastProvider>
         {!user || !token ? (
-          <AuthScreen onLogin={handleLogin} />
+          publicView === 'home'
+            ? <LandingPage onAccess={setPublicView} />
+            : <AuthScreen onLogin={handleLogin} initialTab={publicView} onBack={() => setPublicView('home')} />
         ) : (
           <MainScreen
             user={user}

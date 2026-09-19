@@ -1,0 +1,53 @@
+"""Pruebas de cifrado en reposo y del índice de autenticación por email."""
+import os
+import unittest
+
+from cryptography.fernet import Fernet
+
+os.environ.setdefault("DATA_ENCRYPTION_KEY", Fernet.generate_key().decode())
+os.environ.setdefault("EMAIL_LOOKUP_KEY", "test-email-lookup-key-with-at-least-32-characters")
+
+from app.security.encryption import (  # noqa: E402
+    EncryptedJSON,
+    EncryptedText,
+    decrypt_bytes,
+    decrypt_text,
+    email_lookup,
+    encrypt_bytes,
+    encrypt_text,
+)
+
+
+class EncryptionTests(unittest.TestCase):
+    def test_text_round_trip_is_confidential_and_authenticated(self):
+        plaintext = "Diagnóstico sensible"
+        encrypted = encrypt_text(plaintext)
+        self.assertNotEqual(encrypted, plaintext)
+        self.assertTrue(encrypted.startswith("enc:"))
+        self.assertEqual(decrypt_text(encrypted), plaintext)
+
+    def test_file_round_trip(self):
+        plaintext = b"%PDF-1.7 contenido clinico privado"
+        encrypted = encrypt_bytes(plaintext)
+        self.assertNotEqual(encrypted, plaintext)
+        self.assertEqual(decrypt_bytes(encrypted), plaintext)
+
+    def test_email_lookup_is_normalized_and_non_reversible(self):
+        lookup = email_lookup(" Familia@Ejemplo.com ")
+        self.assertEqual(lookup, email_lookup("familia@ejemplo.com"))
+        self.assertNotIn("familia@ejemplo.com", lookup)
+        self.assertEqual(len(lookup), 64)
+
+    def test_model_column_types_encrypt_and_restore_values(self):
+        text_type = EncryptedText()
+        json_type = EncryptedJSON()
+        encrypted_text = text_type.process_bind_param("Dirección privada", None)
+        encrypted_json = json_type.process_bind_param(["Diagnóstico privado"], None)
+        self.assertNotIn("Dirección privada", encrypted_text)
+        self.assertNotIn("Diagnóstico privado", encrypted_json)
+        self.assertEqual(text_type.process_result_value(encrypted_text, None), "Dirección privada")
+        self.assertEqual(json_type.process_result_value(encrypted_json, None), ["Diagnóstico privado"])
+
+
+if __name__ == "__main__":
+    unittest.main()

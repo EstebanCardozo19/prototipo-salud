@@ -60,6 +60,8 @@ pgdata/
 # ============================================================
 uploads/profiles/*
 !uploads/profiles/.gitkeep
+private_uploads/clinical_records/*
+!private_uploads/clinical_records/.gitkeep
 
 # ============================================================
 # IDEs y editores

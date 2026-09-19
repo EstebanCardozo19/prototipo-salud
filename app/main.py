@@ -1,7 +1,8 @@
 import os
+import threading
 from pathlib import Path
 from dotenv import load_dotenv
-from sqlmodel import SQLModel
+from sqlmodel import SQLModel, select
 from sqlalchemy import text
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,21 +10,31 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
 
-from app.models import User, CaregiverProfile, ClinicalRecord, NurseProfile, Booking, Availability, Review, ProfessionalVerification, VerificationDocument, ServiceChatMessage, ServiceCarePlan, Notification  # noqa: F401
+from app.models import User, CaregiverProfile, ClinicalRecord, ClinicalRecordDocument, NurseProfile, Booking, Availability, Review, ProfessionalVerification, VerificationDocument, ServiceChatMessage, ServiceCarePlan, ProfessionalAssistantAuditLog, Notification, PushSubscription, MedicationReminderDelivery, MedicalAppointment  # noqa: F401
 from app.database import engine
 from app.database import get_session
 from sqlmodel import Session
-from app.auth import get_current_user
+from app.auth import get_current_user, validate_authentication_configuration
+from app.security.encryption import (
+    email_lookup, encrypt_bytes, encrypt_text, is_encrypted,
+    validate_encryption_configuration,
+)
 from app.routers import auth_router, caregivers_router, clinical_router, admin_router, nurses_router, bookings_router
-from app.routers import upload_router, verification_router, service_chat_router, notifications_router, care_plan_router
+from app.routers import upload_router, verification_router, service_chat_router, notifications_router, care_plan_router, professional_assistant_router, appointments_router
 
 load_dotenv()
 
 
+SERVICE_LIFECYCLE_INTERVAL_SECONDS = 60
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    validate_authentication_configuration()
+    validate_encryption_configuration()
     # Crear carpeta de uploads si no existe
     Path("uploads/profiles").mkdir(parents=True, exist_ok=True)
+    Path("private_uploads/clinical_records").mkdir(parents=True, exist_ok=True)
     # Crear extensión pgvector si no existe
     with engine.connect() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
@@ -37,9 +48,106 @@ async def lifespan(app: FastAPI):
         # migraciones acumulativas de ClinicalRecord para bases creadas antes de
         # que se añadieran los datos de ubicación estructurada.
         conn.execute(text("ALTER TABLE clinical_records ADD COLUMN IF NOT EXISTS sector VARCHAR(100)"))
+        conn.execute(text("ALTER TABLE clinical_records ADD COLUMN IF NOT EXISTS takes_medications BOOLEAN NOT NULL DEFAULT FALSE"))
+        # Las fichas previas que ya tienen un listado conservan correctamente el
+        # estado afirmativo al incorporar esta preferencia explícita.
+        conn.execute(text("UPDATE clinical_records SET takes_medications = TRUE WHERE medications IS NOT NULL"))
+        conn.execute(text("ALTER TABLE clinical_records ADD COLUMN IF NOT EXISTS allow_professional_document_access BOOLEAN NOT NULL DEFAULT FALSE"))
+        conn.execute(text("ALTER TABLE clinical_record_documents ADD COLUMN IF NOT EXISTS extracted_text TEXT"))
         conn.execute(text("ALTER TABLE bookings ADD COLUMN IF NOT EXISTS clinical_record_id INTEGER REFERENCES clinical_records(id)"))
+        conn.execute(text("DO $$ BEGIN CREATE TYPE appointmentaccompanimentstatus AS ENUM ('none', 'pending', 'accepted', 'rejected', 'cancelled'); EXCEPTION WHEN duplicate_object THEN NULL; END $$"))
+        # El cifrado Fernet ocupa más espacio que los tipos históricos y los JSON
+        # deben pasar a texto antes de almacenar su representación cifrada.
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_lookup VARCHAR(64)"))
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_email_lookup ON users (email_lookup)"))
+        for column in ("email", "full_name"):
+            conn.execute(text(f"ALTER TABLE users ALTER COLUMN {column} TYPE TEXT"))
+        for column in (
+            "patient_name", "diagnoses", "medications", "allergies", "mobility_level", "special_needs",
+            "emergency_contact", "address", "neighborhood", "sector", "city", "housing_notes", "eps",
+            "prepaid_medicine", "preferred_hospital", "blood_type",
+        ):
+            conn.execute(text(f"ALTER TABLE clinical_records ALTER COLUMN {column} TYPE TEXT USING {column}::text"))
+        # ``create_all`` crea esta tabla en instalaciones nuevas; esta sentencia
+        # cubre instalaciones existentes, donde create_all no altera el esquema.
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS professional_assistant_audit_logs (
+                id SERIAL PRIMARY KEY,
+                professional_user_id INTEGER NOT NULL REFERENCES users(id),
+                booking_id INTEGER NOT NULL REFERENCES bookings(id),
+                clinical_record_id INTEGER NOT NULL REFERENCES clinical_records(id),
+                action VARCHAR(50) NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_professional_assistant_audit_logs_professional_user_id ON professional_assistant_audit_logs (professional_user_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_professional_assistant_audit_logs_booking_id ON professional_assistant_audit_logs (booking_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_professional_assistant_audit_logs_clinical_record_id ON professional_assistant_audit_logs (clinical_record_id)"))
         conn.commit()
+    _migrate_sensitive_data()
+    # Cierra automáticamente los servicios aprobados 30 minutos después de su hora
+    # de finalización. Cada ejecución usa una sesión independiente y el cierre es
+    # idempotente, por lo que es seguro si hay más de una instancia de la API.
+    from app.services.service_lifecycle import complete_expired_services
+    from app.services.medication_reminders import dispatch_due_medication_reminders
+
+    stop_service_lifecycle = threading.Event()
+
+    def run_service_lifecycle() -> None:
+        while not stop_service_lifecycle.is_set():
+            try:
+                with Session(engine) as lifecycle_session:
+                    complete_expired_services(lifecycle_session)
+                    dispatch_due_medication_reminders(lifecycle_session)
+            except Exception:
+                # El ciclo se reintentará en el siguiente minuto sin afectar la API.
+                pass
+            stop_service_lifecycle.wait(SERVICE_LIFECYCLE_INTERVAL_SECONDS)
+
+    lifecycle_thread = threading.Thread(
+        target=run_service_lifecycle,
+        name="service-lifecycle",
+        daemon=True,
+    )
+    lifecycle_thread.start()
     yield
+    stop_service_lifecycle.set()
+    lifecycle_thread.join(timeout=SERVICE_LIFECYCLE_INTERVAL_SECONDS + 1)
+
+
+def _migrate_sensitive_data() -> None:
+    """Cifra instalaciones existentes sin volver a cifrar datos ya protegidos."""
+    from sqlalchemy.orm.attributes import flag_modified
+    from app.models import UserRole
+
+    encrypted_record_fields = (
+        "patient_name", "diagnoses", "medications", "allergies", "mobility_level", "special_needs",
+        "emergency_contact", "address", "neighborhood", "sector", "city", "housing_notes", "eps",
+        "prepaid_medicine", "preferred_hospital", "blood_type",
+    )
+    document_dir = Path("private_uploads/clinical_records")
+    with Session(engine) as session:
+        for user in session.exec(select(User).where(User.role == UserRole.family)).all():
+            user.email_lookup = email_lookup(user.email)
+            if not is_encrypted(user.email):
+                user.email = encrypt_text(user.email)
+            if not is_encrypted(user.full_name):
+                user.full_name = encrypt_text(user.full_name)
+            session.add(user)
+        for record in session.exec(select(ClinicalRecord)).all():
+            for field in encrypted_record_fields:
+                # El TypeDecorator convierte el valor heredado a claro. Marcamos el
+                # campo para forzar su serialización cifrada en el UPDATE.
+                setattr(record, field, getattr(record, field))
+                flag_modified(record, field)
+            session.add(record)
+        for document in session.exec(select(ClinicalRecordDocument)).all():
+            path = document_dir / document.stored_filename
+            if path.exists():
+                content = path.read_bytes()
+                if not content.startswith(b"gAAAA"):
+                    path.write_bytes(encrypt_bytes(content))
+        session.commit()
 
 
 app = FastAPI(
@@ -70,6 +178,8 @@ app.include_router(verification_router.router)
 app.include_router(service_chat_router.router)
 app.include_router(notifications_router.router)
 app.include_router(care_plan_router.router)
+app.include_router(professional_assistant_router.router)
+app.include_router(appointments_router.router)
 
 # Servir imágenes subidas como archivos estáticos
 app.mount("/uploads/profiles", StaticFiles(directory="uploads/profiles"), name="uploads-profiles")

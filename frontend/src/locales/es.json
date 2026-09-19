@@ -387,6 +387,8 @@
     "diagPh": "Ej: Alzheimer, Diabetes tipo 2, Hipertensión",
     "medications": "Medicamentos actuales",
     "medPh": "Ej: Metformina 500mg, Losartán 50mg",
+    "takesMedications": "¿Toma medicamentos actualmente?",
+    "noMedications": "No toma medicamentos actualmente",
     "allergies": "Alergias",
     "allergyPh": "Ej: Penicilina, Ibuprofeno",
     "specialNeeds": "Necesidades especiales / Observaciones",

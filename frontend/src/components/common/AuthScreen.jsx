@@ -5,10 +5,10 @@ import Spinner from './Spinner';
 import { INPUT_CLASS, LABEL_CLASS } from '../../constants';
 
 // ─── AuthScreen ─────────────────────────────────────────────
-export default function AuthScreen({ onLogin }) {
+export default function AuthScreen({ onLogin, initialTab = 'login', onBack }) {
   const { t, lang, setLang } = useLang();
   const { success } = useToast();
-  const [tab, setTab] = useState('login');
+  const [tab, setTab] = useState(initialTab);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -79,7 +79,8 @@ export default function AuthScreen({ onLogin }) {
   return (
     <div className="min-h-screen bg-[#f3f3f6] flex items-center justify-center p-4">
       <div className="w-full max-w-[420px] bg-white rounded-2xl shadow-lg overflow-hidden">
-        <div className="bg-[#0040a1] px-8 py-7 text-white text-center">
+        <div className="relative bg-[#0040a1] px-8 py-7 text-white text-center">
+          {onBack && <button type="button" onClick={onBack} aria-label="Volver al inicio" className="absolute left-4 top-4 rounded-full p-1 hover:bg-white/10"><span className="material-symbols-outlined">arrow_back</span></button>}
           <span className="material-symbols-outlined text-[40px]" style={{ fontVariationSettings: "'FILL' 1" }}>
             favorite
           </span>
