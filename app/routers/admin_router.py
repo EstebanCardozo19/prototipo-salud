@@ -7,6 +7,7 @@ from app.auth import require_role
 from app.database import get_session
 from app.models import CaregiverProfile, NurseProfile, ProfessionalVerification, ProfileStatus, User, UserRole, VerificationDocument
 from app.routers.notifications_router import create_notification
+from app.security.encryption import user_email, user_full_name
 
 router = APIRouter(prefix='/api/admin', tags=['Administración'])
 class ReviewRequest(BaseModel): status: str; reason: Optional[str] = None
@@ -28,7 +29,7 @@ def serialize(v, u, s):
             'license_number': p.license_number if p else None,
             'institution': p.institution if p else None,
         })
-    return PendingProfileResponse(id=v.id,user_id=u.id,full_name=u.full_name,email=u.email,role=v.role.value,location=p.location if p else '',status=v.status.value,experience_years=p.experience_years if p else 0,submitted_at=v.submitted_at,documents=[DocumentResponse(id=d.id,document_type=d.document_type.value,document_name=d.document_name,original_filename=d.original_filename,download_url=f'/api/verification/documents/{d.id}/download') for d in docs],profile_data=profile_data)
+    return PendingProfileResponse(id=v.id,user_id=u.id,full_name=user_full_name(u),email=user_email(u),role=v.role.value,location=p.location if p else '',status=v.status.value,experience_years=p.experience_years if p else 0,submitted_at=v.submitted_at,documents=[DocumentResponse(id=d.id,document_type=d.document_type.value,document_name=d.document_name,original_filename=d.original_filename,download_url=f'/api/verification/documents/{d.id}/download') for d in docs],profile_data=profile_data)
 @router.get('/profiles/pending',response_model=list[PendingProfileResponse])
 def pending(current_user:User=Depends(require_role(UserRole.admin)),session:Session=Depends(get_session)):
     rows=session.exec(select(ProfessionalVerification,User).join(User,User.id==ProfessionalVerification.user_id).where(ProfessionalVerification.status==ProfileStatus.pending,ProfessionalVerification.submitted_at != None)).all(); return [serialize(v,u,session) for v,u in rows]
@@ -47,7 +48,7 @@ def review(verification_id:int,request:ReviewRequest,current_user:User=Depends(r
     session.add(v);session.commit();session.refresh(v);return serialize(v,session.get(User,v.user_id),session)
 @router.get('/users',response_model=list[AdminUserResponse])
 def users(skip:int=0,limit:int=50,current_user:User=Depends(require_role(UserRole.admin)),session:Session=Depends(get_session)):
-    return [AdminUserResponse(id=u.id,email=u.email,full_name=u.full_name,role=u.role.value,is_active=u.is_active) for u in session.exec(select(User).offset(skip).limit(limit)).all()]
+    return [AdminUserResponse(id=u.id,email=user_email(u),full_name=user_full_name(u),role=u.role.value,is_active=u.is_active) for u in session.exec(select(User).offset(skip).limit(limit)).all()]
 @router.put('/users/{user_id}/toggle-active')
 def toggle(user_id:int,current_user:User=Depends(require_role(UserRole.admin)),session:Session=Depends(get_session)):
     u=session.get(User,user_id)

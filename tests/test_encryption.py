@@ -1,6 +1,7 @@
 """Pruebas de cifrado en reposo y del índice de autenticación por email."""
 import os
 import unittest
+from types import SimpleNamespace
 
 from cryptography.fernet import Fernet
 
@@ -15,6 +16,8 @@ from app.security.encryption import (  # noqa: E402
     email_lookup,
     encrypt_bytes,
     encrypt_text,
+    user_email,
+    user_full_name,
 )
 
 
@@ -47,6 +50,21 @@ class EncryptionTests(unittest.TestCase):
         self.assertNotIn("Diagnóstico privado", encrypted_json)
         self.assertEqual(text_type.process_result_value(encrypted_text, None), "Dirección privada")
         self.assertEqual(json_type.process_result_value(encrypted_json, None), ["Diagnóstico privado"])
+
+    def test_user_data_is_readable_for_encrypted_admin_and_legacy_professional(self):
+        admin = SimpleNamespace(
+            email=encrypt_text("admin@ejemplo.com"),
+            full_name=encrypt_text("Administradora Principal"),
+        )
+        professional = SimpleNamespace(
+            email="cuidador@ejemplo.com",
+            full_name="Cuidador Histórico",
+        )
+
+        self.assertEqual(user_email(admin), "admin@ejemplo.com")
+        self.assertEqual(user_full_name(admin), "Administradora Principal")
+        self.assertEqual(user_email(professional), "cuidador@ejemplo.com")
+        self.assertEqual(user_full_name(professional), "Cuidador Histórico")
 
 
 if __name__ == "__main__":

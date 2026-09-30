@@ -88,12 +88,12 @@ def email_lookup(email: str) -> str:
 
 def user_email(user) -> str:
     """Devuelve el email en claro de un usuario para una respuesta autorizada."""
-    return decrypt_text(user.email, allow_legacy_plaintext=True) if user.role.value == "family" else user.email
+    return decrypt_text(user.email, allow_legacy_plaintext=True)
 
 
 def user_full_name(user) -> str:
     """Devuelve el nombre en claro de un usuario para una respuesta autorizada."""
-    return decrypt_text(user.full_name, allow_legacy_plaintext=True) if user.role.value == "family" else user.full_name
+    return decrypt_text(user.full_name, allow_legacy_plaintext=True)
 
 
 class EncryptedText(TypeDecorator):
