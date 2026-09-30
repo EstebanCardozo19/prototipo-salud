@@ -16,6 +16,7 @@ export default defineConfig(({ mode }) => {
     server: {
       host: '0.0.0.0',
       port: 3000,
+      allowedHosts: ['frontend-production-3709.up.railway.app'],
       proxy: {
         '/api': {
           target: apiTarget,
