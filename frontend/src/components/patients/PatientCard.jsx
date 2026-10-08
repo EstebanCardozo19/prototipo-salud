@@ -116,7 +116,7 @@ export default function PatientCard({ record, token, onEdit, onDelete }) {
         {/* Acciones */}
         <div className="flex items-center gap-1.5 shrink-0">
           <button
-            onClick={onEdit}
+            onClick={() => onEdit()}
             className="w-9 h-9 rounded-xl bg-[#0040a1]/10 text-[#0040a1] flex items-center justify-center hover:bg-[#0040a1]/20 transition-all"
             title={t('patients.editRecord')}
           >

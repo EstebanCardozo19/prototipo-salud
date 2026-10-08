@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
 
-from app.models import User, CaregiverProfile, ClinicalRecord, ClinicalRecordDocument, NurseProfile, Booking, Availability, Review, ProfessionalVerification, VerificationDocument, ServiceChatMessage, ServiceCarePlan, ProfessionalAssistantAuditLog, Notification, PushSubscription, MedicationReminderDelivery, MedicalAppointment  # noqa: F401
+from app.models import User, CaregiverProfile, ClinicalRecord, ClinicalRecordDocument, NurseProfile, Booking, Availability, Review, ProfessionalVerification, VerificationDocument, ServiceChatMessage, ServiceCarePlan, ProfessionalAssistantAuditLog, Notification, PushSubscription, MedicationReminderDelivery, MedicalAppointment, PatientMedication  # noqa: F401
 from app.database import engine
 from app.database import get_session
 from sqlmodel import Session
@@ -20,7 +20,7 @@ from app.security.encryption import (
     validate_encryption_configuration,
 )
 from app.routers import auth_router, caregivers_router, clinical_router, admin_router, nurses_router, bookings_router
-from app.routers import upload_router, verification_router, service_chat_router, notifications_router, care_plan_router, professional_assistant_router, appointments_router
+from app.routers import upload_router, verification_router, service_chat_router, notifications_router, care_plan_router, professional_assistant_router, appointments_router, medications_router
 
 load_dotenv()
 
@@ -83,6 +83,50 @@ async def lifespan(app: FastAPI):
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_professional_assistant_audit_logs_professional_user_id ON professional_assistant_audit_logs (professional_user_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_professional_assistant_audit_logs_booking_id ON professional_assistant_audit_logs (booking_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_professional_assistant_audit_logs_clinical_record_id ON professional_assistant_audit_logs (clinical_record_id)"))
+        # Tabla de medicamentos permanentes del paciente
+        conn.execute(text("""
+            DO $$ BEGIN
+                CREATE TYPE medicationfrequency AS ENUM (
+                    'every_4h','every_6h','every_8h','every_12h','every_24h',
+                    'twice_daily','three_daily','four_daily','as_needed','custom'
+                );
+            EXCEPTION WHEN duplicate_object THEN NULL; END $$
+        """))
+        conn.execute(text("""
+            DO $$ BEGIN
+                CREATE TYPE medicationstatus AS ENUM ('active','proposed','suspended','rejected');
+            EXCEPTION WHEN duplicate_object THEN NULL; END $$
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS patient_medications (
+                id SERIAL PRIMARY KEY,
+                clinical_record_id INTEGER NOT NULL REFERENCES clinical_records(id),
+                name VARCHAR(200) NOT NULL,
+                dose VARCHAR(100) NOT NULL,
+                frequency medicationfrequency NOT NULL,
+                schedules JSON,
+                instructions VARCHAR(500),
+                current_stock INTEGER,
+                stock_unit VARCHAR(50),
+                restock_alert_threshold INTEGER,
+                treatment_start_date VARCHAR(10),
+                treatment_duration_days INTEGER,
+                status medicationstatus NOT NULL DEFAULT 'active',
+                created_by_user_id INTEGER NOT NULL REFERENCES users(id),
+                proposed_by_user_id INTEGER REFERENCES users(id),
+                approved_by_user_id INTEGER REFERENCES users(id),
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_patient_medications_clinical_record_id ON patient_medications (clinical_record_id)"))
+        # Migración: hacer booking_id opcional en medication_reminder_deliveries
+        # y añadir patient_medication_id para rastrear medicamentos permanentes
+        conn.execute(text("ALTER TABLE medication_reminder_deliveries ALTER COLUMN booking_id DROP NOT NULL"))
+        conn.execute(text("ALTER TABLE medication_reminder_deliveries ADD COLUMN IF NOT EXISTS patient_medication_id INTEGER REFERENCES patient_medications(id)"))
+        # Recrea el constraint único sin booking_id obligatorio
+        conn.execute(text("ALTER TABLE medication_reminder_deliveries DROP CONSTRAINT IF EXISTS uq_medication_reminder_delivery"))
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_medication_reminder_delivery ON medication_reminder_deliveries (schedule_key, reminder_date)"))
         conn.commit()
     _migrate_sensitive_data()
     # Cierra automáticamente los servicios aprobados 30 minutos después de su hora
@@ -180,6 +224,7 @@ app.include_router(notifications_router.router)
 app.include_router(care_plan_router.router)
 app.include_router(professional_assistant_router.router)
 app.include_router(appointments_router.router)
+app.include_router(medications_router.router)
 
 # Servir imágenes subidas como archivos estáticos
 app.mount("/uploads/profiles", StaticFiles(directory="uploads/profiles"), name="uploads-profiles")

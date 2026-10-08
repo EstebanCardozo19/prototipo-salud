@@ -7,6 +7,7 @@ import { CaregiverDashboard, NurseDashboard, AdminDashboard, ProfessionalPanel, 
 import AccountPanel from '../account/AccountPanel';
 import FamilyCalendar from '../patients/FamilyCalendar';
 import ServiceChatsModal from '../bookings/ServiceChatsModal';
+import MedicationsScreen from '../medications/MedicationsScreen';
 
 // ─── MainScreen ──────────────────────────────────────────────
 export default function MainScreen({ user, token, onLogout, onUnauthorized, onUserUpdate }) {
@@ -46,6 +47,9 @@ export default function MainScreen({ user, token, onLogout, onUnauthorized, onUs
       if (activeNav === 'calendar') {
         return <FamilyCalendar token={token} />;
       }
+      if (activeNav === 'medications') {
+        return <MedicationsScreen user={user} token={token} />;
+      }
       return (
         <div className="flex h-full">
           <div className={`flex-1 overflow-hidden ${activeNav !== 'my-requests' ? 'border-r border-[#c3c6d6]/30' : ''}`}>
@@ -61,6 +65,7 @@ export default function MainScreen({ user, token, onLogout, onUnauthorized, onUs
     }
     if (user.role === 'caregiver') {
       if (activeNav === 'calendar') return <ProfessionalCalendar token={token} />;
+      if (activeNav === 'medications') return <MedicationsScreen user={user} token={token} />;
       return (
         <div className="flex h-full">
           <div className={`flex-1 overflow-hidden ${activeNav !== 'my-requests' ? 'border-r border-[#c3c6d6]/30' : ''}`}>
@@ -76,6 +81,7 @@ export default function MainScreen({ user, token, onLogout, onUnauthorized, onUs
     }
     if (user.role === 'nurse') {
       if (activeNav === 'calendar') return <ProfessionalCalendar token={token} />;
+      if (activeNav === 'medications') return <MedicationsScreen user={user} token={token} />;
       return (
         <div className="flex h-full">
           <div className={`flex-1 overflow-hidden ${activeNav !== 'my-requests' ? 'border-r border-[#c3c6d6]/30' : ''}`}>

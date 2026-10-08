@@ -407,13 +407,83 @@ class PushSubscription(SQLModel, table=True):
     )
 
 
+# ============================================================
+# Medicamentos del paciente (permanente, por ficha clínica)
+# ============================================================
+
+class MedicationStatus(str, enum.Enum):
+    active = "active"           # vigente, aprobado por la familia
+    proposed = "proposed"       # propuesto por un profesional, pendiente de aprobación
+    suspended = "suspended"     # suspendido por la familia
+    rejected = "rejected"       # rechazado por la familia
+
+
+class MedicationFrequency(str, enum.Enum):
+    every_4h  = "every_4h"      # Cada 4 horas
+    every_6h  = "every_6h"      # Cada 6 horas
+    every_8h  = "every_8h"      # Cada 8 horas
+    every_12h = "every_12h"     # Cada 12 horas
+    every_24h = "every_24h"     # Una vez al día
+    twice_daily  = "twice_daily"
+    three_daily  = "three_daily"
+    four_daily   = "four_daily"
+    as_needed    = "as_needed"  # Solo si es necesario
+    custom       = "custom"     # Definido en notes
+
+
+class PatientMedication(SQLModel, table=True):
+    """Medicamento permanente del paciente, gestionado por la familia.
+
+    El profesional asignado puede proponer cambios; la familia siempre aprueba.
+    """
+    __tablename__ = "patient_medications"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    clinical_record_id: int = Field(foreign_key="clinical_records.id", nullable=False, index=True)
+
+    # Datos del medicamento
+    name: str = Field(max_length=200)
+    dose: str = Field(max_length=100)                         # ej: "500 mg", "10 ml"
+    frequency: MedicationFrequency = Field(
+        sa_column=Column(SAEnum(MedicationFrequency, name="medicationfrequency"), nullable=False)
+    )
+    schedules: Optional[List[str]] = Field(default=None, sa_column=Column(JSON))  # ["07:00","15:00","23:00"]
+    instructions: Optional[str] = Field(default=None, max_length=500)            # "con comida", "en ayunas"
+
+    # Stock y reabastecimiento
+    current_stock: Optional[int] = Field(default=None)        # unidades disponibles actualmente
+    stock_unit: Optional[str] = Field(default=None, max_length=50)  # "pastillas", "ml", "parches"
+    restock_alert_threshold: Optional[int] = Field(default=None)    # avisar cuando queden ≤ N unidades
+    treatment_start_date: Optional[str] = Field(default=None, max_length=10)   # YYYY-MM-DD
+    treatment_duration_days: Optional[int] = Field(default=None)               # None = indefinido
+
+    # Control de acceso / aprobación
+    status: MedicationStatus = Field(
+        default=MedicationStatus.active,
+        sa_column=Column(SAEnum(MedicationStatus, name="medicationstatus"), nullable=False, server_default="active")
+    )
+    created_by_user_id: int = Field(foreign_key="users.id", nullable=False)      # quien lo creó
+    proposed_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")  # profesional que propuso (si aplica)
+    approved_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")  # familiar que aprobó
+
+    created_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), server_default=func.now())
+    )
+    updated_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    )
+
+
 class MedicationReminderDelivery(SQLModel, table=True):
     """Registro idempotente de los recordatorios enviados por pauta y día."""
     __tablename__ = "medication_reminder_deliveries"
-    __table_args__ = (UniqueConstraint("booking_id", "schedule_key", "reminder_date", name="uq_medication_reminder_delivery"),)
+    __table_args__ = (UniqueConstraint("schedule_key", "reminder_date", name="uq_medication_reminder_delivery"),)
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    booking_id: int = Field(foreign_key="bookings.id", nullable=False, index=True)
+    booking_id: Optional[int] = Field(default=None, foreign_key="bookings.id", index=True)
+    patient_medication_id: Optional[int] = Field(default=None, foreign_key="patient_medications.id", index=True)
     schedule_key: str = Field(max_length=64, nullable=False, index=True)
     reminder_date: str = Field(max_length=10, nullable=False, index=True)
     created_at: Optional[datetime] = Field(

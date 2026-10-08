@@ -11,6 +11,7 @@ from app.mcp_server import obtener_contexto_paciente_asignado
 from app.services.service_lifecycle import is_service_active
 from app.models import (
     Booking, BookingStatus, ClinicalRecord, ClinicalRecordDocument, ProfessionalAssistantAuditLog,
+    MedicationStatus, PatientMedication,
     ServiceCarePlan, User, UserRole,
 )
 from app.routers.notifications_router import create_notification, dispatch_emergency_webhook
@@ -75,6 +76,16 @@ def _audit(session: Session, current_user: User, booking: Booking, action: str) 
     session.commit()
 
 
+def _load_active_medications(record: ClinicalRecord, session: Session) -> list:
+    """Carga los medicamentos activos del paciente para inyectar en el contexto del asistente."""
+    return session.exec(
+        select(PatientMedication).where(
+            PatientMedication.clinical_record_id == record.id,
+            PatientMedication.status == MedicationStatus.active,
+        )
+    ).all()
+
+
 def _add_authorized_document_context(context: dict, record: ClinicalRecord, session: Session) -> bool:
     """Añade texto de adjuntos únicamente tras consentimiento familiar explícito."""
     if not record.allow_professional_document_access:
@@ -107,9 +118,10 @@ def _documentary_answer(message: str, context: dict, include_clinical_details: b
     normalized = message.lower()
     patient = context["patient"]
     plan = context["care_plan"]
+    patient_meds = context.get("patient_medications", [])
     parts = ["Soy un asistente documental: resumo únicamente información registrada y no reemplazo la valoración clínica."]
 
-    if any(word in normalized for word in ("resumen", "información", "informacion", "paciente", "visita")):
+    if any(word in normalized for word in ("resumen", "información", "informacion", "paciente", "visita", "todo")):
         summary = (
             f"{patient['name']}, {patient['age']} años. Movilidad: {patient['mobility_level'] or 'no registrada'}. "
             f"Necesidades especiales: {patient['special_needs'] or 'no registradas'}."
@@ -117,20 +129,63 @@ def _documentary_answer(message: str, context: dict, include_clinical_details: b
         if include_clinical_details:
             summary += f" Diagnósticos registrados: {_list_text(patient.get('diagnoses', []), 'ninguno')}."
         parts.append(summary)
+
     if any(word in normalized for word in ("alerg", "contraindic")):
         parts.append(f"Alergias registradas: {_list_text(patient['allergies'], 'ninguna registrada')}.")
-    if any(word in normalized for word in ("medic", "horario", "dosis", "tomar")):
+
+    if any(word in normalized for word in ("medic", "horario", "dosis", "tomar", "pastilla", "administr")):
+        # Primero medicamentos permanentes del paciente (PatientMedication)
+        if patient_meds:
+            freq_labels = {
+                "every_4h": "cada 4 h", "every_6h": "cada 6 h", "every_8h": "cada 8 h",
+                "every_12h": "cada 12 h", "every_24h": "1 vez/día",
+                "twice_daily": "2 veces/día", "three_daily": "3 veces/día",
+                "four_daily": "4 veces/día", "as_needed": "si es necesario", "custom": "personalizado",
+            }
+            meds_lines = []
+            for m in patient_meds:
+                freq = freq_labels.get(m.get("frequency", ""), m.get("frequency", ""))
+                schedules = ", ".join(m.get("schedules") or []) or "sin horario específico"
+                line = f"• {m['name']}: {m['dose']} {freq} — horarios: {schedules}"
+                if m.get("instructions"):
+                    line += f" ({m['instructions']})"
+                if include_clinical_details and m.get("low_stock"):
+                    line += " ⚠️ STOCK BAJO"
+                meds_lines.append(line)
+            parts.append(
+                "Medicamentos activos registrados por la familia:\n" + "\n".join(meds_lines) +
+                "\nNo modifiques dosis ni horarios sin autorización del profesional tratante."
+            )
+        # Luego pautas del plan del servicio
         schedule = plan["medication_schedule"]
         if schedule:
             items = "; ".join(
                 f"{item.get('medication', 'Medicamento')}: {item.get('dosage', 'dosis no indicada')} a las {item.get('time', 'hora no indicada')}"
                 for item in schedule
             )
-            parts.append(f"Pautas registradas en el plan: {items}. No modifiques dosis, horarios ni tratamientos; confirma cualquier duda con el tratante.")
-        else:
-            parts.append("No hay un horario de medicación registrado en el plan. No infieras ni administres cambios; confirma con la familia o el profesional tratante.")
+            parts.append(f"Pautas adicionales del plan del servicio: {items}.")
+        elif not patient_meds:
+            parts.append("No hay medicamentos ni pautas registradas para este servicio.")
+
+    if any(word in normalized for word in ("stock", "quedan", "faltan", "reabastec", "comprar")):
+        if include_clinical_details and patient_meds:
+            stock_lines = []
+            for m in patient_meds:
+                if m.get("current_stock") is not None:
+                    alerta = " ⚠️ STOCK BAJO — considerar reabastecimiento" if m.get("low_stock") else ""
+                    stock_lines.append(
+                        f"• {m['name']}: {m['current_stock']} {m.get('stock_unit') or 'unidades'} disponibles{alerta}"
+                    )
+            if stock_lines:
+                parts.append("Stock de medicamentos:\n" + "\n".join(stock_lines))
+            else:
+                parts.append("No hay información de stock registrada.")
+        elif not include_clinical_details:
+            parts.append("La información de stock solo está disponible para el personal de enfermería.")
+
     if any(word in normalized for word in ("protocolo", "emerg", "urgencia")):
         parts.append(f"Protocolo registrado: {plan['emergency_protocol'] or 'no hay un protocolo registrado para este servicio'}.")
+
     if len(parts) == 1:
         parts.append("Puedo resumir la información autorizada, recordar alergias, medicamentos y horarios documentados, movilidad, necesidades especiales o el protocolo registrado.")
     return " ".join(parts)
@@ -172,8 +227,10 @@ def get_context(
     session: Session = Depends(get_session),
 ):
     booking, record, plan = _authorized_booking_context(booking_id, current_user, session)
+    include_clinical_details = current_user.role == UserRole.nurse
+    active_meds = _load_active_medications(record, session)
     context = obtener_contexto_paciente_asignado(
-        booking, record, plan, include_clinical_details=current_user.role == UserRole.nurse,
+        booking, record, plan, include_clinical_details, patient_medications=active_meds,
     )
     # La lectura manual muestra únicamente texto extraído, nunca el archivo binario.
     # Este endpoint ya validó profesional asignado, aprobación y horario activo.
@@ -192,7 +249,10 @@ def ask_assistant(
 ):
     booking, record, plan = _authorized_booking_context(booking_id, current_user, session)
     include_clinical_details = current_user.role == UserRole.nurse
-    context = obtener_contexto_paciente_asignado(booking, record, plan, include_clinical_details)
+    active_meds = _load_active_medications(record, session)
+    context = obtener_contexto_paciente_asignado(
+        booking, record, plan, include_clinical_details, patient_medications=active_meds,
+    )
     document_access_granted = _add_authorized_document_context(context, record, session)
     message = request.message.strip()
     _audit(session, current_user, booking, "ask_assistant_documents" if document_access_granted else "ask_assistant")
@@ -206,10 +266,11 @@ def ask_assistant(
     return AssistantResponse(
         response=_conversational_documentary_answer(message, context, request.history, include_clinical_details), context=context,
         limitations=[
-            "Solo usa información registrada en la ficha y el plan del servicio.",
+            "Solo usa información registrada en la ficha, los medicamentos activos y el plan del servicio.",
             *( ["La familia autorizó usar el texto extraído de los documentos adjuntos."] if document_access_granted else ["La familia no autorizó usar documentos adjuntos en el asistente."] ),
             "No diagnostica, prescribe, ajusta dosis ni sustituye una valoración profesional.",
             "No muestra dirección exacta, contactos de emergencia ni datos de aseguramiento.",
-            *( ["Como cuidador, no muestra diagnósticos, grupo sanguíneo ni listado clínico general de medicamentos."] if not include_clinical_details else [] ),
+            *(["Incluye medicamentos activos registrados por la familia con sus horarios y stock."] if context.get("patient_medications") else []),
+            *( ["Como cuidador, no muestra diagnósticos, grupo sanguíneo ni stock de medicamentos."] if not include_clinical_details else [] ),
         ],
     )

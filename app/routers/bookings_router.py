@@ -748,3 +748,48 @@ def get_family_reviews(
             created_at=r.created_at.isoformat() if r.created_at else None,
         ))
     return results
+
+
+# ============================================================
+# Asignaciones del profesional (para módulo de medicamentos)
+# ============================================================
+
+class AssignmentRecord(BaseModel):
+    booking_id: int
+    clinical_record_id: Optional[int]
+    patient_name: Optional[str]
+    patient_age: Optional[int]
+    status: str
+    date: str
+
+
+@router.get("/my-assignments", response_model=List[AssignmentRecord])
+def list_my_assignments(
+    current_user: User = Depends(require_role(UserRole.caregiver, UserRole.nurse)),
+    session: Session = Depends(get_session),
+):
+    """Devuelve los bookings aprobados o completados del profesional con datos de la ficha del paciente."""
+    bookings = session.exec(
+        select(Booking)
+        .where(Booking.professional_user_id == current_user.id)
+        .where(Booking.status.in_([BookingStatus.approved, BookingStatus.completed]))
+        .where(Booking.clinical_record_id.isnot(None))
+        .order_by(Booking.date.desc())
+    ).all()
+
+    seen: set[int] = set()
+    results = []
+    for b in bookings:
+        if b.clinical_record_id in seen:
+            continue
+        seen.add(b.clinical_record_id)
+        record = session.get(ClinicalRecord, b.clinical_record_id)
+        results.append(AssignmentRecord(
+            booking_id=b.id,
+            clinical_record_id=b.clinical_record_id,
+            patient_name=record.patient_name if record else None,
+            patient_age=record.patient_age if record else None,
+            status=b.status.value,
+            date=b.date,
+        ))
+    return results

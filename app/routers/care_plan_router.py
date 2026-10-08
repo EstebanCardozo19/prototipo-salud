@@ -135,20 +135,53 @@ def ask_documentary_assistant(
         return AssistantResponse(response="Aún no hay pautas documentales registradas por el profesional para este servicio. Contacta al profesional asignado para que las ingrese o confirme.", emergency_detected=False, escalation_created=False)
     schedule = plan.medication_schedule or []
     lower_message = message.lower()
-    parts = ["Soy un asistente documental: solo puedo orientar con las pautas registradas y no debo indicar cambios de dosis ni tratamientos."]
-    if any(word in lower_message for word in ("medic", "horario", "dosis", "tomar")):
+
+    # Palabras clave para detectar intención sobre medicamentos
+    MEDICATION_KEYWORDS = (
+        "medic", "medicamento", "pastilla", "pastillas", "píldo", "jarabe",
+        "horario", "hora", "cuándo", "cuando", "dosis", "tomar", "administr",
+        "tratamiento", "farmaco", "fármaco", "suministr", "dar", "tome",
+        "qué hay", "que hay", "qué tiene", "que tiene", "lista", "pautas",
+        "plan", "todo", "resumen", "información", "informacion",
+    )
+    # Palabras clave para detectar intención sobre emergencias / contactos
+    EMERGENCY_KEYWORDS = (
+        "emerg", "urgencia", "urgente", "protocolo", "contacto", "médico",
+        "medico", "doctor", "llamar", "llamar a", "teléfono", "telefono",
+        "número", "numero", "quién", "quien", "escalamiento", "escalar",
+    )
+
+    asked_medication = any(word in lower_message for word in MEDICATION_KEYWORDS)
+    asked_emergency = any(word in lower_message for word in EMERGENCY_KEYWORDS)
+
+    # Si no detectó intención clara, mostrar todo el plan disponible
+    if not asked_medication and not asked_emergency:
+        asked_medication = True
+        asked_emergency = True
+
+    parts = []
+
+    if asked_medication:
         if schedule:
-            entries = "; ".join(f"{item.get('medication')}: {item.get('dosage')} a las {item.get('time')}" + (f" ({item.get('instructions')})" if item.get('instructions') else "") for item in schedule)
-            parts.append(f"Pautas registradas: {entries}.")
+            entries = "\n".join(
+                f"• {item.get('medication')}: {item.get('dosage')} a las {item.get('time')}"
+                + (f" ({item.get('instructions')})" if item.get('instructions') else "")
+                for item in schedule
+            )
+            parts.append(f"Medicamentos registrados en el plan:\n{entries}")
         else:
             parts.append("No hay horarios de medicación registrados en este plan.")
-    if any(word in lower_message for word in ("emerg", "urgencia", "protocolo", "contacto", "médico", "medico")):
+
+    if asked_emergency:
         if plan.emergency_protocol:
-            parts.append(f"Protocolo de emergencia registrado: {plan.emergency_protocol}")
-        else:
-            parts.append("No hay un protocolo de emergencia registrado.")
+            parts.append(f"Protocolo de emergencia:\n{plan.emergency_protocol}")
         if plan.treating_physician_contact:
-            parts.append(f"Contacto del profesional/médico tratante: {plan.treating_physician_contact}.")
-    if len(parts) == 1:
-        parts.append("Puedo recordarte horarios de medicamentos registrados, el protocolo de emergencia o el contacto del profesional tratante.")
-    return AssistantResponse(response=" ".join(parts), emergency_detected=False, escalation_created=False)
+            parts.append(f"Contacto del médico tratante: {plan.treating_physician_contact}")
+        if not plan.emergency_protocol and not plan.treating_physician_contact:
+            parts.append("No hay protocolo de emergencia ni contacto del médico registrado.")
+
+    if not parts:
+        parts.append("No encontré información registrada para responder esa consulta.")
+
+    parts.append("⚠️ Este asistente no diagnostica, prescribe ni reemplaza la valoración del profesional tratante.")
+    return AssistantResponse(response="\n\n".join(parts), emergency_detected=False, escalation_created=False)

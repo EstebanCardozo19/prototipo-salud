@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from sqlmodel import Session
 from sqlalchemy import text
 
-from app.models import Booking, CaregiverProfile, ClinicalRecord, ServiceCarePlan, User
+from app.models import Booking, CaregiverProfile, ClinicalRecord, MedicationStatus, PatientMedication, ServiceCarePlan, User
 from app.services.embedding_service import generar_embedding
 from app.database import engine
 
@@ -94,6 +94,7 @@ def obtener_contexto_paciente_asignado(
     clinical_record: ClinicalRecord,
     care_plan: ServiceCarePlan | None = None,
     include_clinical_details: bool = False,
+    patient_medications: list | None = None,
 ) -> dict:
     """Construye contexto mínimo para un profesional autorizado previamente.
 
@@ -123,6 +124,33 @@ def obtener_contexto_paciente_asignado(
             "emergency_protocol": care_plan.emergency_protocol if care_plan else None,
         },
     }
+
+    # Medicamentos activos del paciente registrados por la familia
+    if patient_medications:
+        meds_context = []
+        for m in patient_medications:
+            entry = {
+                "name": m.name,
+                "dose": m.dose,
+                "frequency": m.frequency.value if hasattr(m.frequency, "value") else str(m.frequency),
+                "schedules": m.schedules or [],
+                "instructions": m.instructions,
+            }
+            if include_clinical_details:
+                # Enfermeros ven también el stock y período
+                entry["current_stock"] = m.current_stock
+                entry["stock_unit"] = m.stock_unit
+                entry["restock_alert_threshold"] = m.restock_alert_threshold
+                entry["treatment_start_date"] = m.treatment_start_date
+                entry["treatment_duration_days"] = m.treatment_duration_days
+                entry["low_stock"] = (
+                    m.current_stock is not None
+                    and m.restock_alert_threshold is not None
+                    and m.current_stock <= m.restock_alert_threshold
+                )
+            meds_context.append(entry)
+        context["patient_medications"] = meds_context
+
     if include_clinical_details:
         context["patient"].update({
             "blood_type": clinical_record.blood_type,

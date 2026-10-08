@@ -7,6 +7,7 @@ import GoogleMap from '../common/GoogleMap';
 import BookingModal from '../bookings/BookingModal';
 import RateServiceModal from '../bookings/RateServiceModal';
 import ServiceChatModal from '../bookings/ServiceChatModal';
+import ServiceCarePlanModal from '../bookings/ServiceCarePlanModal';
 import ProfessionalDetailModal from './ProfessionalDetailModal';
 import StarRating from '../common/StarRating';
 import { SPECIALTIES, SPECIALTIES_KEYS } from '../../constants';
@@ -44,14 +45,15 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'map'
   const [caregivers, setCaregivers] = useState([]);
   const [doctors, setDoctors] = useState([]);
-  const [reviewsMap, setReviewsMap] = useState({});
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
   // ── Familiares del usuario para ubicación contextual ────────
   const [familyRecords, setFamilyRecords] = useState([]);
   const [selectedFamilyChip, setSelectedFamilyChip] = useState(null);
   const [bookingModalProf, setBookingModalProf] = useState(null);
   const [chatBooking, setChatBooking] = useState(null);
+  const [carePlanBooking, setCarePlanBooking] = useState(null);
 
   // ── Filtros adicionales ─────────────────────────────────────
   const [showFilters, setShowFilters] = useState(false);
@@ -185,10 +187,7 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
       result = result.filter(p => {
         const profileRating = p.rating_avg;
         if (profileRating != null) return profileRating >= Number(filters.minRating);
-        const revs = reviewsMap[p.user_id || p.id] || [];
-        if (revs.length === 0) return Number(filters.minRating) <= 5; // sin reseñas = 5 estrellas por defecto
-        const avg = revs.reduce((s, r) => s + r.rating, 0) / revs.length;
-        return avg >= Number(filters.minRating);
+        return Number(filters.minRating) <= 5; // sin reseñas = 5 estrellas por defecto
       });
     }
 
@@ -197,12 +196,8 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
       if (filters.sortBy === 'price_asc') return Number(a.hourly_rate || 0) - Number(b.hourly_rate || 0);
       if (filters.sortBy === 'price_desc') return Number(b.hourly_rate || 0) - Number(a.hourly_rate || 0);
       if (filters.sortBy === 'exp') return Number(b.experience_years || 0) - Number(a.experience_years || 0);
-      // Default: ordenar por rating_avg del perfil (más preciso y sin llamadas extra)
-      const getRating = p => {
-        if (p.rating_avg != null) return p.rating_avg;
-        const ra = reviewsMap[p.user_id || p.id] || [];
-        return ra.length ? ra.reduce((s, r) => s + r.rating, 0) / ra.length : 5.0;
-      };
+      // Default: ordenar por rating_avg del perfil
+      const getRating = p => p.rating_avg ?? 5.0;
       return getRating(b) - getRating(a);
     });
 
@@ -220,31 +215,24 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
 
   const loadAll = async () => {
     setLoading(true);
+    setLoadError('');
     try {
+      const ctrl = new AbortController();
+      const tid = setTimeout(() => ctrl.abort(), 12000);
       const [cgRes, nRes] = await Promise.all([
-        fetch('/api/caregivers/', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/nurses/', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/caregivers/', { headers: { Authorization: `Bearer ${token}` }, signal: ctrl.signal }),
+        fetch('/api/nurses/', { headers: { Authorization: `Bearer ${token}` }, signal: ctrl.signal }),
       ]);
+      clearTimeout(tid);
       const cgList = cgRes.ok ? await cgRes.json() : [];
       const nList = nRes.ok ? await nRes.json() : [];
       setCaregivers(cgList);
       setDoctors(nList);
-      const allProfs = [...cgList, ...nList];
-      const entries = await Promise.all(
-        allProfs.map(async p => {
-          try {
-            const r = await fetch(`/api/bookings/reviews/${p.user_id || p.id}`, {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            return [p.user_id || p.id, r.ok ? await r.json() : []];
-          } catch {
-            return [p.user_id || p.id, []];
-          }
-        })
-      );
-      setReviewsMap(Object.fromEntries(entries));
     } catch (e) {
-      console.error(e);
+      console.error('loadAll error:', e.message);
+      setLoadError(e.name === 'AbortError'
+        ? 'El servidor tardó demasiado. Verifica que el backend esté activo.'
+        : `Error al cargar profesionales: ${e.message}`);
     } finally {
       setLoading(false);
     }
@@ -750,6 +738,20 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
           </div>
         )}
 
+        {!loading && loadError && activeTab !== 'my-requests' && (
+          <div className="flex flex-col items-center py-16 text-center max-w-md mx-auto">
+            <span className="material-symbols-outlined text-[48px] text-red-400 mb-3">wifi_off</span>
+            <p className="text-[15px] font-semibold text-[#424654]">No se pudo cargar la lista</p>
+            <p className="text-[13px] text-[#737785] mt-1 mb-4">{loadError}</p>
+            <button
+              onClick={loadAll}
+              className="h-[38px] px-5 bg-[#0040a1] text-white rounded-xl text-[13px] font-bold hover:bg-[#003080] transition-all"
+            >
+              Reintentar
+            </button>
+          </div>
+        )}
+
         {/* ── Mis Solicitudes ── */}
         {activeTab === 'my-requests' && (
           <div className="max-w-3xl mx-auto">
@@ -934,14 +936,24 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
                         </div>
                       )}
                       {b.status === 'approved' && (
-                        <button
-                          type="button"
-                          onClick={() => setChatBooking(b)}
-                          className="h-[38px] px-4 bg-[#0040a1] text-white rounded-xl text-[12px] font-bold hover:bg-[#003080] transition-all flex items-center gap-1.5"
-                        >
-                          <span className="material-symbols-outlined text-[16px]">forum</span>
-                          Chat del servicio
-                        </button>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setChatBooking(b)}
+                            className="h-[38px] px-4 bg-[#0040a1] text-white rounded-xl text-[12px] font-bold hover:bg-[#003080] transition-all flex items-center gap-1.5"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">forum</span>
+                            Chat del servicio
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCarePlanBooking(b)}
+                            className="h-[38px] px-4 bg-[#f0f4ff] text-[#0040a1] border border-[#0040a1]/30 rounded-xl text-[12px] font-bold hover:bg-[#dae2ff] transition-all flex items-center gap-1.5"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">health_and_safety</span>
+                            Plan asistencial
+                          </button>
+                        </div>
                       )}
                     </div>
                   );
@@ -1014,7 +1026,7 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
                         key={cg.user_id || i}
                         caregiver={cg}
                         index={i}
-                        reviews={reviewsMap[cg.user_id || cg.id] || []}
+                        reviews={[]}
                         ratingAvg={cg.rating_avg ?? 5.0}
                         ratingCount={cg.rating_count ?? 0}
                         token={token}
@@ -1025,7 +1037,7 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
                         key={d.user_id || i}
                         doctor={d}
                         index={i}
-                        reviews={reviewsMap[d.user_id || d.id] || []}
+                        reviews={[]}
                         ratingAvg={d.rating_avg ?? 5.0}
                         ratingCount={d.rating_count ?? 0}
                         token={token}
@@ -1073,6 +1085,7 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
         />
       )}
       {chatBooking && <ServiceChatModal booking={chatBooking} user={user} token={token} onClose={() => setChatBooking(null)} />}
+      {carePlanBooking && <ServiceCarePlanModal booking={carePlanBooking} user={user} token={token} onClose={() => setCarePlanBooking(null)} />}
       {detailProfessional && (
         <ProfessionalDetailModal
           professional={detailProfessional}

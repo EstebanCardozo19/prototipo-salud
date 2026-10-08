@@ -17,6 +17,10 @@ export default function TopBar({ user, token, activeNav, onNav, onLogout, onOpen
     ...(['caregiver', 'nurse'].includes(user.role)
       ? [{ key: 'calendar', label: t('nav.calendar') }]
       : []),
+    // Rutinas y medicamentos: visible para familia y profesionales
+    ...(['family', 'caregiver', 'nurse'].includes(user.role)
+      ? [{ key: 'medications', label: 'Medicamentos' }]
+      : []),
     { key: 'my-requests', label: t('nav.myRequests') },
     { key: 'account', label: t('nav.myAccount') },
   ];
