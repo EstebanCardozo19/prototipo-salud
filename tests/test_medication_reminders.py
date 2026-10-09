@@ -65,7 +65,7 @@ class MedicationReminderTests(unittest.TestCase):
         self.assertEqual(str(parse_medication_time("9:30 PM")), "21:30:00")
         self.assertIsNone(parse_medication_time("25:00"))
 
-    @patch("app.services.medication_reminders._send_web_push")
+    @patch("app.services.medication_reminders._send_push")
     @patch("app.services.medication_reminders.create_notification")
     def test_dispatches_only_once_for_active_assigned_professional(self, notification, _push):
         session = ReminderSession(self.booking, self.plan)
@@ -77,7 +77,7 @@ class MedicationReminderTests(unittest.TestCase):
         self.assertEqual(notification.call_args.args[1], 40)
         self.assertTrue(session.committed)
 
-    @patch("app.services.medication_reminders._send_web_push")
+    @patch("app.services.medication_reminders._send_push")
     @patch("app.services.medication_reminders.create_notification")
     def test_does_not_dispatch_outside_active_service_window(self, notification, _push):
         session = ReminderSession(self.booking, self.plan)

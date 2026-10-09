@@ -8,6 +8,10 @@ import { INPUT_CLASS, LABEL_CLASS } from '../../constants';
 import { getRoleLabel } from '../../utils/helpers';
 import { getCitiesList, getLocalidadesForCity } from '../../constants/colombiaGeo';
 
+const SECURITY_QUESTIONS = [
+  'first_pet', 'birth_city', 'favorite_teacher', 'childhood_friend', 'favorite_book', 'mother_middle_name',
+];
+
 // ─── Clave en localStorage para las preferencias ──────────────
 const PREFS_KEY = 'salud_user_prefs';
 
@@ -23,14 +27,17 @@ function loadPrefs() {
 export default function AccountPanel({ user, token, onUserUpdate }) {
   const { t, lang, setLang } = useLang();
   const [activeTab, setActiveTab] = useState('profile');
-  const [form, setForm] = useState({ full_name: user.full_name, email: user.email, phone: '' });
+  const [form, setForm] = useState({ full_name: user.full_name, email: user.email, phone: user.phone || '' });
   const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
   const [saving, setSaving] = useState(false);
   const [savingPw, setSavingPw] = useState(false);
   const [msg, setMsg] = useState(null);
   const [pwMsg, setPwMsg] = useState(null);
+  const [securityQuestionsForm, setSecurityQuestionsForm] = useState({ current: '', question1: '', answer1: '', question2: '', answer2: '' });
+  const [securityQuestionsConfigured, setSecurityQuestionsConfigured] = useState(null);
+  const [savingSecurityQuestions, setSavingSecurityQuestions] = useState(false);
+  const [securityQuestionsMsg, setSecurityQuestionsMsg] = useState(null);
   const [notifEmail, setNotifEmail] = useState(true);
-  const [notifSms, setNotifSms] = useState(false);
 
   // ── Foto de perfil ──────────────────────────────────────────
   const [photoUrl, setPhotoUrl] = useState(user.photo_url || null);
@@ -60,6 +67,18 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
       .then(r => r.ok ? r.json() : [])
       .then(data => setFamilyRecords(Array.isArray(data) ? data : []))
       .catch(() => setFamilyRecords([]));
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    fetch('/api/auth/security-questions', { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (!data) return;
+        setSecurityQuestionsConfigured(data.configured);
+        setSecurityQuestionsForm(current => ({ ...current, question1: data.security_question_1 || '', question2: data.security_question_2 || '' }));
+      })
+      .catch(() => setSecurityQuestionsConfigured(false));
   }, [token]);
 
   const handlePhotoChange = async (e) => {
@@ -131,13 +150,26 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
     setSaving(true);
     setMsg(null);
     try {
-      const stored = JSON.parse(localStorage.getItem('user') || '{}');
-      const updated = { ...stored, full_name: form.full_name };
-      localStorage.setItem('user', JSON.stringify(updated));
+      const res = await fetch('/api/auth/me', {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          full_name: form.full_name,
+          phone: form.phone,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || t('account.saveError'));
+
+      const updated = { ...user, ...data };
       if (onUserUpdate) onUserUpdate(updated);
+      setForm(current => ({ ...current, full_name: data.full_name, phone: data.phone || '' }));
       setMsg({ type: 'ok', text: t('account.savedOk') });
-    } catch {
-      setMsg({ type: 'err', text: t('account.saveError') });
+    } catch (error) {
+      setMsg({ type: 'err', text: error.message || t('account.saveError') });
     } finally {
       setSaving(false);
     }
@@ -175,12 +207,43 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
     }
   };
 
+  const saveSecurityQuestions = async (e) => {
+    e.preventDefault();
+    setSecurityQuestionsMsg(null);
+    if (securityQuestionsForm.question1 === securityQuestionsForm.question2) {
+      setSecurityQuestionsMsg({ type: 'err', text: t('account.securityQuestionsDifferent') });
+      return;
+    }
+    setSavingSecurityQuestions(true);
+    try {
+      const res = await fetch('/api/auth/security-questions', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          current_password: securityQuestionsForm.current,
+          security_question_1: securityQuestionsForm.question1,
+          security_answer_1: securityQuestionsForm.answer1,
+          security_question_2: securityQuestionsForm.question2,
+          security_answer_2: securityQuestionsForm.answer2,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || t('account.securityQuestionsError'));
+      setSecurityQuestionsConfigured(true);
+      setSecurityQuestionsForm(current => ({ ...current, current: '', answer1: '', answer2: '' }));
+      setSecurityQuestionsMsg({ type: 'ok', text: t('account.securityQuestionsOk') });
+    } catch (error) {
+      setSecurityQuestionsMsg({ type: 'err', text: error.message || t('account.securityQuestionsError') });
+    } finally {
+      setSavingSecurityQuestions(false);
+    }
+  };
+
   // ── Guardar preferencias de ubicación ───────────────────────
   const savePreferences = () => {
     setPrefMsg(null);
     try {
       const prefs = loadPrefs();
-      const updated = { ...prefs, prefCity, prefLocality, notifEmail, notifSms };
+      const updated = { ...prefs, prefCity, prefLocality, notifEmail };
       localStorage.setItem(PREFS_KEY, JSON.stringify(updated));
       // Disparar evento para que SearchPanel pueda escuchar el cambio
       window.dispatchEvent(new CustomEvent('salud:prefsChanged', { detail: updated }));
@@ -442,6 +505,35 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
                 </button>
               </form>
             </div>
+            <div className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm p-6 mt-5">
+              <h3 className="font-bold text-[17px] text-[#1a1c1e] mb-1 flex items-center gap-2">
+                <span className="material-symbols-outlined text-[22px] text-[#0040a1]">quiz</span>
+                {t('account.securityQuestionsTitle')}
+              </h3>
+              <p className="text-[13px] text-[#737785] mb-5">
+                {securityQuestionsConfigured ? t('account.securityQuestionsConfigured') : t('account.securityQuestionsMissing')}
+              </p>
+              <form onSubmit={saveSecurityQuestions} className="flex flex-col gap-4">
+                <div>
+                  <label className={LABEL_CLASS}>{t('account.currentPassword')}</label>
+                  <input className={INPUT_CLASS} type="password" value={securityQuestionsForm.current} onChange={e => setSecurityQuestionsForm(v => ({ ...v, current: e.target.value }))} required />
+                </div>
+                {[['question1', 'answer1'], ['question2', 'answer2']].map(([questionKey, answerKey], index) => (
+                  <div key={questionKey}>
+                    <label className={LABEL_CLASS}>{t('account.securityQuestionNumber', { n: index + 1 })}</label>
+                    <select className={INPUT_CLASS} value={securityQuestionsForm[questionKey]} onChange={e => setSecurityQuestionsForm(v => ({ ...v, [questionKey]: e.target.value }))} required>
+                      <option value="">{t('account.selectSecurityQuestion')}</option>
+                      {SECURITY_QUESTIONS.filter(question => question !== securityQuestionsForm[index === 0 ? 'question2' : 'question1']).map(question => <option key={question} value={question}>{t(`auth.securityQuestions.${question}`)}</option>)}
+                    </select>
+                    <input className={`${INPUT_CLASS} mt-2`} type="text" placeholder={t('account.securityAnswer')} value={securityQuestionsForm[answerKey]} onChange={e => setSecurityQuestionsForm(v => ({ ...v, [answerKey]: e.target.value }))} minLength={2} required />
+                  </div>
+                ))}
+                <button type="submit" disabled={savingSecurityQuestions} className="h-[44px] px-6 bg-[#006a61] text-white rounded-xl font-bold text-[14px] hover:bg-[#00574f] transition-all flex items-center justify-center gap-2 disabled:opacity-60 self-start">
+                  {savingSecurityQuestions ? <Spinner sm /> : <><span className="material-symbols-outlined text-[19px]">save</span>{t('account.saveSecurityQuestions')}</>}
+                </button>
+                {securityQuestionsMsg && <p className={`text-[13px] font-semibold ${securityQuestionsMsg.type === 'ok' ? 'text-green-600' : 'text-red-600'}`}>{securityQuestionsMsg.text}</p>}
+              </form>
+            </div>
           </div>
         )}
 
@@ -652,7 +744,6 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
               <div className="flex flex-col gap-5">
                 {[
                   { key: 'email', label: t('account.notifEmail'), desc: t('account.notifEmailDesc'), val: notifEmail, set: setNotifEmail },
-                  { key: 'sms',   label: t('account.notifSms'),   desc: t('account.notifSmsDesc'),   val: notifSms,   set: setNotifSms   },
                 ].map(item => (
                   <div key={item.key} className="flex items-center justify-between gap-4">
                     <div>

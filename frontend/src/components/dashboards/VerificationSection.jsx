@@ -12,6 +12,7 @@ const DOCUMENT_LABELS = {
 };
 
 const NAMED_DOCUMENTS = new Set(['training', 'nursing_degree', 'additional_certificate']);
+const CAREGIVER_OPTIONAL_DOCUMENTS = ['identity', 'training', 'work_reference'];
 
 const STATUS = {
   pending: { label: 'En revisión', className: 'bg-amber-100 text-amber-800', icon: 'schedule' },
@@ -122,6 +123,8 @@ export default function VerificationSection({ token, className = '' }) {
   if (!verification) return null;
 
   const allDocumentsLoaded = verification.required_documents.every(type => documentsByType[type]);
+  const documentsAreOptional = verification.required_documents.length === 0;
+  const documentTypes = documentsAreOptional ? CAREGIVER_OPTIONAL_DOCUMENTS : verification.required_documents;
 
   return (
     <section className={`bg-white rounded-lg border border-[#E2E8F0] shadow-sm p-8 flex-1 ${className}`}>
@@ -130,7 +133,7 @@ export default function VerificationSection({ token, className = '' }) {
           <span className="material-symbols-outlined text-[28px]">verified_user</span>
           <div>
             <h2 className="text-[20px] leading-[28px] font-semibold">Verificación profesional</h2>
-            <p className="text-[14px] text-[#434652] mt-1">Carga los documentos requeridos para que un administrador valide tu perfil.</p>
+            <p className="text-[14px] text-[#434652] mt-1">{documentsAreOptional ? 'Puedes adjuntar documentos de soporte, pero no son obligatorios para enviar tu solicitud.' : 'Carga los documentos requeridos para que un administrador valide tu perfil.'}</p>
           </div>
         </div>
         <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold ${status.className}`}>
@@ -150,8 +153,11 @@ export default function VerificationSection({ token, className = '' }) {
         <p className="mt-4 mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-[13px] text-amber-800">Tu solicitud fue enviada y está siendo revisada. No puedes modificar documentos mientras esté pendiente.</p>
       )}
 
+      {documentsAreOptional && <div className="mt-5 mb-5 rounded-xl border border-blue-200 bg-blue-50 p-4 text-[13px] text-blue-900">Como cuidador, los documentos son opcionales. Puedes cargar soportes si los tienes y enviar la solicitud cuando hayas completado localidad y biografía.</div>}
+
       <div className="space-y-4 mb-8 mt-5">
-        {verification.required_documents.map(documentType => {
+        {documentsAreOptional && <h3 className="text-[14px] font-semibold text-[#1a1c1e]">Documentos de soporte opcionales</h3>}
+        {documentTypes.map(documentType => {
           const document = documentsByType[documentType];
           const isUploading = uploading === documentType;
           return (
@@ -197,7 +203,7 @@ export default function VerificationSection({ token, className = '' }) {
       </div>
 
       {canEdit && <div className="pt-6 border-t border-[#F1F5F9]">
-        <p className="text-[12px] text-[#434652] mb-6 max-w-2xl">Formatos permitidos: PDF, JPEG o PNG. Máximo 10 MB por documento. Completa localidad y biografía en tu perfil antes de enviar.</p>
+        <p className="text-[12px] text-[#434652] mb-6 max-w-2xl">Formatos permitidos: PDF, JPEG o PNG. Máximo 10 MB por documento. Completa localidad y biografía en tu perfil antes de enviar.{documentsAreOptional ? ' Los documentos son opcionales para cuidadores.' : ''}</p>
         <button type="button" onClick={submit} disabled={!allDocumentsLoaded || submitting || Boolean(uploading)} className="bg-[#004099] text-white px-8 py-3 rounded-lg text-[14px] font-semibold flex items-center gap-2 disabled:opacity-60 disabled:bg-[#8DA3D3] disabled:cursor-not-allowed hover:bg-[#002b6c] transition-colors">
           {submitting ? <Spinner sm /> : <span className="material-symbols-outlined text-[20px]">send</span>}
           {verification.status === 'rejected' ? 'Reenviar solicitud' : 'Enviar solicitud'}

@@ -45,7 +45,7 @@ Misma estructura para ambos. Dos tabs.
 - Muestra el motivo indicado por el administrador al rechazarla.
 - Permite cargar y reemplazar documentos con `POST /api/verification/documents/{document_type}` usando `FormData`, con el campo `file` y `document_name` para certificados o títulos. El selector se deshabilita hasta diligenciar ese nombre.
 - Valida en el navegador PDF/JPEG/PNG y máximo 10 MB; el backend repite estas validaciones.
-- Permite enviar o reenviar mediante `POST /api/verification/submit` cuando todos los documentos requeridos están cargados.
+- Para enfermeros permite enviar o reenviar mediante `POST /api/verification/submit` cuando todos los documentos requeridos están cargados. Para cuidadores, los documentos son opcionales y puede enviarse con localidad y biografía completas.
 - Mientras la solicitud está pendiente o aprobada, los documentos se muestran como enlaces privados y no se pueden modificar desde la interfaz. Una solicitud rechazada permite corregirlos y reenviarla.
 - El backend también exige que el perfil tenga localidad y biografía, por lo que el profesional debe guardar esos datos antes de enviar.
 

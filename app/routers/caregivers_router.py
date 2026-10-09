@@ -101,11 +101,13 @@ def get_my_profile(current_user: User = Depends(require_role(UserRole.caregiver)
 
 @router.get("/{profile_id}", response_model=CaregiverResponse)
 def get_caregiver(profile_id: int, session: Session = Depends(get_session)):
-    """Obtiene un cuidador por ID."""
+    """Obtiene un cuidador aprobado por ID."""
     profile = session.get(CaregiverProfile, profile_id)
-    if not profile:
+    if not profile or profile.status != ProfileStatus.approved:
         raise HTTPException(status_code=404, detail="Cuidador no encontrado")
     user = session.get(User, profile.user_id)
+    if not user or not user.is_active:
+        raise HTTPException(status_code=404, detail="Cuidador no encontrado")
     return CaregiverResponse(
         id=profile.id,
         user_id=profile.user_id,

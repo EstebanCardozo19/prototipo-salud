@@ -103,8 +103,11 @@ def get_my_profile(current_user: User = Depends(require_role(UserRole.nurse)), s
 @router.get("/{nurse_id}", response_model=NurseResponse)
 def get_nurse(nurse_id: int, session: Session = Depends(get_session)):
     p = session.get(NurseProfile, nurse_id)
-    if not p: raise HTTPException(status_code=404, detail="Enfermero no encontrado")
+    if not p or p.status != ProfileStatus.approved:
+        raise HTTPException(status_code=404, detail="Enfermero no encontrado")
     u = session.get(User, p.user_id)
+    if not u or not u.is_active:
+        raise HTTPException(status_code=404, detail="Enfermero no encontrado")
     return NurseResponse(id=p.id, user_id=p.user_id, full_name=u.full_name, email=u.email, specialty=p.specialty.value, license_number=p.license_number, institution=p.institution, experience_years=p.experience_years, bio=p.bio, location=p.location, hourly_rate=p.hourly_rate, status=p.status.value, rating_avg=p.rating_avg, rating_count=p.rating_count)
 
 @router.put("/me", response_model=NurseResponse)

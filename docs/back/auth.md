@@ -30,9 +30,14 @@ EXPIRY      = 24 horas
 
 | Schema | Campos |
 |---|---|
-| `RegisterRequest` | email, password, full_name, role |
+| `RegisterRequest` | email, password, full_name, role, 2 preguntas y respuestas de seguridad |
 | `LoginRequest` | email, password |
-| `UserResponse` | id, email, full_name, role, is_active, photo_url |
+| `ChangePasswordRequest` | current_password, new_password |
+| `SecurityQuestionsRequest` | current_password, 2 preguntas y respuestas de seguridad |
+| `PasswordRecoveryQuestionsRequest` | email |
+| `ResetPasswordWithSecurityQuestionsRequest` | email, 2 respuestas, new_password |
+| `UserResponse` | id, email, full_name, role, is_active, photo_url, phone |
+| `UpdateMyAccountRequest` | full_name, phone |
 | `Token` | access_token, token_type |
 | `TokenData` | user_id, email, role (del JWT decodificado) |
 
@@ -45,7 +50,14 @@ EXPIRY      = 24 horas
 | POST | `/register` | No | Crea usuario. Si `role=caregiver`, también crea `CaregiverProfile` vacío con estado `pending` |
 | POST | `/login` | No | Verifica credenciales → retorna `{ access_token, user }` |
 | GET | `/me` | JWT | Retorna datos del usuario autenticado |
-| PUT | `/change-password` | JWT | Verifica password actual, guarda nuevo hash |
+| PUT | `/me` | JWT | Actualiza el nombre completo y teléfono de la cuenta autenticada |
+| PUT | `/change-password` | JWT | Verifica la contraseña actual y guarda el hash bcrypt de la nueva |
+| GET | `/security-questions` | JWT | Indica si la cuenta tiene preguntas configuradas y devuelve sus identificadores |
+| PUT | `/security-questions` | JWT | Configura o actualiza las dos preguntas; exige la contraseña actual |
+| POST | `/password-recovery/questions` | No | Obtiene las preguntas asociadas a un correo con preguntas configuradas |
+| POST | `/password-recovery/reset` | No | Valida ambas respuestas y establece una nueva contraseña |
+
+Las respuestas se normalizan (espacios, mayúsculas y tildes) y se persisten exclusivamente como hashes bcrypt, nunca en texto plano.
 
 ### Flujo de login
 ```

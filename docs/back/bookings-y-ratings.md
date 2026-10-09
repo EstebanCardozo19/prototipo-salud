@@ -23,6 +23,8 @@ Solo el profesional puede mover el estado. El familiar solo crea.
 - **Auth**: `family`
 - Crea booking en estado `pending`
 - Valida que el profesional exista y que su `role` coincida con `professional_role` enviado
+- Recibe `location_sharing_preference`: `locality_neighborhood` (predeterminado) o `exact_address`.
+  La dirección exacta solo se entrega al profesional cuando la familia la autorizó explícitamente.
 
 ### Listar mis solicitudes — `GET /my-requests`
 - **Auth**: `family`
@@ -33,6 +35,8 @@ Solo el profesional puede mover el estado. El familiar solo crea.
 - **Auth**: `caregiver / nurse`
 - Retorna bookings donde el profesional es el receptor
 - Incluye `reviewed_by_professional: bool`
+- Incluye ciudad, localidad/comuna y barrio. Solo incluye `patient_address` cuando la solicitud
+  fue creada con `location_sharing_preference="exact_address"`.
 
 ### Aprobar o rechazar — `PUT /{id}/decide`
 - **Auth**: `caregiver / nurse` — solo el receptor del booking

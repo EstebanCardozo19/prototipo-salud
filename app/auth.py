@@ -3,6 +3,7 @@ Módulo de autenticación con JWT (JSON Web Tokens).
 Maneja registro, login, hash de contraseñas y protección de rutas.
 """
 import os
+import unicodedata
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -52,11 +53,44 @@ class RegisterRequest(BaseModel):
     password: str
     full_name: str
     role: str  # "family" o "caregiver"
+    security_question_1: str
+    security_answer_1: str
+    security_question_2: str
+    security_answer_2: str
 
 
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class SecurityQuestionsRequest(BaseModel):
+    current_password: str
+    security_question_1: str
+    security_answer_1: str
+    security_question_2: str
+    security_answer_2: str
+
+
+class PasswordRecoveryQuestionsRequest(BaseModel):
+    email: str
+
+
+class PasswordRecoveryQuestionsResponse(BaseModel):
+    security_question_1: str
+    security_question_2: str
+
+
+class ResetPasswordWithSecurityQuestionsRequest(BaseModel):
+    email: str
+    security_answer_1: str
+    security_answer_2: str
+    new_password: str
 
 
 class UserResponse(BaseModel):
@@ -66,6 +100,12 @@ class UserResponse(BaseModel):
     role: str
     is_active: bool
     photo_url: Optional[str] = None
+    phone: Optional[str] = None
+
+
+class UpdateMyAccountRequest(BaseModel):
+    full_name: str
+    phone: Optional[str] = None
 
 
 # --- Funciones de utilidad ---
@@ -76,6 +116,12 @@ def hash_password(password: str) -> str:
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return _verify_password_impl(plain_password, hashed_password)
+
+
+def normalize_security_answer(answer: str) -> str:
+    """Normaliza respuestas para evitar rechazos por mayúsculas, tildes o espacios."""
+    normalized = unicodedata.normalize("NFD", answer.strip().casefold())
+    return "".join(char for char in normalized if unicodedata.category(char) != "Mn")
 
 
 def validate_authentication_configuration() -> None:

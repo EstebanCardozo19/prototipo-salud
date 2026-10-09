@@ -3,7 +3,7 @@ Router de solicitudes de contratación, disponibilidad y reseñas.
 Sistema de rating bidireccional: familiar → profesional y profesional → familiar.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlmodel import Session, select
 from typing import Optional, List
 
@@ -59,6 +59,14 @@ class BookingCreate(BaseModel):
     start_hour: int
     end_hour: int
     notes: Optional[str] = None
+    location_sharing_preference: str = "locality_neighborhood"
+
+    @field_validator("location_sharing_preference")
+    @classmethod
+    def validate_location_sharing_preference(cls, value: str) -> str:
+        if value not in {"exact_address", "locality_neighborhood"}:
+            raise ValueError("La preferencia de ubicación no es válida")
+        return value
 
 
 class BookingResponse(BaseModel):
@@ -72,6 +80,7 @@ class BookingResponse(BaseModel):
     start_hour: int
     end_hour: int
     notes: Optional[str]
+    location_sharing_preference: str = "locality_neighborhood"
     status: str
     rejection_reason: Optional[str]
     family_name: Optional[str] = None
@@ -91,12 +100,14 @@ class BookingResponse(BaseModel):
     professional_rating_avg: Optional[float] = None
     professional_rating_count: Optional[int] = None
     # Información limitada de la familia/paciente para que el profesional decida la solicitud.
-    # No incluye dirección exacta, teléfono, contacto de emergencia ni datos clínicos detallados.
+    # La dirección exacta solo se devuelve si la familia la autorizó para este servicio.
     family_photo_url: Optional[str] = None
     patient_age: Optional[int] = None
     patient_mobility_level: Optional[str] = None
+    patient_sector: Optional[str] = None
     patient_neighborhood: Optional[str] = None
     patient_city: Optional[str] = None
+    patient_address: Optional[str] = None
     patient_is_apartment: Optional[bool] = None
     patient_floor_number: Optional[int] = None
     patient_has_elevator: Optional[bool] = None
@@ -217,6 +228,7 @@ def create_booking(
         start_hour=request.start_hour,
         end_hour=request.end_hour,
         notes=request.notes,
+        location_sharing_preference=request.location_sharing_preference,
         status=BookingStatus.pending,
     )
     session.add(booking)
@@ -241,6 +253,7 @@ def create_booking(
         professional_role=booking.professional_role,
         date=booking.date, start_hour=booking.start_hour, end_hour=booking.end_hour,
         notes=booking.notes, status=booking.status.value,
+        location_sharing_preference=booking.location_sharing_preference,
         rejection_reason=booking.rejection_reason,
         family_name=user_full_name(current_user),
         professional_name=professional.full_name,
@@ -289,6 +302,7 @@ def list_my_requests(
             professional_role=b.professional_role,
             date=b.date, start_hour=b.start_hour, end_hour=b.end_hour,
             notes=b.notes, status=b.status.value,
+            location_sharing_preference=b.location_sharing_preference,
             rejection_reason=b.rejection_reason,
             family_name=user_full_name(current_user),
             professional_name=prof.full_name if prof else None,
@@ -371,6 +385,7 @@ def list_incoming_requests(
             professional_role=b.professional_role,
             date=b.date, start_hour=b.start_hour, end_hour=b.end_hour,
             notes=b.notes, status=b.status.value,
+            location_sharing_preference=b.location_sharing_preference,
             rejection_reason=b.rejection_reason,
             family_name=user_full_name(family) if family else None,
             family_photo_url=family.photo_url if family else None,
@@ -378,8 +393,10 @@ def list_incoming_requests(
             reviewed_by_professional=b.id in prof_reviewed_ids,
             patient_age=clinical_record.patient_age if clinical_record else None,
             patient_mobility_level=clinical_record.mobility_level if clinical_record else None,
+            patient_sector=clinical_record.sector if clinical_record else None,
             patient_neighborhood=clinical_record.neighborhood if clinical_record else None,
             patient_city=clinical_record.city if clinical_record else None,
+            patient_address=(clinical_record.address if clinical_record and b.location_sharing_preference == "exact_address" else None),
             patient_is_apartment=clinical_record.is_apartment if clinical_record else None,
             patient_floor_number=clinical_record.floor_number if clinical_record else None,
             patient_has_elevator=clinical_record.has_elevator if clinical_record else None,
@@ -768,11 +785,11 @@ def list_my_assignments(
     current_user: User = Depends(require_role(UserRole.caregiver, UserRole.nurse)),
     session: Session = Depends(get_session),
 ):
-    """Devuelve los bookings aprobados o completados del profesional con datos de la ficha del paciente."""
+    """Devuelve los servicios aprobados vigentes del profesional con la ficha del paciente."""
     bookings = session.exec(
         select(Booking)
         .where(Booking.professional_user_id == current_user.id)
-        .where(Booking.status.in_([BookingStatus.approved, BookingStatus.completed]))
+        .where(Booking.status == BookingStatus.approved)
         .where(Booking.clinical_record_id.isnot(None))
         .order_by(Booking.date.desc())
     ).all()

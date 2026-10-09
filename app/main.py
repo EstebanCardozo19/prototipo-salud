@@ -55,10 +55,16 @@ async def lifespan(app: FastAPI):
         conn.execute(text("ALTER TABLE clinical_records ADD COLUMN IF NOT EXISTS allow_professional_document_access BOOLEAN NOT NULL DEFAULT FALSE"))
         conn.execute(text("ALTER TABLE clinical_record_documents ADD COLUMN IF NOT EXISTS extracted_text TEXT"))
         conn.execute(text("ALTER TABLE bookings ADD COLUMN IF NOT EXISTS clinical_record_id INTEGER REFERENCES clinical_records(id)"))
+        conn.execute(text("ALTER TABLE bookings ADD COLUMN IF NOT EXISTS location_sharing_preference VARCHAR(30) NOT NULL DEFAULT 'locality_neighborhood'"))
         conn.execute(text("DO $$ BEGIN CREATE TYPE appointmentaccompanimentstatus AS ENUM ('none', 'pending', 'accepted', 'rejected', 'cancelled'); EXCEPTION WHEN duplicate_object THEN NULL; END $$"))
         # El cifrado Fernet ocupa más espacio que los tipos históricos y los JSON
         # deben pasar a texto antes de almacenar su representación cifrada.
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_lookup VARCHAR(64)"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS security_question_1 VARCHAR(100)"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS security_answer_1_hash VARCHAR(255)"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS security_question_2 VARCHAR(100)"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS security_answer_2_hash VARCHAR(255)"))
         conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_email_lookup ON users (email_lookup)"))
         for column in ("email", "full_name"):
             conn.execute(text(f"ALTER TABLE users ALTER COLUMN {column} TYPE TEXT"))

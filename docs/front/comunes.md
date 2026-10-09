@@ -98,7 +98,7 @@ Base de datos estática de Colombia para los selectores de ubicación.
 
 | Símbolo | Descripción |
 |---|---|
-| `COLOMBIA_GEO` | 21 ciudades con departamento, coords y localidades/comunas con coords |
+| `COLOMBIA_GEO` | Catálogo de ciudades, coordenadas y localidades/comunas; los selectores se limitan a Bogotá y municipios cercanos mediante `SERVICE_CITIES` |
 | `BARRIOS_POR_LOCALIDAD` | Barrios por ciudad→localidad (Bogotá completo + 4 ciudades más) |
 | `getCitiesList()` | Array de ciudades |
 | `getDepartmentsList()` | Departamentos únicos |

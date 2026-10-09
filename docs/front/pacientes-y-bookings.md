@@ -86,6 +86,7 @@ Se abre desde `ProfessionalCard` o `ProfessionalDetailModal`.
 | **Multi-día** | El usuario puede añadir varios días. Hace un `POST /api/bookings/` por cada día |
 | **Plantillas** | Guarda/carga notas de uso frecuente en `localStorage(TEMPLATES_KEY)` |
 | **Validaciones** | `endHour > startHour`, `notes` no vacío, al menos un día |
+| **Ubicación previa** | Por cada solicitud la familia decide entre compartir solo ciudad/localidad/barrio (predeterminado) o autorizar la dirección exacta antes de la aceptación |
 
 **Payload por día:**
 ```json
@@ -95,9 +96,14 @@ Se abre desde `ProfessionalCard` o `ProfessionalDetailModal`.
   "date": "2026-09-15",
   "start_hour": 8,
   "end_hour": 14,
+  "location_sharing_preference": "locality_neighborhood",
   "notes": "Paciente con Alzheimer, 82 años..."
 }
 ```
+
+`location_sharing_preference` puede ser `locality_neighborhood` (valor predeterminado) o
+`exact_address`. La segunda alternativa constituye el consentimiento explícito para que el
+profesional destinatario vea la dirección registrada antes de aceptar el servicio.
 
 ---
 

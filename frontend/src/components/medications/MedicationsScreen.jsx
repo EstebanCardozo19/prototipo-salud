@@ -7,7 +7,7 @@ import MedicationsPanel from './MedicationsPanel';
  *
  * Flujo:
  *   1. Se muestra la lista de fichas clínicas del usuario (familia) o las fichas
- *      de pacientes con booking activo/completado (profesional).
+ *      de pacientes con un servicio aprobado (profesional).
  *   2. Al seleccionar una ficha se abre MedicationsPanel para esa ficha.
  */
 export default function MedicationsScreen({ user, token }) {
@@ -86,7 +86,7 @@ export default function MedicationsScreen({ user, token }) {
         <p className="text-[13px] text-[#536779] mt-1">
           {isFamily
             ? 'Selecciona un familiar para gestionar sus medicamentos y rutinas.'
-            : 'Selecciona un paciente para ver o proponer medicamentos.'}
+            : 'Selecciona un paciente con un servicio aprobado para ver o proponer medicamentos.'}
         </p>
       </div>
 

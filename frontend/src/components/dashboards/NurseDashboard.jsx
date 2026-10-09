@@ -255,7 +255,14 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
                 ].map(([lbl, type, key]) => (
                   <div key={key}>
                     <label className={LABEL_CLASS}>{lbl}</label>
-                    <input className={INPUT_CLASS} type={type} value={form[key] ?? ''} onChange={e => setForm({ ...form, [key]: +e.target.value })} />
+                    <input
+                      className={INPUT_CLASS}
+                      type={type}
+                      min="0"
+                      value={key === 'hourly_rate' && !form[key] ? '' : (form[key] ?? '')}
+                      placeholder={key === 'hourly_rate' ? 'Ej. 25000' : undefined}
+                      onChange={e => setForm({ ...form, [key]: +e.target.value })}
+                    />
                   </div>
                 ))}
                 <div>

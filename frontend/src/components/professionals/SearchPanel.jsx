@@ -36,11 +36,11 @@ function loadPrefs() {
   try { return JSON.parse(localStorage.getItem(PREFS_KEY) || '{}'); } catch { return {}; }
 }
 
-// ─── SearchPanel con Cobertura Nacional y Google Maps ─────────
+// ─── SearchPanel con cobertura Bogotá y municipios cercanos ───
 export default function SearchPanel({ user, token, activeTab, onTabChange }) {
   const { t, lang } = useLang();
   const [searchText, setSearchText] = useState('');
-  const [selectedCity, setSelectedCity] = useState(''); // '' = Toda Colombia
+  const [selectedCity, setSelectedCity] = useState(''); // '' = Toda la zona de cobertura
   const [selectedLocalidad, setSelectedLocalidad] = useState('');
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'map'
   const [caregivers, setCaregivers] = useState([]);
@@ -116,7 +116,7 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
   const applyFilters = list => {
     let result = [...list];
 
-    // Filtro por Ciudad / Cobertura Nacional
+  // Filtro por ciudad dentro de la zona de cobertura
     if (selectedCity) {
       const cityLower = selectedCity.toLowerCase();
       result = result.filter(p => {
@@ -315,7 +315,7 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
 
   const handleFamilyChipClick = rec => {
     if (selectedFamilyChip === rec.id) {
-      // Toggle off -> Toda Colombia
+    // Toggle off -> toda la zona de cobertura
       setSelectedFamilyChip(null);
       setSelectedCity('');
       setSelectedLocalidad('');

@@ -112,8 +112,15 @@ def _get_own_record(record_id: int, user: User, session: Session) -> ClinicalRec
     return record
 
 
+def _mark_record_as_taking_medications(record: ClinicalRecord, session: Session) -> None:
+    """Mantiene sincronizada la ficha con el registro permanente de medicamentos."""
+    if not record.takes_medications:
+        record.takes_medications = True
+        session.add(record)
+
+
 def _assert_professional_has_access(record_id: int, professional: User, session: Session) -> ClinicalRecord:
-    """Verifica que el profesional tiene o tuvo un servicio aprobado/completado con esta ficha."""
+    """Verifica que el profesional tiene un servicio aprobado con esta ficha."""
     record = session.get(ClinicalRecord, record_id)
     if not record:
         raise HTTPException(status_code=404, detail="Ficha clínica no encontrada")
@@ -121,13 +128,13 @@ def _assert_professional_has_access(record_id: int, professional: User, session:
         select(Booking).where(
             Booking.clinical_record_id == record_id,
             Booking.professional_user_id == professional.id,
-            Booking.status.in_([BookingStatus.approved, BookingStatus.completed]),
+            Booking.status == BookingStatus.approved,
         )
     ).first()
     if not booking:
         raise HTTPException(
             status_code=403,
-            detail="Solo puedes ver o proponer medicamentos en fichas de pacientes con servicios asignados a ti.",
+            detail="Solo puedes ver o proponer medicamentos mientras tengas un servicio aprobado con el paciente.",
         )
     return record
 
@@ -164,13 +171,14 @@ def create_medication(
     session: Session = Depends(get_session),
 ):
     """La familia crea un medicamento activo de inmediato."""
-    _get_own_record(record_id, current_user, session)
+    record = _get_own_record(record_id, current_user, session)
     med = PatientMedication(
         clinical_record_id=record_id,
         created_by_user_id=current_user.id,
         status=MedicationStatus.active,
         **request.model_dump(),
     )
+    _mark_record_as_taking_medications(record, session)
     session.add(med)
     session.commit()
     session.refresh(med)
@@ -275,7 +283,7 @@ def propose_medication(
     session: Session = Depends(get_session),
 ):
     """El profesional asignado propone un medicamento. Queda en estado 'proposed' hasta que la familia lo apruebe."""
-    _assert_professional_has_access(record_id, current_user, session)
+    record = _assert_professional_has_access(record_id, current_user, session)
     med = PatientMedication(
         clinical_record_id=record_id,
         created_by_user_id=current_user.id,
@@ -283,6 +291,7 @@ def propose_medication(
         status=MedicationStatus.proposed,
         **request.model_dump(),
     )
+    _mark_record_as_taking_medications(record, session)
     session.add(med)
     session.commit()
     session.refresh(med)

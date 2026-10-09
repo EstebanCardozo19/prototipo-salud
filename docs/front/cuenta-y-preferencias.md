@@ -38,12 +38,16 @@ Formulario con 3 campos: contraseña actual, nueva, confirmación.
 `PUT /api/auth/change-password { current_password, new_password }`.  
 Validación client-side: nueva === confirmación antes de enviar.
 
+También incluye preguntas de seguridad. Las cuentas nuevas deben seleccionar dos preguntas diferentes y registrar sus respuestas; las cuentas existentes que no las tengan pueden configurarlas o actualizarlas aquí, confirmando la contraseña actual.
+
+El enlace **¿Olvidaste tu contraseña?** de inicio de sesión solicita el correo, muestra las dos preguntas configuradas y permite establecer una nueva clave al responder ambas correctamente.
+
 ---
 
 ## Tab Preferencias
 
 ### Ciudad/Localidad preferida
-- Selectores de ciudad y localidad de Colombia
+- Selectores limitados a Bogotá D.C. y municipios cercanos de Cundinamarca (cobertura aproximada de hasta dos horas desde Bogotá)
 - Preview de la preferencia activa con botón para limpiar
 - **Accesos rápidos desde familiares**: si el familiar tiene fichas con `city` registrada, muestra cards clickeables para aplicar esa ubicación
 - Al guardar → `localStorage('salud_user_prefs')` y dispara `CustomEvent('salud:prefsChanged')` para que `SearchPanel` actualice sus filtros en tiempo real

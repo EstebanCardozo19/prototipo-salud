@@ -8,7 +8,7 @@
 |---|---|---|---|
 | GET | `/` | Público | Lista cuidadores con `status=approved`. Parámetros: `location` (ILIKE), `search` (nombre/bio/especialidad) |
 | GET | `/me` | caregiver | Perfil propio, incluso si está pendiente o rechazado |
-| GET | `/{id}` | Público | Perfil por ID |
+| GET | `/{id}` | Público | Perfil aprobado por ID |
 | PUT | `/me` | caregiver | Actualiza bio, location, experience_years, hourly_rate. **Si cambia bio o specialties → regenera embedding** |
 
 ### Filtro de búsqueda
@@ -60,14 +60,14 @@ Solo accesible para roles `caregiver` y `nurse` (salvo la descarga, que también
 
 | Rol | Tipos requeridos |
 |---|---|
-| `caregiver` | `identity`, `training`, `work_reference` |
+| `caregiver` | Ninguno. Puede adjuntar opcionalmente `identity`, `training`, `work_reference` y certificados adicionales. |
 | `nurse` | `identity`, `professional_license`, `nursing_degree` |
 
 - Formatos admitidos: `application/pdf`, `image/jpeg` e `image/png`.
 - Tamaño máximo: 10 MB por archivo.
 - Los documentos `training`, `nursing_degree` y `additional_certificate` requieren un `document_name` no vacío (máximo 150 caracteres).
 - Al reemplazar un tipo documental se elimina el archivo anterior del almacenamiento privado.
-- El envío requiere todos los tipos obligatorios y un perfil con `location` y `bio`.
+- Para enfermería, el envío requiere todos los tipos obligatorios; para cuidadores, los soportes son opcionales. En ambos casos el perfil debe tener `location` y `bio`.
 - Los documentos se guardan en `private_uploads/verification`; no están expuestos bajo `/uploads`.
 
 ## Admin — `app/routers/admin_router.py` · `/api/admin`

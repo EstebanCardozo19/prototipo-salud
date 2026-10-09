@@ -51,10 +51,17 @@ class User(SQLModel, table=True):
     # Índice HMAC no reversible para cuentas familiares cifradas.
     email_lookup: Optional[str] = Field(default=None, sa_column=Column(String(64), unique=True, index=True, nullable=True))
     password_hash: str = Field(max_length=255)
+    # Se guardan identificadores de preguntas predefinidas y hashes bcrypt de
+    # respuestas normalizadas; nunca las respuestas en texto plano.
+    security_question_1: Optional[str] = Field(default=None, max_length=100)
+    security_answer_1_hash: Optional[str] = Field(default=None, max_length=255)
+    security_question_2: Optional[str] = Field(default=None, max_length=100)
+    security_answer_2_hash: Optional[str] = Field(default=None, max_length=255)
     full_name: str = Field(sa_column=Column(Text, nullable=False))
     role: UserRole = Field(sa_column=Column(SAEnum(UserRole, name="userrole"), nullable=False))
     is_active: bool = Field(default=True)
     photo_url: Optional[str] = Field(default=None, max_length=500)
+    phone: Optional[str] = Field(default=None, sa_column=Column(EncryptedText, nullable=True))
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime(timezone=True), server_default=func.now())
@@ -261,6 +268,9 @@ class Booking(SQLModel, table=True):
     start_hour: int = Field(default=8)
     end_hour: int = Field(default=12)
     notes: Optional[str] = Field(default=None, max_length=500)  # Descripción de necesidades
+    # La opción restrictiva es el valor predeterminado: la dirección exacta
+    # solo se comparte antes de aceptar el servicio con autorización expresa.
+    location_sharing_preference: str = Field(default="locality_neighborhood", max_length=30)
     status: BookingStatus = Field(
         default=BookingStatus.pending,
         sa_column=Column(SAEnum(BookingStatus, name="bookingstatus"), nullable=False, server_default="pending")

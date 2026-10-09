@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from sqlmodel import Session
 from sqlalchemy import text
 
-from app.models import Booking, CaregiverProfile, ClinicalRecord, MedicationStatus, PatientMedication, ServiceCarePlan, User
+from app.models import Booking, CaregiverProfile, ClinicalRecord, MedicationStatus, PatientMedication, ProfileStatus, ServiceCarePlan, User
 from app.services.embedding_service import generar_embedding
 from app.database import engine
 
@@ -37,10 +37,11 @@ def buscar_cuidadores_similares(descripcion_paciente: str, localidad: str = None
                 JOIN users u ON u.id = cp.user_id
                 WHERE LOWER(cp.location) = LOWER(:localidad)
                   AND u.is_active = true
+                  AND cp.status = :approved_status
                 ORDER BY cp.embedding <=> CAST(:embedding AS vector)
                 LIMIT 3
             """)
-            results = session.execute(sql, {"embedding": embedding_str, "localidad": localidad}).fetchall()
+            results = session.execute(sql, {"embedding": embedding_str, "localidad": localidad, "approved_status": ProfileStatus.approved.value}).fetchall()
         else:
             sql = text("""
                 SELECT cp.id, u.id as user_id, u.full_name, u.photo_url,
@@ -50,10 +51,11 @@ def buscar_cuidadores_similares(descripcion_paciente: str, localidad: str = None
                 FROM caregiver_profiles cp
                 JOIN users u ON u.id = cp.user_id
                 WHERE u.is_active = true
+                  AND cp.status = :approved_status
                 ORDER BY cp.embedding <=> CAST(:embedding AS vector)
                 LIMIT 3
             """)
-            results = session.execute(sql, {"embedding": embedding_str}).fetchall()
+            results = session.execute(sql, {"embedding": embedding_str, "approved_status": ProfileStatus.approved.value}).fetchall()
 
     if not results:
         # Retornamos JSON vacío para que el frontend lo sepa

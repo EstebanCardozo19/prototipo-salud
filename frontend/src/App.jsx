@@ -28,6 +28,7 @@ export default function App() {
     localStorage.removeItem('user');
     setUser(null);
     setToken(null);
+    setPublicView('home');
   };
 
   useEffect(() => {

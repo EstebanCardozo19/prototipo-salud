@@ -1,6 +1,6 @@
 /**
- * colombiaGeo.js — Catálogo Geográfico Nacional de Colombia
- * Departamentos, Ciudades/Municipios principales, Localidades/Comunas, Barrios y Coordenadas.
+ * colombiaGeo.js — Catálogo geográfico de la zona de cobertura
+ * Bogotá D.C. y municipios cercanos de Cundinamarca, con localidades/comunas, barrios y coordenadas.
  */
 
 /**
@@ -102,6 +102,117 @@ export const COLOMBIA_GEO = {
       { name: 'Ciudad Bolívar', coords: { lat: 4.5428, lng: -74.1611 } },
       { name: 'Sumapaz', coords: { lat: 4.0417, lng: -74.3167 } }
     ]
+  },
+  // Municipios de cobertura regional: máximo aproximado de dos horas desde Bogotá.
+  'Soacha': {
+    department: 'Cundinamarca',
+    coords: { lat: 4.5794, lng: -74.2168 },
+    localidades: [{ name: 'Zona urbana', coords: { lat: 4.5794, lng: -74.2168 } }]
+  },
+  'Chía': {
+    department: 'Cundinamarca',
+    coords: { lat: 4.8623, lng: -74.0561 },
+    localidades: [{ name: 'Zona urbana', coords: { lat: 4.8623, lng: -74.0561 } }]
+  },
+  'La Calera': {
+    department: 'Cundinamarca',
+    coords: { lat: 4.7207, lng: -73.9693 },
+    localidades: [{ name: 'Zona urbana', coords: { lat: 4.7207, lng: -73.9693 } }]
+  },
+  'Cota': {
+    department: 'Cundinamarca',
+    coords: { lat: 4.8091, lng: -74.0980 },
+    localidades: [{ name: 'Zona urbana', coords: { lat: 4.8091, lng: -74.0980 } }]
+  },
+  'Funza': {
+    department: 'Cundinamarca',
+    coords: { lat: 4.7164, lng: -74.2110 },
+    localidades: [{ name: 'Zona urbana', coords: { lat: 4.7164, lng: -74.2110 } }]
+  },
+  'Mosquera': {
+    department: 'Cundinamarca',
+    coords: { lat: 4.7059, lng: -74.2302 },
+    localidades: [{ name: 'Zona urbana', coords: { lat: 4.7059, lng: -74.2302 } }]
+  },
+  'Madrid': {
+    department: 'Cundinamarca',
+    coords: { lat: 4.7337, lng: -74.2642 },
+    localidades: [{ name: 'Zona urbana', coords: { lat: 4.7337, lng: -74.2642 } }]
+  },
+  'Facatativá': {
+    department: 'Cundinamarca',
+    coords: { lat: 4.8137, lng: -74.3545 },
+    localidades: [{ name: 'Zona urbana', coords: { lat: 4.8137, lng: -74.3545 } }]
+  },
+  'Cajicá': {
+    department: 'Cundinamarca',
+    coords: { lat: 4.9186, lng: -74.0278 },
+    localidades: [{ name: 'Zona urbana', coords: { lat: 4.9186, lng: -74.0278 } }]
+  },
+  'Zipaquirá': {
+    department: 'Cundinamarca',
+    coords: { lat: 5.0221, lng: -74.0048 },
+    localidades: [{ name: 'Zona urbana', coords: { lat: 5.0221, lng: -74.0048 } }]
+  },
+  'Sopó': {
+    department: 'Cundinamarca',
+    coords: { lat: 4.9075, lng: -73.9391 },
+    localidades: [{ name: 'Zona urbana', coords: { lat: 4.9075, lng: -73.9391 } }]
+  },
+  'Tocancipá': {
+    department: 'Cundinamarca',
+    coords: { lat: 4.9653, lng: -73.9130 },
+    localidades: [{ name: 'Zona urbana', coords: { lat: 4.9653, lng: -73.9130 } }]
+  },
+  'Tabio': {
+    department: 'Cundinamarca',
+    coords: { lat: 4.9173, lng: -74.0936 },
+    localidades: [{ name: 'Zona urbana', coords: { lat: 4.9173, lng: -74.0936 } }]
+  },
+  'Tenjo': {
+    department: 'Cundinamarca',
+    coords: { lat: 4.8727, lng: -74.1442 },
+    localidades: [{ name: 'Zona urbana', coords: { lat: 4.8727, lng: -74.1442 } }]
+  },
+  'Gachancipá': {
+    department: 'Cundinamarca',
+    coords: { lat: 4.9911, lng: -73.8712 },
+    localidades: [{ name: 'Zona urbana', coords: { lat: 4.9911, lng: -73.8712 } }]
+  },
+  'Nemocón': {
+    department: 'Cundinamarca',
+    coords: { lat: 5.0672, lng: -73.8776 },
+    localidades: [{ name: 'Zona urbana', coords: { lat: 5.0672, lng: -73.8776 } }]
+  },
+  'El Rosal': {
+    department: 'Cundinamarca',
+    coords: { lat: 4.8520, lng: -74.2594 },
+    localidades: [{ name: 'Zona urbana', coords: { lat: 4.8520, lng: -74.2594 } }]
+  },
+  'Bojacá': {
+    department: 'Cundinamarca',
+    coords: { lat: 4.7333, lng: -74.3417 },
+    localidades: [{ name: 'Zona urbana', coords: { lat: 4.7333, lng: -74.3417 } }]
+  },
+  'Sibaté': {
+    department: 'Cundinamarca',
+    coords: { lat: 4.4915, lng: -74.2596 },
+    localidades: [{ name: 'Zona urbana', coords: { lat: 4.4915, lng: -74.2596 } }]
+  },
+  'Fusagasugá': {
+    department: 'Cundinamarca',
+    coords: { lat: 4.3371, lng: -74.3638 },
+    localidades: [{ name: 'Zona urbana', coords: { lat: 4.3371, lng: -74.3638 } }]
+  },
+  'La Mesa': {
+    department: 'Cundinamarca',
+    coords: { lat: 4.6300, lng: -74.4610 },
+    localidades: [{ name: 'Zona urbana', coords: { lat: 4.6300, lng: -74.4610 } }]
+  },
+  'Girardot': {
+    department: 'Cundinamarca',
+    coords: { lat: 4.3031, lng: -74.8047 },
+    localidades: [{ name: 'Zona urbana', coords: { lat: 4.3031, lng: -74.8047 } }]
   },
   'Medellín': {
     department: 'Antioquia',
@@ -345,11 +456,19 @@ export const COLOMBIA_GEO = {
   }
 };
 
+/** Municipios habilitados para la prestación del servicio. */
+export const SERVICE_CITIES = [
+  'Bogotá D.C.', 'Soacha', 'Chía', 'La Calera', 'Cota', 'Funza', 'Mosquera',
+  'Madrid', 'Facatativá', 'Cajicá', 'Zipaquirá', 'Sopó', 'Tocancipá', 'Tabio',
+  'Tenjo', 'Gachancipá', 'Nemocón', 'El Rosal', 'Bojacá', 'Sibaté',
+  'Fusagasugá', 'La Mesa', 'Girardot'
+];
+
 /**
  * Obtiene la lista de nombres de ciudades disponibles.
  */
 export function getCitiesList() {
-  return Object.keys(COLOMBIA_GEO);
+  return SERVICE_CITIES;
 }
 
 /**
@@ -365,16 +484,14 @@ export function getDepartmentForCity(cityName) {
  */
 export function getCitiesForDepartment(dept) {
   if (!dept) return getCitiesList();
-  return Object.entries(COLOMBIA_GEO)
-    .filter(([, v]) => v.department === dept)
-    .map(([k]) => k);
+  return SERVICE_CITIES.filter(city => COLOMBIA_GEO[city]?.department === dept);
 }
 
 /**
  * Obtiene la lista única de departamentos disponibles en el catálogo.
  */
 export function getDepartmentsList() {
-  const depts = new Set(Object.values(COLOMBIA_GEO).map(v => v.department));
+  const depts = new Set(SERVICE_CITIES.map(city => COLOMBIA_GEO[city]?.department));
   return Array.from(depts).sort();
 }
 

@@ -12,7 +12,17 @@ from app.models import CaregiverProfile, NurseProfile, ProfessionalVerification,
 
 router = APIRouter(prefix="/api/verification", tags=["Verificación profesional"])
 DOCUMENT_DIR = Path("private_uploads/verification"); DOCUMENT_DIR.mkdir(parents=True, exist_ok=True)
-REQUIRED = {UserRole.caregiver: {VerificationDocumentType.identity, VerificationDocumentType.training, VerificationDocumentType.work_reference}, UserRole.nurse: {VerificationDocumentType.identity, VerificationDocumentType.professional_license, VerificationDocumentType.nursing_degree}}
+# Los cuidadores pueden adjuntar soportes para facilitar la revisión, pero no se
+# les exige ningún documento para enviar la solicitud. La documentación sí es
+# obligatoria para el ejercicio profesional de enfermería.
+REQUIRED = {
+    UserRole.caregiver: set(),
+    UserRole.nurse: {
+        VerificationDocumentType.identity,
+        VerificationDocumentType.professional_license,
+        VerificationDocumentType.nursing_degree,
+    },
+}
 
 class DocumentResponse(BaseModel):
     id: int; document_type: str; document_name: Optional[str]; original_filename: str; download_url: str
@@ -33,7 +43,11 @@ def mine(current_user: User = Depends(require_role(UserRole.caregiver, UserRole.
     return serialize(verification_for(current_user, session), session)
 @router.post('/documents/{document_type}', response_model=DocumentResponse)
 async def upload(document_type: VerificationDocumentType, file: UploadFile = File(...), document_name: Optional[str] = Form(None), current_user: User = Depends(require_role(UserRole.caregiver, UserRole.nurse)), session: Session = Depends(get_session)):
-    allowed_documents = REQUIRED[current_user.role] | {VerificationDocumentType.additional_certificate}
+    allowed_documents = (
+        REQUIRED[current_user.role]
+        | {VerificationDocumentType.additional_certificate}
+        | ({VerificationDocumentType.identity, VerificationDocumentType.training, VerificationDocumentType.work_reference} if current_user.role == UserRole.caregiver else set())
+    )
     if document_type not in allowed_documents: raise HTTPException(400, 'Documento no permitido para este rol')
     document_name = (document_name or '').strip() or None
     if document_type in {VerificationDocumentType.training, VerificationDocumentType.nursing_degree, VerificationDocumentType.additional_certificate} and not document_name:

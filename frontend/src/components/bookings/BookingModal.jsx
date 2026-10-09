@@ -12,6 +12,7 @@ export default function BookingModal({ professional, token, onClose, onSuccess }
 
   const [days, setDays] = useState([{ date: today, startHour: 8, endHour: 12 }]);
   const [notes, setNotes] = useState('');
+  const [locationSharingPreference, setLocationSharingPreference] = useState('locality_neighborhood');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [sent, setSent] = useState([]);
@@ -136,6 +137,7 @@ export default function BookingModal({ professional, token, onClose, onSuccess }
             date: day.date,
             start_hour: day.startHour,
             end_hour: day.endHour,
+              location_sharing_preference: locationSharingPreference,
             notes: notes.trim(),
           }),
         });
@@ -261,6 +263,21 @@ export default function BookingModal({ professional, token, onClose, onSuccess }
                 )}
               </div>
             )}
+
+            <fieldset className="rounded-xl border border-[#c3c6d6]/70 bg-[#f9f9fc] p-4">
+              <legend className="px-1 text-[13px] font-bold text-[#1a1c1e]">{t('booking.locationSharingTitle')}</legend>
+              <p className="mb-3 text-[12px] text-[#424654]">{t('booking.locationSharingDescription')}</p>
+              <div className="space-y-2">
+                <label className={`flex cursor-pointer gap-3 rounded-lg border p-3 ${locationSharingPreference === 'locality_neighborhood' ? 'border-[#0040a1] bg-[#f0f4fd]' : 'border-[#c3c6d6] bg-white'}`}>
+                  <input type="radio" name="location-sharing" value="locality_neighborhood" checked={locationSharingPreference === 'locality_neighborhood'} onChange={e => setLocationSharingPreference(e.target.value)} className="mt-0.5" />
+                  <span><span className="block text-[13px] font-semibold text-[#1a1c1e]">{t('booking.generalLocationOption')}</span><span className="block text-[11px] text-[#737785]">{t('booking.generalLocationOptionDescription')}</span></span>
+                </label>
+                <label className={`flex cursor-pointer gap-3 rounded-lg border p-3 ${locationSharingPreference === 'exact_address' ? 'border-[#0040a1] bg-[#f0f4fd]' : 'border-[#c3c6d6] bg-white'}`}>
+                  <input type="radio" name="location-sharing" value="exact_address" checked={locationSharingPreference === 'exact_address'} onChange={e => setLocationSharingPreference(e.target.value)} className="mt-0.5" />
+                  <span><span className="block text-[13px] font-semibold text-[#1a1c1e]">{t('booking.exactAddressOption')}</span><span className="block text-[11px] text-[#737785]">{t('booking.exactAddressOptionDescription')}</span></span>
+                </label>
+              </div>
+            </fieldset>
 
             {/* ── Días ── */}
             <div>

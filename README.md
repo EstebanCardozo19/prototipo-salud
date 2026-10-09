@@ -101,13 +101,13 @@ Los perfiles de cuidadores y enfermeros deben completar una verificación antes 
 
 | Rol | Documentos obligatorios |
 |---|---|
-| Cuidador | Documento de identidad, certificado de formación y referencia laboral. No se exige tarjeta ni licencia profesional. |
+| Cuidador | Ninguno obligatorio. Puede adjuntar opcionalmente documento de identidad, certificado de formación, referencia laboral y soportes adicionales. |
 | Enfermero | Documento de identidad, tarjeta/licencia profesional y título de enfermería. |
 
 - Cada archivo admite PDF, JPEG o PNG con tamaño máximo de 10 MB.
 - Los archivos se almacenan en `private_uploads/verification`; no se sirven como contenido estático público.
 - Solo su propietario autenticado o un administrador puede descargarlos.
-- Antes de enviar, el profesional debe tener diligenciadas su localidad y biografía.
+- Antes de enviar, el profesional debe tener diligenciadas su localidad y biografía. Los documentos se exigen únicamente a enfermeros.
 - Un administrador aprueba o rechaza las solicitudes. El rechazo exige un motivo y habilita el reenvío tras corregir los documentos.
 - Se pueden cargar múltiples certificados, cursos o títulos adicionales. Cada certificado o título debe incluir el nombre con el que se identifica el soporte.
 
