@@ -64,6 +64,13 @@ export default function ChatPanel({ user, token, onUnauthorized }) {
     e.preventDefault();
     if (!input.trim()) return;
     const text = input;
+    // El saludo inicial y los mensajes de error no forman parte del contexto clínico.
+    // Se mandan los turnos ya confirmados antes del mensaje actual.
+    const historial = messages
+      .slice(1)
+      .filter(message => !message.error && (message.role === 'user' || message.role === 'assistant'))
+      .slice(-12)
+      .map(({ role, content }) => ({ role, content }));
     setMessages(p => [...p, { role: 'user', content: text, profesionales: [] }]);
     setInput('');
     setLoading(true);
@@ -71,7 +78,7 @@ export default function ChatPanel({ user, token, onUnauthorized }) {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ mensaje: text }),
+        body: JSON.stringify({ mensaje: text, historial }),
       });
       const data = await readJsonResponse(res);
       if (res.status === 401) {

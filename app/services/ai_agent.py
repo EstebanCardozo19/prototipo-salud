@@ -23,10 +23,15 @@ MODEL = "gpt-5.6-terra"
 
 SYSTEM_PROMPT = (
     "Eres un experto en atención geriátrica domiciliaria en Bogotá. "
-    "Escucha a las familias, identifica la localidad y necesidades clínicas, "
+    "Usa el historial de la conversación como fuente de contexto: las respuestas previas "
+    "de la familia siguen siendo válidas salvo que las corrijan explícitamente. "
+    "No repitas preguntas ni solicites datos que ya estén en el historial. "
+    "Ve al grano: responde en un máximo de tres frases breves antes de mostrar resultados. "
     "Antes de buscar, identifica si la familia necesita un cuidador/a o un enfermero/a. "
-    "Si no lo indica claramente, pregunta: '¿Buscas un cuidador/a o un enfermero/a?' "
-    "y no uses la herramienta hasta recibir la respuesta. "
+    "Si el tipo no aparece ni se puede deducir de ningún mensaje del historial, pregunta "
+    "una sola vez: '¿Buscas un cuidador/a o un enfermero/a?' y no uses la herramienta. "
+    "Cuando la familia responda con uno de los tipos, conserva todas las necesidades que "
+    "había descrito antes y busca de inmediato; no vuelvas a pedir el tipo ni la descripción. "
     "Usa la herramienta buscar_profesionales_similares para encontrar profesionales. "
     "IMPORTANTE: cuando uses la herramienta, SIEMPRE incluye el campo 'descripcion_paciente' "
     "con la descripción completa de las necesidades del paciente extraída de la conversación. "
@@ -45,6 +50,26 @@ HEADERS = {
 TOOL_REGISTRY = {
     "buscar_profesionales_similares": buscar_profesionales_similares,
 }
+
+
+def _normalizar_historial(historial: list[dict] | None) -> list[dict[str, str]]:
+    """Conserva únicamente turnos conversacionales válidos y acota su tamaño.
+
+    El historial procede del cliente, por lo que no se reenvía directamente al proveedor.
+    Limitarlo evita que saludos, errores de interfaz o cargas excesivas diluyan el contexto.
+    """
+    mensajes_validos = []
+    for item in (historial or [])[-12:]:
+        if not isinstance(item, dict):
+            continue
+        role = item.get("role")
+        content = item.get("content")
+        if role not in {"user", "assistant"} or not isinstance(content, str):
+            continue
+        content = content.strip()
+        if content:
+            mensajes_validos.append({"role": role, "content": content[:1000]})
+    return mensajes_validos
 
 
 def _llamar_sai(messages: list[dict], tools: list[dict]) -> dict:
@@ -193,8 +218,7 @@ def conversar(mensaje_usuario: str, historial: list[dict] = None, familiares: li
     import json as _json
 
     tools = get_tool_definitions()
-    if historial is None:
-        historial = []
+    historial = _normalizar_historial(historial)
 
     # Enriquecer el system prompt con el contexto de familiares si existe
     contexto_familiar = _construir_contexto_familiar(familiares or [])

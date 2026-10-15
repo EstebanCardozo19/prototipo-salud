@@ -8,7 +8,7 @@ from sqlalchemy import text
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from contextlib import asynccontextmanager
 
 from app.models import User, CaregiverProfile, ClinicalRecord, ClinicalRecordDocument, NurseProfile, Booking, Availability, Review, ProfessionalVerification, VerificationDocument, ServiceChatMessage, ServiceCarePlan, ProfessionalAssistantAuditLog, Notification, PushSubscription, MedicationReminderDelivery, MedicalAppointment, PatientMedication  # noqa: F401
@@ -273,6 +273,7 @@ app.mount("/uploads/profiles", StaticFiles(directory="uploads/profiles"), name="
 class ChatRequest(BaseModel):
     mensaje: str
     localidad: str | None = None
+    historial: list[dict[str, str]] = Field(default_factory=list, max_length=12)
 
 
 # --- Endpoints base ---
@@ -330,7 +331,11 @@ def chat_con_sai(
         ]
 
     try:
-        result = conversar(request.mensaje, familiares=familiares)
+        result = conversar(
+            request.mensaje,
+            historial=request.historial,
+            familiares=familiares,
+        )
         return {"respuesta": result["texto"], "profesionales": result["profesionales"]}
     except Exception as e:
         # La recomendación local sigue disponible aunque el proveedor conversacional
