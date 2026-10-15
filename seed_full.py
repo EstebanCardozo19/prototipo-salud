@@ -40,9 +40,9 @@ def run():
         # ── Columnas opcionales (migraciones acumuladas) ─────────
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_url VARCHAR(500)"))
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()"))
-        conn.execute(text("ALTER TABLE caregiver_profiles ADD COLUMN IF NOT EXISTS rating_avg FLOAT DEFAULT 5.0"))
+        conn.execute(text("ALTER TABLE caregiver_profiles ADD COLUMN IF NOT EXISTS rating_avg FLOAT"))
         conn.execute(text("ALTER TABLE caregiver_profiles ADD COLUMN IF NOT EXISTS rating_count INTEGER DEFAULT 0"))
-        conn.execute(text("ALTER TABLE nurse_profiles ADD COLUMN IF NOT EXISTS rating_avg FLOAT DEFAULT 5.0"))
+        conn.execute(text("ALTER TABLE nurse_profiles ADD COLUMN IF NOT EXISTS rating_avg FLOAT"))
         conn.execute(text("ALTER TABLE nurse_profiles ADD COLUMN IF NOT EXISTS rating_count INTEGER DEFAULT 0"))
         conn.execute(text("ALTER TABLE nurse_profiles DROP COLUMN IF EXISTS accepts_home_visits"))
         conn.execute(text("DO $$ BEGIN ALTER TYPE userrole ADD VALUE 'nurse'; EXCEPTION WHEN duplicate_object THEN null; END $$"))

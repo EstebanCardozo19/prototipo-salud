@@ -63,6 +63,39 @@ async def lifespan(app: FastAPI):
         conn.execute(text("ALTER TABLE clinical_records ADD COLUMN IF NOT EXISTS allow_professional_document_access BOOLEAN NOT NULL DEFAULT FALSE"))
         conn.execute(text("ALTER TABLE clinical_record_documents ADD COLUMN IF NOT EXISTS extracted_text TEXT"))
         conn.execute(text("ALTER TABLE nurse_profiles ADD COLUMN IF NOT EXISTS embedding vector(384)"))
+        # BUG-001: 5.0 no representa una valoración real cuando el contador es
+        # cero. Reconciliar los acumulados desde ``reviews`` conserva todas las
+        # reseñas existentes y también corrige perfiles creados antes del fix.
+        conn.execute(text("ALTER TABLE caregiver_profiles ALTER COLUMN rating_avg DROP DEFAULT"))
+        conn.execute(text("ALTER TABLE nurse_profiles ALTER COLUMN rating_avg DROP DEFAULT"))
+        conn.execute(text("""
+            UPDATE caregiver_profiles AS profile
+            SET rating_count = summary.count,
+                rating_avg = summary.average
+            FROM (
+                SELECT profile_row.id,
+                       COUNT(review.id)::INTEGER AS count,
+                       ROUND(AVG(review.rating)::NUMERIC, 2)::FLOAT AS average
+                FROM caregiver_profiles AS profile_row
+                LEFT JOIN reviews AS review ON review.professional_user_id = profile_row.user_id
+                GROUP BY profile_row.id
+            ) AS summary
+            WHERE profile.id = summary.id
+        """))
+        conn.execute(text("""
+            UPDATE nurse_profiles AS profile
+            SET rating_count = summary.count,
+                rating_avg = summary.average
+            FROM (
+                SELECT profile_row.id,
+                       COUNT(review.id)::INTEGER AS count,
+                       ROUND(AVG(review.rating)::NUMERIC, 2)::FLOAT AS average
+                FROM nurse_profiles AS profile_row
+                LEFT JOIN reviews AS review ON review.professional_user_id = profile_row.user_id
+                GROUP BY profile_row.id
+            ) AS summary
+            WHERE profile.id = summary.id
+        """))
         conn.execute(text("ALTER TABLE bookings ADD COLUMN IF NOT EXISTS clinical_record_id INTEGER REFERENCES clinical_records(id)"))
         conn.execute(text("ALTER TABLE bookings ADD COLUMN IF NOT EXISTS location_sharing_preference VARCHAR(30) NOT NULL DEFAULT 'locality_neighborhood'"))
         conn.execute(text("DO $$ BEGIN CREATE TYPE appointmentaccompanimentstatus AS ENUM ('none', 'pending', 'accepted', 'rejected', 'cancelled'); EXCEPTION WHEN duplicate_object THEN NULL; END $$"))

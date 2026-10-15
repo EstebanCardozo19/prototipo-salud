@@ -50,7 +50,7 @@ class NurseResponse(BaseModel):
     location: str
     hourly_rate: float
     status: str
-    rating_avg: float = 5.0
+    rating_avg: Optional[float] = None
     rating_count: int = 0
 
 @router.get("/", response_model=List[NurseResponse])

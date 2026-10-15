@@ -17,6 +17,7 @@ from app.models import (
 from app.auth import get_current_user, require_role
 from app.routers.notifications_router import create_notification
 from app.security.encryption import user_full_name
+from app.services.ratings import calculate_rating_summary
 
 router = APIRouter(prefix="/api/bookings", tags=["Solicitudes y Calendario"])
 
@@ -28,8 +29,7 @@ def _recalc_professional_rating(professional_user_id: int, session: Session):
     reviews = session.exec(
         select(Review).where(Review.professional_user_id == professional_user_id)
     ).all()
-    count = len(reviews)
-    avg = round(sum(r.rating for r in reviews) / count, 2) if count > 0 else 5.0
+    avg, count = calculate_rating_summary(review.rating for review in reviews)
 
     prof_user = session.get(User, professional_user_id)
     if not prof_user:

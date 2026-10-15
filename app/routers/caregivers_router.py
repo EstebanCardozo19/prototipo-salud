@@ -42,7 +42,7 @@ class CaregiverResponse(BaseModel):
     location: str
     bio: Optional[str]
     status: str
-    rating_avg: float = 5.0
+    rating_avg: Optional[float] = None
     rating_count: int = 0
 
 

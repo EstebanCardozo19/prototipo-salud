@@ -181,8 +181,8 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
     if (filters.minRating !== '') {
       result = result.filter(p => {
         const profileRating = p.rating_avg;
-        if (profileRating != null) return profileRating >= Number(filters.minRating);
-        return Number(filters.minRating) <= 5; // sin reseñas = 5 estrellas por defecto
+        return p.rating_count > 0 && profileRating != null
+          && profileRating >= Number(filters.minRating);
       });
     }
 
@@ -192,7 +192,7 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
       if (filters.sortBy === 'price_desc') return Number(b.hourly_rate || 0) - Number(a.hourly_rate || 0);
       if (filters.sortBy === 'exp') return Number(b.experience_years || 0) - Number(a.experience_years || 0);
       // Default: ordenar por rating_avg del perfil
-      const getRating = p => p.rating_avg ?? 5.0;
+      const getRating = p => p.rating_count > 0 && p.rating_avg != null ? p.rating_avg : -1;
       return getRating(b) - getRating(a);
     });
 
@@ -849,9 +849,15 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
                             {b.professional_location && ` · ${b.professional_location}`}
                           </p>
                           <div className="flex items-center gap-1.5 mt-1">
-                            <StarRating value={b.professional_rating_avg ?? 5} readOnly size="sm" />
-                            <span className="text-[11px] font-bold text-amber-600">{Number(b.professional_rating_avg ?? 5).toFixed(1)}</span>
-                            <span className="text-[11px] text-[#737785]">({b.professional_rating_count ?? 0})</span>
+                            {b.professional_rating_count > 0 && b.professional_rating_avg != null ? (
+                              <>
+                                <StarRating value={b.professional_rating_avg} readOnly size="sm" />
+                                <span className="text-[11px] font-bold text-amber-600">{Number(b.professional_rating_avg).toFixed(1)}</span>
+                                <span className="text-[11px] text-[#737785]">({b.professional_rating_count})</span>
+                              </>
+                            ) : (
+                              <span className="text-[11px] text-[#737785]">Sin valoraciones</span>
+                            )}
                           </div>
                           </div>
                           <span className="material-symbols-outlined text-[#0040a1] text-[19px] group-hover:translate-x-0.5 transition-transform">chevron_right</span>
@@ -1009,7 +1015,7 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
                         caregiver={cg}
                         index={i}
                         reviews={[]}
-                        ratingAvg={cg.rating_avg ?? 5.0}
+                        ratingAvg={cg.rating_avg}
                         ratingCount={cg.rating_count ?? 0}
                         token={token}
                       />
@@ -1020,7 +1026,7 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
                         doctor={d}
                         index={i}
                         reviews={[]}
-                        ratingAvg={d.rating_avg ?? 5.0}
+                        ratingAvg={d.rating_avg}
                         ratingCount={d.rating_count ?? 0}
                         token={token}
                       />

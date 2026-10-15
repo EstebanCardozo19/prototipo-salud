@@ -65,7 +65,7 @@ def buscar_profesionales_similares(
             sql = text(f"""
                 SELECT cp.id, u.id as user_id, u.full_name, u.photo_url,
                        cp.{specialty_column} AS specialties, cp.location, cp.experience_years,
-                       cp.hourly_rate, cp.bio,
+                       cp.hourly_rate, cp.bio, cp.rating_avg, cp.rating_count,
                        1 - (cp.embedding <=> CAST(:embedding AS vector)) AS similitud
                 FROM {profile_table} cp
                 JOIN users u ON u.id = cp.user_id
@@ -81,7 +81,7 @@ def buscar_profesionales_similares(
             sql = text(f"""
                 SELECT cp.id, u.id as user_id, u.full_name, u.photo_url,
                        cp.{specialty_column} AS specialties, cp.location, cp.experience_years,
-                       cp.hourly_rate, cp.bio,
+                       cp.hourly_rate, cp.bio, cp.rating_avg, cp.rating_count,
                        1 - (cp.embedding <=> CAST(:embedding AS vector)) AS similitud
                 FROM {profile_table} cp
                 JOIN users u ON u.id = cp.user_id
@@ -104,6 +104,7 @@ def buscar_profesionales_similares(
     for i, row in enumerate(results, 1):
         specialties = row.specialties if isinstance(row.specialties, list) else [str(row.specialties)] if row.specialties else []
         specialties_str = ", ".join(specialties) if specialties else "Cuidado general"
+        rating_count = int(row.rating_count or 0)
 
         profesionales.append({
             "user_id": row.user_id,
@@ -115,6 +116,8 @@ def buscar_profesionales_similares(
             "experience_years": row.experience_years,
             "hourly_rate": float(row.hourly_rate),
             "bio": row.bio or "",
+            "rating_avg": float(row.rating_avg) if rating_count > 0 and row.rating_avg is not None else None,
+            "rating_count": rating_count,
             "similitud": float(row.similitud),
             "role": tipo_profesional,
         })

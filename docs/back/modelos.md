@@ -34,7 +34,7 @@ Perfil extendido del cuidador (1-a-1 con users).
 | `bio` | varchar(500) | texto libre |
 | `status` | enum | `pending / approved / rejected` |
 | `embedding` | vector(384) | pgvector — generado de bio+specialties |
-| `rating_avg` | float | default 5.0 — recalculado al recibir reseña |
+| `rating_avg` | float nullable | `null` sin reseñas; promedio real recalculado al recibir reseña |
 | `rating_count` | int | default 0 |
 
 ---
@@ -49,7 +49,7 @@ Igual que `caregiver_profiles`, añade:
 | `specialty` | enum | `general / geriatrics / neurology / ...` (12 valores) |
 | `license_number` | varchar(50) | número de licencia |
 | `institution` | varchar(200) | institución de referencia |
-| `rating_avg` | float | default 5.0 |
+| `rating_avg` | float nullable | `null` sin reseñas; promedio real de las reseñas |
 | `rating_count` | int | default 0 |
 
 > **Nota**: `caregiver_profiles.specialties` es un array libre (JSON), mientras que `nurse_profiles.specialty` es un enum estricto.

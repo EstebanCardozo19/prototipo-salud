@@ -1,6 +1,7 @@
 import { useLang } from '../../contexts/LangContext';
 import ProfessionalCard from './ProfessionalCard';
 import { getSpecialtyLabel } from '../../utils/helpers';
+import { getRatingSummary } from '../../utils/ratings';
 
 export default function CaregiverCard({ caregiver, reviews = [], ratingAvg, ratingCount, token, index = 0 }) {
   const { t, lang } = useLang();
@@ -10,10 +11,14 @@ export default function CaregiverCard({ caregiver, reviews = [], ratingAvg, rati
       .slice(0, 2)
       .join(', ') || t('roles.caregiver');
 
-  const computedRating = ratingAvg != null
-    ? ratingAvg
-    : reviews.length ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : 5.0;
-  const computedCount = ratingCount != null ? ratingCount : reviews.length;
+  const fallbackCount = reviews.length;
+  const fallbackAverage = fallbackCount
+    ? reviews.reduce((sum, review) => sum + review.rating, 0) / fallbackCount
+    : null;
+  const { average: computedRating, count: computedCount } = getRatingSummary(
+    ratingCount != null ? ratingAvg : fallbackAverage,
+    ratingCount != null ? ratingCount : fallbackCount,
+  );
 
   return (
     <ProfessionalCard

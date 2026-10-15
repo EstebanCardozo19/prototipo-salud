@@ -90,8 +90,8 @@ class CaregiverProfile(SQLModel, table=True):
         default=None,
         sa_column=Column(Vector(384))
     )
-    # Rating agregado (se recalcula al crear/editar reviews)
-    rating_avg: float = Field(default=5.0)
+    # Rating agregado; None significa que todavía no tiene reseñas.
+    rating_avg: Optional[float] = Field(default=None)
     rating_count: int = Field(default=0)
 
     user: Optional[User] = Relationship(back_populates="caregiver_profile")
@@ -212,8 +212,8 @@ class NurseProfile(SQLModel, table=True):
         default=ProfileStatus.pending,
         sa_column=Column(SAEnum(ProfileStatus, name="profilestatus", create_type=False), nullable=False, server_default="pending")
     )
-    # Rating agregado (se recalcula al crear/editar reviews)
-    rating_avg: float = Field(default=5.0)
+    # Rating agregado; None significa que todavía no tiene reseñas.
+    rating_avg: Optional[float] = Field(default=None)
     rating_count: int = Field(default=0)
     created_at: Optional[datetime] = Field(
         default=None,

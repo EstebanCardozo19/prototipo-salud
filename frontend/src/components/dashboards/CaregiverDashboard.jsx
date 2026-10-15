@@ -155,8 +155,8 @@ export default function CaregiverDashboard({ user, token, initialTab = 'profile'
 
   if (loading) return <div className="flex items-center justify-center h-full"><Spinner /></div>;
 
-  const avgRating = profile?.rating_avg ?? 5.0;
   const ratingCount = profile?.rating_count ?? 0;
+  const avgRating = ratingCount > 0 && profile?.rating_avg != null ? Number(profile.rating_avg) : null;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -201,11 +201,7 @@ export default function CaregiverDashboard({ user, token, initialTab = 'profile'
                     <div>
                       <p className="text-[12px] font-bold uppercase tracking-wide text-[#737785]">Calificación</p>
                       <div className="mt-1 flex items-center gap-3">
-                        <span className="text-[32px] font-black leading-none text-amber-500">{avgRating.toFixed(1)}</span>
-                        <div>
-                          <StarRating value={avgRating} readOnly size="sm" />
-                          <p className="mt-0.5 text-[12px] text-[#737785]">{ratingCount} {ratingCount === 1 ? 'calificación' : 'calificaciones'}</p>
-                        </div>
+                        {ratingCount > 0 ? <><span className="text-[32px] font-black leading-none text-amber-500">{avgRating.toFixed(1)}</span><div><StarRating value={avgRating} readOnly size="sm" /><p className="mt-0.5 text-[12px] text-[#737785]">{ratingCount} {ratingCount === 1 ? 'calificación' : 'calificaciones'}</p></div></> : <span className="text-[15px] font-semibold text-[#737785]">Sin valoraciones</span>}
                       </div>
                     </div>
                     {ratingCount === 0 && (

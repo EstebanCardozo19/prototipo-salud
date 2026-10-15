@@ -113,15 +113,17 @@ export default function ProfessionalCard({
                   {specialty}
                 </span>
               )}
-              {rating != null && (
-                <div className="flex items-center bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-100 gap-1">
-                  <StarRating value={rating} readOnly size="sm" />
-                  <span className="text-amber-700 text-[12px] font-bold">{Number(rating).toFixed(1)}</span>
-                  {ratingCount != null && ratingCount > 0 && (
+              <div className="flex items-center gap-1.5">
+                {ratingCount > 0 && rating != null ? (
+                  <>
+                    <StarRating value={rating} readOnly size="sm" />
+                    <span className="text-amber-700 text-[12px] font-bold">{Number(rating).toFixed(1)}</span>
                     <span className="text-[#737785] text-[11px]">({ratingCount})</span>
-                  )}
-                </div>
-              )}
+                  </>
+                ) : (
+                  <span className="text-[#737785] text-[12px] font-medium">Sin valoraciones</span>
+                )}
+              </div>
             </div>
           </div>
           {/* Indicador "ver más" */}

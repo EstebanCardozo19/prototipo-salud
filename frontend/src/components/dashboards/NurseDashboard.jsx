@@ -144,8 +144,8 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
 
   if (loading) return <div className="flex items-center justify-center h-full"><Spinner /></div>;
 
-  const avgRating = profile?.rating_avg ?? 5.0;
   const ratingCount = profile?.rating_count ?? 0;
+  const avgRating = ratingCount > 0 && profile?.rating_avg != null ? Number(profile.rating_avg) : null;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -188,12 +188,9 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
                       <div>
                         <p className="text-[12px] text-[#434652] uppercase tracking-wider mb-1 font-medium">Calificación</p>
                         <div className="flex items-end gap-2">
-                          <span className="text-[32px] font-bold leading-none text-[#F59E0B]">{avgRating.toFixed(1)}</span>
-                          <div className="flex text-[#F59E0B] pb-1">
-                            <StarRating value={avgRating} readOnly size="sm" />
-                          </div>
+                          {ratingCount > 0 ? <><span className="text-[32px] font-bold leading-none text-[#F59E0B]">{avgRating.toFixed(1)}</span><div className="flex text-[#F59E0B] pb-1"><StarRating value={avgRating} readOnly size="sm" /></div></> : <span className="text-[15px] font-semibold text-[#737785]">Sin valoraciones</span>}
                         </div>
-                        <p className="text-[12px] text-[#434652] mt-1 font-medium">{ratingCount} calificaciones</p>
+                        {ratingCount > 0 && <p className="text-[12px] text-[#434652] mt-1 font-medium">{ratingCount} calificaciones</p>}
                       </div>
                       {ratingCount === 0 && (
                         <div className="text-right max-w-[140px]">

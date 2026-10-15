@@ -3,6 +3,8 @@ import { useLang } from '../../contexts/LangContext';
 import Spinner from '../common/Spinner';
 import ProfessionalDetailModal from '../professionals/ProfessionalDetailModal';
 import { getAssetUrl } from '../../utils/helpers';
+import StarRating from '../common/StarRating';
+import { getRatingSummary } from '../../utils/ratings';
 
 // ─── ChatPanel ───────────────────────────────────────────────
 export default function ChatPanel({ user, token, onUnauthorized }) {
@@ -154,6 +156,7 @@ export default function ChatPanel({ user, token, onUnauthorized }) {
                     .join('')
                     .toUpperCase();
                   const specs = (prof.specialties || []).slice(0, 2);
+                  const rating = getRatingSummary(prof.rating_avg, prof.rating_count);
                   return (
                     <div
                       key={j}
@@ -210,6 +213,17 @@ export default function ChatPanel({ user, token, onUnauthorized }) {
                               <span className="w-fit shrink-0 whitespace-nowrap rounded-lg border border-green-200 bg-green-50 px-1.5 py-0.5 text-[10px] font-semibold text-green-700">
                                 {Math.round(prof.similitud * 100)}{t('professional.compatibShort')}
                               </span>
+                            )}
+                          </div>
+                          <div className="mt-1 flex items-center gap-1.5">
+                            {rating.count > 0 ? (
+                              <>
+                                <StarRating value={rating.average} readOnly size="sm" />
+                                <span className="text-[11px] font-bold text-amber-600">{rating.average.toFixed(1)}</span>
+                                <span className="text-[11px] text-[#737785]">({rating.count})</span>
+                              </>
+                            ) : (
+                              <span className="text-[11px] text-[#737785]">Sin valoraciones</span>
                             )}
                           </div>
                         </div>

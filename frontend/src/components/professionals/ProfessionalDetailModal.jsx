@@ -4,6 +4,7 @@ import BookingModal from '../bookings/BookingModal';
 import StarRating from '../common/StarRating';
 import { getAssetUrl, getRoleLabel, getSpecialtyLabel } from '../../utils/helpers';
 import { getCityCoords, getLocalidadCoords } from '../../constants/colombiaGeo';
+import { getRatingSummary } from '../../utils/ratings';
 
 // Inyectar CSS de Leaflet una sola vez
 if (typeof document !== 'undefined' && !document.getElementById('leaflet-css')) {
@@ -136,15 +137,14 @@ export default function ProfessionalDetailModal({ professional, token, reviews =
 
   const initials = (professional.full_name || '?')
     .split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
-
-  const avgRating = professional.rating_avg != null
-    ? Number(professional.rating_avg)
-    : reviews.length
-      ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length
-      : 5.0;
-
-  const ratingCount = professional.rating_count ?? reviews.length;
-
+  const fallbackCount = reviews.length;
+  const fallbackAverage = fallbackCount
+    ? reviews.reduce((sum, review) => sum + review.rating, 0) / fallbackCount
+    : null;
+  const { average: avgRating, count: ratingCount } = getRatingSummary(
+    professional.rating_count != null ? professional.rating_avg : fallbackAverage,
+    professional.rating_count != null ? professional.rating_count : fallbackCount,
+  );
   return (
     <>
       {/* Overlay a pantalla completa, centrado con padding que respeta la TopBar */}
@@ -196,9 +196,7 @@ export default function ProfessionalDetailModal({ professional, token, reviews =
                   <span className="text-[11px] font-normal text-white/60 ml-1">{t('professional.perHour')}</span>
                 </span>
                 <div className="flex items-center gap-1 bg-amber-400/20 border border-amber-300/30 rounded-lg px-2 py-0.5">
-                  <StarRating value={avgRating} readOnly size="sm" />
-                  <span className="text-amber-200 font-bold text-[12px] ml-0.5">{avgRating.toFixed(1)}</span>
-                  <span className="text-amber-300/70 text-[10px]">({ratingCount})</span>
+                  {ratingCount > 0 ? <><StarRating value={avgRating} readOnly size="sm" /><span className="text-amber-200 font-bold text-[12px] ml-0.5">{avgRating.toFixed(1)}</span><span className="text-amber-300/70 text-[10px]">({ratingCount})</span></> : <span className="text-amber-200 text-[11px]">Sin valoraciones</span>}
                 </div>
                 {professional.similitud && (
                   <span className="text-[10px] bg-[#8df1e3]/20 text-[#8df1e3] border border-[#8df1e3]/30 px-2 py-0.5 rounded-lg font-semibold">
@@ -319,13 +317,7 @@ export default function ProfessionalDetailModal({ professional, token, reviews =
               <div className="p-5 flex flex-col gap-3">
                 {/* Resumen de rating */}
                 <div className="bg-gradient-to-r from-amber-50 to-amber-100/40 border border-amber-200/60 rounded-2xl px-5 py-4 flex items-center gap-4">
-                  <div className="text-[42px] font-black text-amber-500 leading-none">{avgRating.toFixed(1)}</div>
-                  <div>
-                    <StarRating value={avgRating} readOnly size="md" />
-                    <p className="text-[11px] text-[#737785] mt-0.5">
-                      {ratingCount} {ratingCount === 1 ? 'calificación' : 'calificaciones'}
-                    </p>
-                  </div>
+                  {ratingCount > 0 ? <><div className="text-[42px] font-black text-amber-500 leading-none">{avgRating.toFixed(1)}</div><div><StarRating value={avgRating} readOnly size="md" /><p className="text-[11px] text-[#737785] mt-0.5">{ratingCount} {ratingCount === 1 ? 'calificación' : 'calificaciones'}</p></div></> : <p className="text-[15px] font-semibold text-[#737785]">Sin valoraciones</p>}
                 </div>
 
                 {reviews.length === 0 ? (
