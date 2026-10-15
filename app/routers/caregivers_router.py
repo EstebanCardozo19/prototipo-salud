@@ -35,6 +35,7 @@ class CaregiverResponse(BaseModel):
     user_id: int
     full_name: str
     email: str
+    photo_url: Optional[str] = None
     experience_years: int
     specialties: Optional[List[str]]
     hourly_rate: float
@@ -74,6 +75,7 @@ def list_caregivers(
             user_id=profile.user_id,
             full_name=user.full_name,
             email=user.email,
+            photo_url=user.photo_url,
             experience_years=profile.experience_years,
             specialties=profile.specialties,
             hourly_rate=profile.hourly_rate,
@@ -103,7 +105,7 @@ def list_caregivers(
 def get_my_profile(current_user: User = Depends(require_role(UserRole.caregiver)), session: Session = Depends(get_session)):
     profile = session.exec(select(CaregiverProfile).where(CaregiverProfile.user_id == current_user.id)).first()
     if not profile: raise HTTPException(404, "Perfil de cuidador no encontrado")
-    return CaregiverResponse(id=profile.id, user_id=profile.user_id, full_name=current_user.full_name, email=current_user.email, experience_years=profile.experience_years, specialties=profile.specialties, hourly_rate=profile.hourly_rate, location=profile.location, bio=profile.bio, status=profile.status.value, rating_avg=profile.rating_avg, rating_count=profile.rating_count)
+    return CaregiverResponse(id=profile.id, user_id=profile.user_id, full_name=current_user.full_name, email=current_user.email, photo_url=current_user.photo_url, experience_years=profile.experience_years, specialties=profile.specialties, hourly_rate=profile.hourly_rate, location=profile.location, bio=profile.bio, status=profile.status.value, rating_avg=profile.rating_avg, rating_count=profile.rating_count)
 
 @router.get("/{profile_id}", response_model=CaregiverResponse)
 def get_caregiver(profile_id: int, session: Session = Depends(get_session)):
@@ -119,6 +121,7 @@ def get_caregiver(profile_id: int, session: Session = Depends(get_session)):
         user_id=profile.user_id,
         full_name=user.full_name,
         email=user.email,
+        photo_url=user.photo_url,
         experience_years=profile.experience_years,
         specialties=profile.specialties,
         hourly_rate=profile.hourly_rate,
@@ -171,6 +174,7 @@ def update_my_profile(
         user_id=profile.user_id,
         full_name=current_user.full_name,
         email=current_user.email,
+        photo_url=current_user.photo_url,
         experience_years=profile.experience_years,
         specialties=profile.specialties,
         hourly_rate=profile.hourly_rate,

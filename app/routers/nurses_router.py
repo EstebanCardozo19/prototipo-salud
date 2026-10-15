@@ -40,6 +40,7 @@ class NurseResponse(BaseModel):
     user_id: int
     full_name: str
     email: str
+    photo_url: Optional[str] = None
     specialty: str
     license_number: str
     institution: Optional[str]
@@ -73,7 +74,7 @@ def list_nurses(
     results = session.exec(statement.offset(skip).limit(limit)).all()
     responses = [
         NurseResponse(
-            id=p.id, user_id=p.user_id, full_name=u.full_name, email=u.email,
+            id=p.id, user_id=p.user_id, full_name=u.full_name, email=u.email, photo_url=u.photo_url,
             specialty=p.specialty.value, license_number=p.license_number,
             institution=p.institution, experience_years=p.experience_years,
             bio=p.bio, location=p.location, hourly_rate=p.hourly_rate,
@@ -104,7 +105,7 @@ def list_specialties():
 def get_my_profile(current_user: User = Depends(require_role(UserRole.nurse)), session: Session = Depends(get_session)):
     p = session.exec(select(NurseProfile).where(NurseProfile.user_id == current_user.id)).first()
     if not p: raise HTTPException(404, "Perfil no encontrado")
-    return NurseResponse(id=p.id, user_id=p.user_id, full_name=current_user.full_name, email=current_user.email, specialty=p.specialty.value, license_number=p.license_number, institution=p.institution, experience_years=p.experience_years, bio=p.bio, location=p.location, hourly_rate=p.hourly_rate, status=p.status.value, rating_avg=p.rating_avg, rating_count=p.rating_count)
+    return NurseResponse(id=p.id, user_id=p.user_id, full_name=current_user.full_name, email=current_user.email, photo_url=current_user.photo_url, specialty=p.specialty.value, license_number=p.license_number, institution=p.institution, experience_years=p.experience_years, bio=p.bio, location=p.location, hourly_rate=p.hourly_rate, status=p.status.value, rating_avg=p.rating_avg, rating_count=p.rating_count)
 
 @router.get("/{nurse_id}", response_model=NurseResponse)
 def get_nurse(nurse_id: int, session: Session = Depends(get_session)):
@@ -114,7 +115,7 @@ def get_nurse(nurse_id: int, session: Session = Depends(get_session)):
     u = session.get(User, p.user_id)
     if not u or not u.is_active:
         raise HTTPException(status_code=404, detail="Enfermero no encontrado")
-    return NurseResponse(id=p.id, user_id=p.user_id, full_name=u.full_name, email=u.email, specialty=p.specialty.value, license_number=p.license_number, institution=p.institution, experience_years=p.experience_years, bio=p.bio, location=p.location, hourly_rate=p.hourly_rate, status=p.status.value, rating_avg=p.rating_avg, rating_count=p.rating_count)
+    return NurseResponse(id=p.id, user_id=p.user_id, full_name=u.full_name, email=u.email, photo_url=u.photo_url, specialty=p.specialty.value, license_number=p.license_number, institution=p.institution, experience_years=p.experience_years, bio=p.bio, location=p.location, hourly_rate=p.hourly_rate, status=p.status.value, rating_avg=p.rating_avg, rating_count=p.rating_count)
 
 @router.put("/me", response_model=NurseResponse)
 def update_my_profile(request: NurseUpdateRequest, current_user: User = Depends(require_role(UserRole.nurse)), session: Session = Depends(get_session)):
@@ -124,4 +125,4 @@ def update_my_profile(request: NurseUpdateRequest, current_user: User = Depends(
         if k == "specialty" and v: setattr(p, k, NurseSpecialty(v))
         else: setattr(p, k, v)
     session.add(p); session.commit(); session.refresh(p)
-    return NurseResponse(id=p.id, user_id=p.user_id, full_name=current_user.full_name, email=current_user.email, specialty=p.specialty.value, license_number=p.license_number, institution=p.institution, experience_years=p.experience_years, bio=p.bio, location=p.location, hourly_rate=p.hourly_rate, status=p.status.value, rating_avg=p.rating_avg, rating_count=p.rating_count)
+    return NurseResponse(id=p.id, user_id=p.user_id, full_name=current_user.full_name, email=current_user.email, photo_url=current_user.photo_url, specialty=p.specialty.value, license_number=p.license_number, institution=p.institution, experience_years=p.experience_years, bio=p.bio, location=p.location, hourly_rate=p.hourly_rate, status=p.status.value, rating_avg=p.rating_avg, rating_count=p.rating_count)
