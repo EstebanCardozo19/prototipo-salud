@@ -2,11 +2,10 @@ import { useState, useEffect } from 'react';
 import { useLang } from '../../contexts/LangContext';
 import Spinner from '../common/Spinner';
 import { INPUT_CLASS, LABEL_CLASS, TEMPLATES_KEY } from '../../constants';
-import { getMobilityLabel } from '../../utils/helpers';
 
 // ─── BookingModal ─────────────────────────────────────────────
 export default function BookingModal({ professional, token, onClose, onSuccess }) {
-  const { t, lang } = useLang();
+  const { t } = useLang();
   const getBogotaNow = () => {
     const parts = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'America/Bogota', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23',
@@ -43,22 +42,9 @@ export default function BookingModal({ professional, token, onClose, onSuccess }
 
   const handleSelectRecord = (record) => {
     setSelectedRecord(record);
-    if (!record) {
-      setNotes('');
-      return;
-    }
-    // Pre-llenar notas con resumen de la ficha
-    const parts = [];
-    parts.push(`${t('booking.patientPrefix')}: ${record.patient_name}, ${record.patient_age} ${t('professional.years')}.`);
-    if (record.mobility_level) {
-      const mob = getMobilityLabel(record.mobility_level, lang);
-      parts.push(mob + '.');
-    }
-    if (record.diagnoses?.length) parts.push(`${t('booking.diagnosesPrefix')}: ${record.diagnoses.join(', ')}.`);
-    if (record.medications?.length) parts.push(`${t('booking.medsPrefix')}: ${record.medications.join(', ')}.`);
-    if (record.allergies?.length) parts.push(`${t('booking.allergiesPrefix')}: ${record.allergies.join(', ')}.`);
-    if (record.special_needs) parts.push(record.special_needs);
-    setNotes(parts.join(' '));
+    // La descripción solo contiene lo que la familia escribe o selecciona expresamente.
+    // Nunca se completa desde la ficha clínica al elegir un familiar.
+    setNotes('');
   };
 
   // Plantillas guardadas
@@ -278,12 +264,12 @@ export default function BookingModal({ professional, token, onClose, onSuccess }
                     );
                   })}
                 </div>
-                {selectedRecord && (
-                  <p className="mt-1.5 text-[11px] text-[#006a61] flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[13px]">auto_fix_high</span>
-                    {t('booking.notesLoaded')} {selectedRecord.patient_name}
-                  </p>
-                )}
+              {selectedRecord && (
+                <p className="mt-1.5 flex items-center gap-1 text-[11px] text-[#006a61]">
+                  <span className="material-symbols-outlined text-[13px]">privacy_tip</span>
+                  {t('booking.descriptionPrivacyNotice')}
+                </p>
+              )}
               </div>
             )}
 

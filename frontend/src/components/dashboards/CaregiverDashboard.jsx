@@ -4,6 +4,7 @@ import Spinner from '../common/Spinner';
 import StarRating from '../common/StarRating';
 import RateServiceModal from '../bookings/RateServiceModal';
 import BookingFamilyInfo from '../bookings/BookingFamilyInfo';
+import BookingDescription from '../bookings/BookingDescription';
 import ServiceChatModal from '../bookings/ServiceChatModal';
 import ServiceCarePlanModal from '../bookings/ServiceCarePlanModal';
 import ProfessionalPatientAssistantModal from '../bookings/ProfessionalPatientAssistantModal';
@@ -331,9 +332,7 @@ export default function CaregiverDashboard({ user, token, initialTab = 'profile'
                       </span>
                     </div>
                     <BookingFamilyInfo booking={b} />
-                    {b.notes && (
-                      <p className="text-[13px] text-[#424654] bg-[#f9f9fc] rounded-xl px-3 py-2 border border-[#c3c6d6]/30 mb-3 line-clamp-2">{b.notes}</p>
-                    )}
+                    <BookingDescription description={b.notes} />
                     <div className="flex flex-wrap gap-2">
                       {/* Aprobar / Rechazar si pending */}
                       {b.status === 'pending' && (
