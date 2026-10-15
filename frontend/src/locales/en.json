@@ -89,7 +89,7 @@
   },
   "geo": {
     "city": "City / Municipality",
-    "allCities": "Bogotá and nearby municipalities",
+    "allCities": "All Bogotá",
     "locality": "District / Zone",
     "allLocalities": "All districts",
     "myFamilyLocations": "Family members:",
@@ -99,7 +99,7 @@
     "selectCityFirst": "Select a city first",
     "professionalsInArea": "professionals in this area",
     "mapHint": "Explore caregiver and nurse coverage on the map",
-    "addressAutocompletePlaceholder": "Enter an address in Bogotá or a nearby municipality (e.g. Cra 15 # 93-60)",
+    "addressAutocompletePlaceholder": "Enter an address in Bogotá (e.g. Cra 15 # 93-60)",
     "patientHome": "Patient's home",
     "preferredCity": "Preferred city",
     "preferredLocality": "Preferred district / neighborhood",

@@ -13,7 +13,7 @@ import MedicationsScreen from '../medications/MedicationsScreen';
 export default function MainScreen({ user, token, onLogout, onUnauthorized, onUserUpdate }) {
   const { t } = useLang();
   const [activeNav, setActiveNav] = useState(
-    user.role === 'family' || user.role === 'admin' ? 'caregivers' : 'account'
+    user.role === 'admin' ? 'users' : user.role === 'family' ? 'caregivers' : 'account'
   );
   const [serviceChats, setServiceChats] = useState(null);
 
@@ -97,13 +97,8 @@ export default function MainScreen({ user, token, onLogout, onUnauthorized, onUs
     }
     if (user.role === 'admin') {
       return (
-        <div className="flex h-full">
-          <div className="flex-1 overflow-hidden border-r border-[#c3c6d6]/30">
-            <AdminDashboard token={token} />
-          </div>
-          <div className="w-[320px] xl:w-[360px] shrink-0">
-            <SearchPanel user={user} token={token} activeTab="caregivers" onTabChange={() => {}} />
-          </div>
+        <div className="h-full overflow-hidden">
+          <AdminDashboard token={token} />
         </div>
       );
     }

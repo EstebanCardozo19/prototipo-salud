@@ -89,7 +89,7 @@
   },
   "geo": {
     "city": "Ciudad / Municipio",
-    "allCities": "Bogotá y municipios cercanos",
+    "allCities": "Toda Bogotá",
     "locality": "Localidad / Comuna",
     "allLocalities": "Todas las localidades",
     "myFamilyLocations": "Familiares:",
@@ -99,7 +99,7 @@
     "selectCityFirst": "Selecciona una ciudad",
     "professionalsInArea": "profesionales en esta zona",
     "mapHint": "Explora la cobertura de cuidadores y enfermeros en el mapa",
-    "addressAutocompletePlaceholder": "Ingresa dirección en Bogotá o municipios cercanos (ej: Cra 15 # 93-60)",
+    "addressAutocompletePlaceholder": "Ingresa una dirección en Bogotá (ej: Cra 15 # 93-60)",
     "patientHome": "Hogar del paciente",
     "preferredCity": "Ciudad preferida",
     "preferredLocality": "Localidad / Barrio preferido",

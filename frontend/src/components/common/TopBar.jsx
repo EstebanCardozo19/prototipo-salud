@@ -6,24 +6,29 @@ import NotificationCenter from './NotificationCenter';
 export default function TopBar({ user, token, activeNav, onNav, onLogout, onOpenMessages }) {
   const { t, lang } = useLang();
 
-  const navItems = [
-    ...(user.role === 'family' || user.role === 'admin'
-      ? [
-          { key: 'caregivers', label: t('nav.caregivers') },
-          { key: 'nurses', label: t('nav.nurses') },
-          { key: 'calendar', label: t('nav.calendar') },
-        ]
-      : []),
-    ...(['caregiver', 'nurse'].includes(user.role)
-      ? [{ key: 'calendar', label: t('nav.calendar') }]
-      : []),
-    // Rutinas y medicamentos: visible para familia y profesionales
-    ...(['family', 'caregiver', 'nurse'].includes(user.role)
-      ? [{ key: 'medications', label: 'Medicamentos' }]
-      : []),
-    { key: 'my-requests', label: t('nav.myRequests') },
-    { key: 'account', label: t('nav.myAccount') },
-  ];
+  const navItems = user.role === 'admin'
+    ? [
+        { key: 'users', label: t('admin.users') },
+        { key: 'account', label: t('nav.myAccount') },
+      ]
+    : [
+        ...(user.role === 'family'
+          ? [
+              { key: 'caregivers', label: t('nav.caregivers') },
+              { key: 'nurses', label: t('nav.nurses') },
+              { key: 'calendar', label: t('nav.calendar') },
+            ]
+          : []),
+        ...(['caregiver', 'nurse'].includes(user.role)
+          ? [{ key: 'calendar', label: t('nav.calendar') }]
+          : []),
+        // Rutinas y medicamentos: visible para familia y profesionales
+        ...(['family', 'caregiver', 'nurse'].includes(user.role)
+          ? [{ key: 'medications', label: 'Medicamentos' }]
+          : []),
+        { key: 'my-requests', label: t('nav.myRequests') },
+        { key: 'account', label: t('nav.myAccount') },
+      ];
 
   return (
     <header className="bg-[#0040a1] text-white flex items-center justify-between px-8 h-[64px] shrink-0 shadow-md z-50">

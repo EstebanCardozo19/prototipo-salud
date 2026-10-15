@@ -1,6 +1,6 @@
 /**
  * colombiaGeo.js — Catálogo geográfico de la zona de cobertura
- * Bogotá D.C. y municipios cercanos de Cundinamarca, con localidades/comunas, barrios y coordenadas.
+ * Cobertura exclusiva de Bogotá D.C., con localidades, barrios y coordenadas.
  */
 
 /**
@@ -456,12 +456,11 @@ export const COLOMBIA_GEO = {
   }
 };
 
-/** Municipios habilitados para la prestación del servicio. */
+/** Ciudad y cobertura habilitadas: localidades de Bogotá D.C. exclusivamente. */
+export const BOGOTA_CITY = 'Bogotá D.C.';
+
 export const SERVICE_CITIES = [
-  'Bogotá D.C.', 'Soacha', 'Chía', 'La Calera', 'Cota', 'Funza', 'Mosquera',
-  'Madrid', 'Facatativá', 'Cajicá', 'Zipaquirá', 'Sopó', 'Tocancipá', 'Tabio',
-  'Tenjo', 'Gachancipá', 'Nemocón', 'El Rosal', 'Bojacá', 'Sibaté',
-  'Fusagasugá', 'La Mesa', 'Girardot'
+  BOGOTA_CITY
 ];
 
 /**

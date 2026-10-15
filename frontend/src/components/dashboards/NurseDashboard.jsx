@@ -9,7 +9,7 @@ import ServiceCarePlanModal from '../bookings/ServiceCarePlanModal';
 import ProfessionalPatientAssistantModal from '../bookings/ProfessionalPatientAssistantModal';
 import { INPUT_CLASS, LABEL_CLASS } from '../../constants';
 import { getSpecialtyLabel } from '../../utils/helpers';
-import { getCitiesList, getLocalidadesForCity } from '../../constants/colombiaGeo';
+import { BOGOTA_CITY, getLocalidadesForCity } from '../../constants/colombiaGeo';
 import VerificationSection from './VerificationSection';
 
 const STATUS_LABEL = { pending: 'Pendiente', approved: 'Aprobado', rejected: 'Rechazado', completed: 'Completado', cancelled: 'Cancelado' };
@@ -39,10 +39,9 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
   const [assistantBooking, setAssistantBooking] = useState(null);
   const [myReviews, setMyReviews] = useState([]);
 
-  const [selectedCity, setSelectedCity] = useState('Bogotá D.C.');
+  const [selectedCity, setSelectedCity] = useState(BOGOTA_CITY);
   const [selectedLocalidad, setSelectedLocalidad] = useState('');
-  const citiesList = useMemo(() => getCitiesList(), []);
-  const availableLocalidades = useMemo(() => (selectedCity ? getLocalidadesForCity(selectedCity) : []), [selectedCity]);
+  const availableLocalidades = useMemo(() => getLocalidadesForCity(BOGOTA_CITY), []);
 
   useEffect(() => { loadProfile(); }, []);
   useEffect(() => { if (activeTab === 'services') loadBookings(); }, [activeTab]);
@@ -58,8 +57,8 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
           setForm(mine);
           if (mine.location) {
             const parts = mine.location.split(',').map(s => s.trim());
-            if (parts.length > 1) { setSelectedLocalidad(parts[0]); setSelectedCity(parts[1]); }
-            else { setSelectedLocalidad(mine.location); }
+            if (parts.length > 1 && parts[1] === BOGOTA_CITY) { setSelectedLocalidad(parts[0]); setSelectedCity(BOGOTA_CITY); }
+            else if (availableLocalidades.includes(mine.location)) { setSelectedLocalidad(mine.location); }
           }
           const rv = await fetch(`/api/bookings/reviews/${mine.user_id}`, { headers: { Authorization: `Bearer ${token}` } });
           if (rv.ok) setMyReviews(await rv.json());
@@ -237,9 +236,7 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className={LABEL_CLASS}>{t('geo.city')}</label>
-                    <select className={INPUT_CLASS} value={selectedCity} onChange={e => { setSelectedCity(e.target.value); setSelectedLocalidad(''); }}>
-                      {citiesList.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
+                    <div className={`${INPUT_CLASS} bg-[#f3f3f6] flex items-center`}>{BOGOTA_CITY}</div>
                   </div>
                   <div>
                     <label className={LABEL_CLASS}>{t('geo.locality')}</label>

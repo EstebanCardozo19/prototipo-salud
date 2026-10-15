@@ -91,6 +91,11 @@ def user_email(user) -> str:
     return decrypt_text(user.email, allow_legacy_plaintext=True)
 
 
+def user_email_lookup(user) -> str:
+    """Genera el índice HMAC a partir del correo en claro de un usuario."""
+    return email_lookup(user_email(user))
+
+
 def user_full_name(user) -> str:
     """Devuelve el nombre en claro de un usuario para una respuesta autorizada."""
     return decrypt_text(user.full_name, allow_legacy_plaintext=True)

@@ -9,7 +9,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
 from io import BytesIO
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlmodel import Session, select
 from typing import Optional, List
 
@@ -18,6 +18,7 @@ from app.models import User, UserRole, ClinicalRecord, ClinicalRecordDocument
 from app.auth import get_current_user, require_role
 from app.security.encryption import decrypt_bytes, encrypt_bytes
 from app.services.document_text_extraction import extract_document_text, is_extracted_text_legible
+from app.services.bogota_locations import validate_bogota_city
 
 router = APIRouter(prefix="/api/clinical-records", tags=["Historia Clínica"])
 
@@ -62,6 +63,11 @@ class ClinicalRecordCreate(BaseModel):
     preferred_hospital: Optional[str] = None
     allow_professional_document_access: bool = False
 
+    @field_validator("city")
+    @classmethod
+    def city_must_be_bogota(cls, value: Optional[str]) -> Optional[str]:
+        return validate_bogota_city(value)
+
 
 class ClinicalRecordUpdate(BaseModel):
     # Datos básicos del paciente
@@ -91,6 +97,11 @@ class ClinicalRecordUpdate(BaseModel):
     prepaid_medicine: Optional[str] = None
     preferred_hospital: Optional[str] = None
     allow_professional_document_access: Optional[bool] = None
+
+    @field_validator("city")
+    @classmethod
+    def city_must_be_bogota(cls, value: Optional[str]) -> Optional[str]:
+        return validate_bogota_city(value)
 
 
 class ClinicalRecordResponse(BaseModel):

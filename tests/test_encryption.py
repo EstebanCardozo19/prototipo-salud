@@ -17,6 +17,7 @@ from app.security.encryption import (  # noqa: E402
     encrypt_bytes,
     encrypt_text,
     user_email,
+    user_email_lookup,
     user_full_name,
 )
 
@@ -65,6 +66,20 @@ class EncryptionTests(unittest.TestCase):
         self.assertEqual(user_full_name(admin), "Administradora Principal")
         self.assertEqual(user_email(professional), "cuidador@ejemplo.com")
         self.assertEqual(user_full_name(professional), "Cuidador Histórico")
+
+    def test_encrypted_family_email_keeps_a_lookup_compatible_with_login(self):
+        family = SimpleNamespace(email=encrypt_text("Familia@Ejemplo.com"))
+
+        self.assertEqual(
+            user_email_lookup(family),
+            email_lookup("familia@ejemplo.com"),
+        )
+
+    def test_same_normalized_email_produces_the_same_unique_lookup(self):
+        self.assertEqual(
+            email_lookup("familia@ejemplo.com"),
+            email_lookup(" FAMILIA@EJEMPLO.COM "),
+        )
 
 
 if __name__ == "__main__":

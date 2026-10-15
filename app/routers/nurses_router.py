@@ -2,13 +2,14 @@
 Router de enfermeros: CRUD de perfiles.
 """
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlmodel import Session, select
 from typing import Optional, List
 
 from app.database import get_session
 from app.models import User, UserRole, NurseProfile, NurseSpecialty, ProfileStatus
 from app.auth import get_current_user, require_role
+from app.services.bogota_locations import validate_bogota_professional_location
 
 router = APIRouter(prefix="/api/nurses", tags=["Enfermeros"])
 
@@ -28,6 +29,11 @@ class NurseUpdateRequest(BaseModel):
     bio: Optional[str] = None
     location: Optional[str] = None
     hourly_rate: Optional[float] = None
+
+    @field_validator("location")
+    @classmethod
+    def location_must_be_bogota(cls, value: Optional[str]) -> Optional[str]:
+        return validate_bogota_professional_location(value)
 
 class NurseResponse(BaseModel):
     id: int

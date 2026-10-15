@@ -6,7 +6,7 @@ import CaregiverDashboard from '../dashboards/CaregiverDashboard';
 import NurseDashboard from '../dashboards/NurseDashboard';
 import { INPUT_CLASS, LABEL_CLASS } from '../../constants';
 import { getRoleLabel } from '../../utils/helpers';
-import { getCitiesList, getLocalidadesForCity } from '../../constants/colombiaGeo';
+import { BOGOTA_CITY, getLocalidadesForCity } from '../../constants/colombiaGeo';
 
 const SECURITY_QUESTIONS = [
   'first_pet', 'birth_city', 'favorite_teacher', 'childhood_friend', 'favorite_book', 'mother_middle_name',
@@ -47,27 +47,25 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
 
   // ── Preferencias de ubicación ───────────────────────────────
   const savedPrefs = loadPrefs();
-  const [prefCity, setPrefCity] = useState(savedPrefs.prefCity || '');
+  const [prefCity, setPrefCity] = useState(BOGOTA_CITY);
   const [prefLocality, setPrefLocality] = useState(savedPrefs.prefLocality || '');
   const [prefMsg, setPrefMsg] = useState(null);
   const [familyRecords, setFamilyRecords] = useState([]);
 
-  const citiesList = useMemo(() => getCitiesList(), []);
   const availableLocalidades = useMemo(
-    () => (prefCity ? getLocalidadesForCity(prefCity) : []),
-    [prefCity]
+    () => getLocalidadesForCity(BOGOTA_CITY),
+    []
   );
 
-  // Cargar familiares para auto-detectar ubicaciones
   useEffect(() => {
-    if (!token) return;
+    if (user.role !== 'family' || !token) return;
     fetch('/api/clinical-records/', {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(r => r.ok ? r.json() : [])
       .then(data => setFamilyRecords(Array.isArray(data) ? data : []))
       .catch(() => setFamilyRecords([]));
-  }, [token]);
+  }, [token, user.role]);
 
   useEffect(() => {
     if (!token) return;
@@ -254,11 +252,10 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
     }
   };
 
-  // Aplicar ciudad/localidad de un familiar
-  const applyFamilyLocation = (rec) => {
-    if (rec.city) {
-      setPrefCity(rec.city);
-      setPrefLocality(rec.neighborhood || '');
+  const applyFamilyLocation = (record) => {
+    if (record.city === BOGOTA_CITY) {
+      setPrefCity(BOGOTA_CITY);
+      setPrefLocality(record.neighborhood || '');
     }
   };
 
@@ -305,7 +302,7 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
           <p className="font-bold text-[15px] text-[#1a1c1e] text-center leading-tight">{user.full_name}</p>
           <p className="text-[12px] text-[#737785]">{user.email}</p>
           {/* Chip de ciudad preferida en sidebar */}
-          {prefCity && (
+          {user.role === 'family' && prefCity && (
             <div className="flex items-center gap-1 text-[11px] bg-[#dae2ff] text-[#0040a1] px-2.5 py-0.5 rounded-full font-semibold mt-0.5">
               <span className="material-symbols-outlined text-[12px]">location_on</span>
               {prefLocality ? `${prefLocality}, ${prefCity}` : prefCity}
@@ -541,6 +538,7 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
         {activeTab === 'preferences' && (
           <div className="max-w-2xl flex flex-col gap-5">
 
+            {user.role === 'family' && (<>
             {/* ─ Tarjeta: Ubicación de búsqueda predeterminada ─ */}
             <div className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm p-6">
               <h3 className="font-bold text-[17px] text-[#1a1c1e] mb-1 flex items-center gap-2">
@@ -557,22 +555,9 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
                     <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#0040a1] text-[17px] pointer-events-none">
                       location_city
                     </span>
-                    <select
-                      className="w-full h-[42px] pl-9 pr-7 rounded-xl border border-[#c3c6d6] bg-white appearance-none focus:border-[#0040a1] focus:ring-2 focus:ring-[#0040a1]/15 focus:outline-none text-[14px]"
-                      value={prefCity}
-                      onChange={e => {
-                        setPrefCity(e.target.value);
-                        setPrefLocality('');
-                      }}
-                    >
-                      <option value="">{t('geo.allCities')}</option>
-                      {citiesList.map(c => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                    <span className="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-[#737785] text-[17px]">
-                      expand_more
-                    </span>
+                    <div className="w-full h-[42px] pl-9 pr-3 rounded-xl border border-[#c3c6d6] bg-[#f3f3f6] text-[#424654] text-[14px] font-semibold flex items-center">
+                      {BOGOTA_CITY}
+                    </div>
                   </div>
                 </div>
 
@@ -587,10 +572,10 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
                       className="w-full h-[42px] pl-9 pr-7 rounded-xl border border-[#c3c6d6] bg-white appearance-none focus:border-[#0040a1] focus:ring-2 focus:ring-[#0040a1]/15 focus:outline-none text-[14px] disabled:bg-[#f3f3f6] disabled:text-[#737785]"
                       value={prefLocality}
                       onChange={e => setPrefLocality(e.target.value)}
-                      disabled={!prefCity || availableLocalidades.length === 0}
+                      disabled={availableLocalidades.length === 0}
                     >
                       <option value="">
-                        {prefCity ? t('geo.allLocalities') : t('geo.selectCityFirst')}
+                        {t('geo.allLocalities')}
                       </option>
                       {availableLocalidades.map(l => (
                         <option key={l} value={l}>{l}</option>
@@ -615,7 +600,7 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
                   </div>
                   <button
                     type="button"
-                    onClick={() => { setPrefCity(''); setPrefLocality(''); }}
+                    onClick={() => { setPrefCity(BOGOTA_CITY); setPrefLocality(''); }}
                     className="ml-auto text-[11px] text-[#e11d48] font-semibold hover:underline flex items-center gap-0.5"
                   >
                     <span className="material-symbols-outlined text-[13px]">close</span>
@@ -625,74 +610,74 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
               )}
             </div>
 
-            {/* ─ Tarjeta: Ubicaciones de familiares ─ */}
-            <div className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm p-6">
-              <h3 className="font-bold text-[17px] text-[#1a1c1e] mb-1 flex items-center gap-2">
-                <span className="material-symbols-outlined text-[22px] text-[#0040a1]">family_restroom</span>
-                {t('account.prefFromFamilyTitle')}
-              </h3>
-              <p className="text-[13px] text-[#737785] mb-4">{t('account.prefFromFamilyHint')}</p>
+              <div className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm p-6">
+                <h3 className="font-bold text-[17px] text-[#1a1c1e] mb-1 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[22px] text-[#0040a1]">family_restroom</span>
+                  {t('account.prefFromFamilyTitle')}
+                </h3>
+                <p className="text-[13px] text-[#737785] mb-4">{t('account.prefFromFamilyHint')}</p>
 
-              {familyRecords.length === 0 ? (
-                <div className="flex items-center gap-3 bg-[#f3f3f6] rounded-xl px-4 py-4">
-                  <span className="material-symbols-outlined text-[#c3c6d6] text-[28px]">person_search</span>
-                  <p className="text-[13px] text-[#737785]">{t('geo.noFamilyDetected')}</p>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-2.5">
-                  {familyRecords.map(rec => {
-                    const city = rec.city || '';
-                    const locality = rec.neighborhood || '';
-                    const isActive = prefCity === city && prefLocality === locality;
+                {familyRecords.length === 0 ? (
+                  <div className="flex items-center gap-3 bg-[#f3f3f6] rounded-xl px-4 py-4">
+                    <span className="material-symbols-outlined text-[#c3c6d6] text-[28px]">person_search</span>
+                    <p className="text-[13px] text-[#737785]">{t('geo.noFamilyDetected')}</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2.5">
+                    {familyRecords.map(record => {
+                      const city = record.city || '';
+                      const locality = record.neighborhood || '';
+                      const isActive = prefCity === city && prefLocality === locality;
 
-                    return (
-                      <div
-                        key={rec.id}
-                        className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3.5 transition-all cursor-pointer ${
-                          isActive
-                            ? 'bg-[#dae2ff]/60 border-[#0040a1]/40 shadow-sm'
-                            : 'bg-[#f9f9fc] border-[#c3c6d6]/50 hover:border-[#0040a1]/30 hover:bg-[#f0f4fd]'
-                        }`}
-                        onClick={() => applyFamilyLocation(rec)}
-                      >
-                        {/* Icono + Nombre */}
-                        <div className="flex items-center gap-3">
-                          <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-[14px] shrink-0 ${
-                            isActive ? 'bg-[#0040a1]' : 'bg-[#6b7cf6]'
-                          }`}>
-                            {rec.patient_name?.charAt(0) || '?'}
+                      return (
+                        <div
+                          key={record.id}
+                          className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3.5 transition-all ${
+                            city === BOGOTA_CITY ? 'cursor-pointer' : 'cursor-default opacity-70'
+                          } ${
+                            isActive
+                              ? 'bg-[#dae2ff]/60 border-[#0040a1]/40 shadow-sm'
+                              : 'bg-[#f9f9fc] border-[#c3c6d6]/50 hover:border-[#0040a1]/30 hover:bg-[#f0f4fd]'
+                          }`}
+                          onClick={() => applyFamilyLocation(record)}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-[14px] shrink-0 ${
+                              isActive ? 'bg-[#0040a1]' : 'bg-[#6b7cf6]'
+                            }`}>
+                              {record.patient_name?.charAt(0) || '?'}
+                            </div>
+                            <div>
+                              <p className="font-bold text-[14px] text-[#1a1c1e] leading-tight">{record.patient_name}</p>
+                              {city ? (
+                                <p className="text-[12px] text-[#737785] flex items-center gap-1 mt-0.5">
+                                  <span className="material-symbols-outlined text-[13px] text-[#0040a1]/60">location_on</span>
+                                  {locality ? `${locality}, ${city}` : city}
+                                </p>
+                              ) : (
+                                <p className="text-[12px] text-[#737785] italic">Sin ubicación registrada</p>
+                              )}
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-bold text-[14px] text-[#1a1c1e] leading-tight">{rec.patient_name}</p>
-                            {city ? (
-                              <p className="text-[12px] text-[#737785] flex items-center gap-1 mt-0.5">
-                                <span className="material-symbols-outlined text-[13px] text-[#0040a1]/60">location_on</span>
-                                {locality ? `${locality}, ${city}` : city}
-                              </p>
-                            ) : (
-                              <p className="text-[12px] text-[#737785] italic">Sin ubicación registrada</p>
-                            )}
-                          </div>
+
+                          {isActive ? (
+                            <span className="flex items-center gap-1 text-[11px] font-bold bg-[#0040a1] text-white px-2.5 py-1 rounded-full shrink-0">
+                              <span className="material-symbols-outlined text-[13px]">check</span>
+                              Activa
+                            </span>
+                          ) : city === BOGOTA_CITY ? (
+                            <span className="text-[11px] font-semibold text-[#0040a1] shrink-0 flex items-center gap-1 opacity-70">
+                              {t('account.prefApplyFrom')}
+                              <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                            </span>
+                          ) : null}
                         </div>
-
-                        {/* Badge de estado */}
-                        {isActive ? (
-                          <span className="flex items-center gap-1 text-[11px] font-bold bg-[#0040a1] text-white px-2.5 py-1 rounded-full shrink-0">
-                            <span className="material-symbols-outlined text-[13px]">check</span>
-                            Activa
-                          </span>
-                        ) : city ? (
-                          <span className="text-[11px] font-semibold text-[#0040a1] shrink-0 flex items-center gap-1 opacity-70">
-                            {t('account.prefApplyFrom')}
-                            <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
-                          </span>
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </>)}
 
             {/* ─ Tarjeta: Idioma de la aplicación ─ */}
             <div className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm p-6">
@@ -735,6 +720,7 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
               </div>
             </div>
 
+            {user.role !== 'admin' && (<>
             {/* ─ Tarjeta: Notificaciones ─ */}
             <div className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm p-6">
               <h3 className="font-bold text-[17px] text-[#1a1c1e] mb-5 flex items-center gap-2">
@@ -778,6 +764,7 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
                 </p>
               )}
             </div>
+            </>)}
           </div>
         )}
 

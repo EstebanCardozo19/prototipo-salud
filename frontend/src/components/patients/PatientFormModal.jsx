@@ -3,7 +3,7 @@ import { useLang } from '../../contexts/LangContext';
 import Spinner from '../common/Spinner';
 import { MOBILITY_OPTIONS_KEYS, BLOOD_TYPES, EMPTY_PATIENT, INPUT_CLASS, LABEL_CLASS } from '../../constants';
 import { getEpsList, getPrepaidList, getMobilityLabel, parseList, joinList } from '../../utils/helpers';
-import { COLOMBIA_GEO, getCitiesList, getDepartmentsList, getCitiesForDepartment, getLocalidadesForCity, getBarriosForLocalidad } from '../../constants/colombiaGeo';
+import { BOGOTA_CITY, getLocalidadesForCity, getBarriosForLocalidad } from '../../constants/colombiaGeo';
 import { loadGoogleMapsScript } from '../../utils/googleMaps';
 
 // Tipos de vía más comunes en Colombia
@@ -61,8 +61,6 @@ export default function PatientFormModal({ initial, onSave, onCancel, saving, er
   const prepaidList = getPrepaidList(lang);
   const mobilityOptions = MOBILITY_OPTIONS_KEYS.map(k => ({ value: k, label: getMobilityLabel(k, lang) }));
 
-  const citiesList = useMemo(() => getCitiesList(), []);
-
   const [form, setForm] = useState(() => ({
     ...EMPTY_PATIENT,
     ...initial,
@@ -74,7 +72,7 @@ export default function PatientFormModal({ initial, onSave, onCancel, saving, er
     is_apartment:     initial?.is_apartment ?? false,
     is_house:         initial?.is_house ?? false,
     has_elevator:     initial?.has_elevator ?? false,
-    city:             initial?.city || 'Bogotá D.C.',
+    city:             BOGOTA_CITY,
     neighborhood:     initial?.neighborhood || '',
     address:          initial?.address || '',
     prepaid_medicine: initial?.prepaid_medicine || 'Ninguna',
@@ -85,10 +83,6 @@ export default function PatientFormModal({ initial, onSave, onCancel, saving, er
     via_door:         initial?.via_door || '',
     via_complement:   initial?.via_complement || '',
   }));
-
-  const [deptFilter, setDeptFilter] = useState(
-    () => COLOMBIA_GEO[initial?.city || 'Bogotá D.C.']?.department || ''
-  );
 
   // Estado para el input de barrio con sugerencias
   const [sectorInput, setSectorInput] = useState(initial?.sector || '');
@@ -101,13 +95,8 @@ export default function PatientFormModal({ initial, onSave, onCancel, saving, er
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const availableLocalidades = useMemo(
-    () => (form.city ? getLocalidadesForCity(form.city) : []),
-    [form.city]
-  );
-  const deptsList = useMemo(() => getDepartmentsList(), []);
-  const filteredCities = useMemo(
-    () => deptFilter ? getCitiesForDepartment(deptFilter) : citiesList,
-    [deptFilter, citiesList]
+    () => getLocalidadesForCity(BOGOTA_CITY),
+    []
   );
 
   // Barrios sugeridos para la localidad seleccionada
@@ -442,38 +431,22 @@ export default function PatientFormModal({ initial, onSave, onCancel, saving, er
                   </p>
                 </div>
 
-                {/* ── Paso 1: Departamento → Ciudad ── */}
+                {/* ── Paso 1: Ciudad de cobertura ── */}
                 <div className="bg-white rounded-2xl border border-[#c3c6d6]/50 p-4">
                   <p className="text-[11px] font-bold text-[#737785] uppercase tracking-wider mb-3 flex items-center gap-1.5">
                     <span className={`w-5 h-5 rounded-full text-[10px] flex items-center justify-center font-bold ${form.city ? 'bg-[#0a7a4e] text-white' : 'bg-[#0040a1] text-white'}`}>
                       {form.city ? '✓' : '1'}
                     </span>
-                    Departamento y Ciudad
+                    Ciudad de cobertura
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className={LABEL_CLASS}>{t('patients.department')}</label>
+                      <label className={LABEL_CLASS}>Departamento</label>
                       <div className="relative">
                         <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#0040a1]/70 text-[17px] pointer-events-none">map</span>
-                        <select
-                          className="w-full h-[42px] pl-9 pr-7 rounded-xl border border-[#c3c6d6] bg-white appearance-none focus:border-[#0040a1] focus:ring-2 focus:ring-[#0040a1]/15 focus:outline-none text-[14px]"
-                          value={deptFilter}
-                          onChange={e => {
-                            setDeptFilter(e.target.value);
-                            const citiesInDept = e.target.value
-                              ? Object.entries(COLOMBIA_GEO).filter(([, v]) => v.department === e.target.value).map(([k]) => k)
-                              : citiesList;
-                            if (e.target.value && !citiesInDept.includes(form.city)) {
-                              set('city', citiesInDept[0] || '');
-                              set('neighborhood', '');
-                              set('sector', '');
-                              setSectorInput('');
-                            }
-                          }}
-                        >
-                          <option value="">— Todos los departamentos —</option>
-                          {deptsList.map(d => <option key={d} value={d}>{d}</option>)}
-                        </select>
+                        <div className="w-full h-[42px] pl-9 pr-3 rounded-xl border border-[#c3c6d6] bg-[#f3f3f6] text-[#424654] text-[14px] font-semibold flex items-center">
+                          Bogotá D.C.
+                        </div>
                         <span className="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-[#737785] text-[17px]">expand_more</span>
                       </div>
                     </div>
@@ -483,20 +456,9 @@ export default function PatientFormModal({ initial, onSave, onCancel, saving, er
                       </label>
                       <div className="relative">
                         <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#0040a1] text-[17px] pointer-events-none">location_city</span>
-                        <select
-                          className="w-full h-[42px] pl-9 pr-7 rounded-xl border border-[#c3c6d6] bg-white appearance-none focus:border-[#0040a1] focus:ring-2 focus:ring-[#0040a1]/15 focus:outline-none text-[14px] font-medium"
-                          value={form.city}
-                          onChange={e => {
-                            set('city', e.target.value);
-                            set('neighborhood', '');
-                            set('sector', '');
-                            setSectorInput('');
-                            setDeptFilter(COLOMBIA_GEO[e.target.value]?.department || '');
-                          }}
-                          required
-                        >
-                          {filteredCities.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
+                        <div className="w-full h-[42px] pl-9 pr-3 rounded-xl border border-[#c3c6d6] bg-[#f3f3f6] text-[#424654] text-[14px] font-semibold flex items-center">
+                          {BOGOTA_CITY}
+                        </div>
                         <span className="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-[#737785] text-[17px]">expand_more</span>
                       </div>
                     </div>

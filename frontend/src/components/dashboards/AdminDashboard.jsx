@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useLang } from '../../contexts/LangContext';
 import Spinner from '../common/Spinner';
 import { getRoleLabel } from '../../utils/helpers';
@@ -11,7 +11,25 @@ export default function AdminDashboard({ token }) {
   const [loading, setLoading] = useState(true);
   const [selectedProfile, setSelectedProfile] = useState(null);
   const [documentUrls, setDocumentUrls] = useState({});
+  const [searchTerm, setSearchTerm] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const objectUrls = useRef([]);
+
+  const filteredUsers = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLocaleLowerCase();
+
+    return users.filter(user => {
+      const matchesSearch = !normalizedSearch || [user.id, user.full_name, user.email]
+        .some(value => String(value || '').toLocaleLowerCase().includes(normalizedSearch));
+      const matchesRole = roleFilter === 'all' || user.role === roleFilter;
+      const matchesStatus = statusFilter === 'all'
+        || (statusFilter === 'active' && user.is_active)
+        || (statusFilter === 'inactive' && !user.is_active);
+
+      return matchesSearch && matchesRole && matchesStatus;
+    });
+  }, [users, searchTerm, roleFilter, statusFilter]);
 
   const releaseDocumentUrls = () => {
     objectUrls.current.forEach(URL.revokeObjectURL);
@@ -162,7 +180,57 @@ export default function AdminDashboard({ token }) {
           </div>
         </div>
       )}
-      <h3 className="font-bold text-[16px] text-[#1a1c1e] mb-3">{t('admin.users')} ({users.length})</h3>
+      <div className="flex flex-col gap-4 mb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-bold text-[16px] text-[#1a1c1e]">{t('admin.users')} ({filteredUsers.length}{filteredUsers.length !== users.length ? ` de ${users.length}` : ''})</h3>
+          {(searchTerm || roleFilter !== 'all' || statusFilter !== 'all') && (
+            <button
+              type="button"
+              onClick={() => { setSearchTerm(''); setRoleFilter('all'); setStatusFilter('all'); }}
+              className="text-[12px] font-semibold text-[#0040a1] hover:underline"
+            >
+              Limpiar filtros
+            </button>
+          )}
+        </div>
+        <div className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm p-4 flex flex-col md:flex-row gap-3">
+          <div className="relative flex-1">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#737785] text-[20px] pointer-events-none">search</span>
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={event => setSearchTerm(event.target.value)}
+              placeholder="Buscar por nombre, correo o ID"
+              className="w-full h-[42px] pl-10 pr-4 rounded-xl border border-[#c3c6d6] bg-white focus:border-[#0040a1] focus:ring-2 focus:ring-[#0040a1]/15 focus:outline-none text-[14px]"
+            />
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <label className="sr-only" htmlFor="admin-role-filter">Filtrar por rol</label>
+            <select
+              id="admin-role-filter"
+              value={roleFilter}
+              onChange={event => setRoleFilter(event.target.value)}
+              className="h-[42px] min-w-[150px] px-3 rounded-xl border border-[#c3c6d6] bg-white text-[#424654] text-[14px] focus:border-[#0040a1] focus:ring-2 focus:ring-[#0040a1]/15 focus:outline-none"
+            >
+              <option value="all">Todos los roles</option>
+              {['family', 'caregiver', 'nurse', 'admin'].map(role => (
+                <option key={role} value={role}>{getRoleLabel(role, lang)}</option>
+              ))}
+            </select>
+            <label className="sr-only" htmlFor="admin-status-filter">Filtrar por estado</label>
+            <select
+              id="admin-status-filter"
+              value={statusFilter}
+              onChange={event => setStatusFilter(event.target.value)}
+              className="h-[42px] min-w-[150px] px-3 rounded-xl border border-[#c3c6d6] bg-white text-[#424654] text-[14px] focus:border-[#0040a1] focus:ring-2 focus:ring-[#0040a1]/15 focus:outline-none"
+            >
+              <option value="all">Todos los estados</option>
+              <option value="active">Activos</option>
+              <option value="inactive">Inactivos</option>
+            </select>
+          </div>
+        </div>
+      </div>
       <div className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm overflow-hidden">
         <table className="w-full text-[13px]">
           <thead className="bg-[#f3f3f6] text-[#424654]">
@@ -173,7 +241,7 @@ export default function AdminDashboard({ token }) {
             </tr>
           </thead>
           <tbody>
-            {users.map(u => (
+            {filteredUsers.map(u => (
               <tr key={u.id} className="border-t border-[#c3c6d6]/30 hover:bg-[#f9f9fc] transition-colors">
                 <td className="px-4 py-3 text-[#424654]">{u.id}</td>
                 <td className="px-4 py-3 font-medium">{u.full_name}</td>
@@ -194,6 +262,14 @@ export default function AdminDashboard({ token }) {
                 </td>
               </tr>
             ))}
+            {filteredUsers.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-10 text-center text-[#737785]">
+                  <span className="material-symbols-outlined block text-[30px] mb-2">search_off</span>
+                  No se encontraron usuarios con los filtros seleccionados.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

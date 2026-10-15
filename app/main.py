@@ -1,5 +1,6 @@
 import os
 import threading
+import logging
 from pathlib import Path
 from dotenv import load_dotenv
 from sqlmodel import SQLModel, select
@@ -16,7 +17,7 @@ from app.database import get_session
 from sqlmodel import Session
 from app.auth import get_current_user, validate_authentication_configuration
 from app.security.encryption import (
-    email_lookup, encrypt_bytes, encrypt_text, is_encrypted,
+    encrypt_bytes, encrypt_text, is_encrypted, user_email_lookup,
     validate_encryption_configuration,
 )
 from app.routers import auth_router, caregivers_router, clinical_router, admin_router, nurses_router, bookings_router
@@ -26,6 +27,7 @@ load_dotenv()
 
 
 SERVICE_LIFECYCLE_INTERVAL_SECONDS = 60
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -177,8 +179,31 @@ def _migrate_sensitive_data() -> None:
     )
     document_dir = Path("private_uploads/clinical_records")
     with Session(engine) as session:
-        for user in session.exec(select(User).where(User.role == UserRole.family)).all():
-            user.email_lookup = email_lookup(user.email)
+        family_users = session.exec(
+            select(User).where(User.role == UserRole.family).order_by(User.id)
+        ).all()
+        seen_lookups = {}
+        for user in family_users:
+            # El email puede estar cifrado; el HMAC siempre debe calcularse sobre
+            # su valor normalizado en claro para que el login pueda localizarlo.
+            lookup = user_email_lookup(user)
+            existing_user_id = seen_lookups.get(lookup)
+            if existing_user_id is not None:
+                # Las instalaciones anteriores permitían duplicados porque el
+                # índice se calculaba erróneamente sobre el texto cifrado. No es
+                # posible autenticar dos cuentas con el mismo correo: se conserva
+                # la cuenta más antigua y se deja la posterior sin índice para
+                # evitar que la migración impida iniciar la API.
+                user.email_lookup = None
+                logger.warning(
+                    "Cuenta familiar duplicada detectada durante la migración: "
+                    "se conserva user_id=%s y se requiere revisar user_id=%s.",
+                    existing_user_id,
+                    user.id,
+                )
+            else:
+                seen_lookups[lookup] = user.id
+                user.email_lookup = lookup
             if not is_encrypted(user.email):
                 user.email = encrypt_text(user.email)
             if not is_encrypted(user.full_name):

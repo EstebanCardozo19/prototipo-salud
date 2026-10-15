@@ -2,7 +2,7 @@
 Router de cuidadores: CRUD de perfiles.
 """
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlmodel import Session, select
 from typing import Optional, List
 
@@ -10,6 +10,7 @@ from app.database import get_session
 from app.models import User, UserRole, CaregiverProfile, ProfileStatus
 from app.auth import get_current_user, require_role
 from app.services.embedding_service import generar_embedding
+from app.services.bogota_locations import validate_bogota_professional_location
 
 router = APIRouter(prefix="/api/caregivers", tags=["Cuidadores"])
 
@@ -22,6 +23,11 @@ class CaregiverUpdateRequest(BaseModel):
     hourly_rate: Optional[float] = None
     location: Optional[str] = None
     bio: Optional[str] = None
+
+    @field_validator("location")
+    @classmethod
+    def location_must_be_bogota(cls, value: Optional[str]) -> Optional[str]:
+        return validate_bogota_professional_location(value)
 
 
 class CaregiverResponse(BaseModel):

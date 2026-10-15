@@ -11,7 +11,7 @@ import ServiceCarePlanModal from '../bookings/ServiceCarePlanModal';
 import ProfessionalDetailModal from './ProfessionalDetailModal';
 import StarRating from '../common/StarRating';
 import { SPECIALTIES, SPECIALTIES_KEYS } from '../../constants';
-import { getCitiesList, getLocalidadesForCity, getFamilyLocations } from '../../constants/colombiaGeo';
+import { BOGOTA_CITY, getLocalidadesForCity, getFamilyLocations } from '../../constants/colombiaGeo';
 import { guessGender, getSpecialtyLabel } from '../../utils/helpers';
 
 const PREFS_KEY = 'salud_user_prefs';
@@ -36,11 +36,11 @@ function loadPrefs() {
   try { return JSON.parse(localStorage.getItem(PREFS_KEY) || '{}'); } catch { return {}; }
 }
 
-// ─── SearchPanel con cobertura Bogotá y municipios cercanos ───
+// ─── SearchPanel con cobertura exclusiva en Bogotá D.C. ───────
 export default function SearchPanel({ user, token, activeTab, onTabChange }) {
   const { t, lang } = useLang();
   const [searchText, setSearchText] = useState('');
-  const [selectedCity, setSelectedCity] = useState(''); // '' = Toda la zona de cobertura
+  const [selectedCity, setSelectedCity] = useState(BOGOTA_CITY);
   const [selectedLocalidad, setSelectedLocalidad] = useState('');
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'map'
   const [caregivers, setCaregivers] = useState([]);
@@ -59,10 +59,9 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState(INITIAL_FILTERS);
 
-  const citiesList = useMemo(() => getCitiesList(), []);
   const availableLocalidades = useMemo(
-    () => (selectedCity ? getLocalidadesForCity(selectedCity) : []),
-    [selectedCity]
+    () => getLocalidadesForCity(BOGOTA_CITY),
+    []
   );
   const familyLocations = useMemo(
     () => getFamilyLocations(familyRecords),
@@ -72,8 +71,8 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
   // ── Cargar ciudad preferida desde preferencias del usuario ──
   useEffect(() => {
     const prefs = loadPrefs();
-    if (prefs.prefCity) {
-      setSelectedCity(prefs.prefCity);
+    if (prefs.prefCity === BOGOTA_CITY) {
+      setSelectedCity(BOGOTA_CITY);
       setSelectedLocalidad(prefs.prefLocality || '');
     }
   }, []);
@@ -82,8 +81,8 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
   useEffect(() => {
     const handler = (e) => {
       const { prefCity, prefLocality } = e.detail || {};
-      if (prefCity !== undefined) {
-        setSelectedCity(prefCity || '');
+      if (prefCity === BOGOTA_CITY) {
+        setSelectedCity(BOGOTA_CITY);
         setSelectedLocalidad(prefLocality || '');
         setSelectedFamilyChip(null);
       }
@@ -101,8 +100,8 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
         setFamilyRecords(data);
         // Solo auto-detectar si NO hay preferencia guardada
         const prefs = loadPrefs();
-        if (!prefs.prefCity && data && data.length > 0 && data[0].city) {
-          setSelectedCity(data[0].city);
+        if (!prefs.prefCity && data && data.length > 0 && data[0].city === BOGOTA_CITY) {
+          setSelectedCity(BOGOTA_CITY);
           if (data[0].neighborhood) {
             setSelectedLocalidad(data[0].neighborhood);
             setSelectedFamilyChip(data[0].id);
@@ -116,16 +115,12 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
   const applyFilters = list => {
     let result = [...list];
 
-  // Filtro por ciudad dentro de la zona de cobertura
-    if (selectedCity) {
-      const cityLower = selectedCity.toLowerCase();
-      result = result.filter(p => {
-        const loc = (p.location || '').toLowerCase();
-        // Si el profesional tiene registrada esa ciudad o una localidad de esa ciudad
-        const locsOfCity = availableLocalidades.map(l => l.toLowerCase());
-        return loc.includes(cityLower) || locsOfCity.some(l => loc.includes(l));
-      });
-    }
+    // Solo perfiles registrados en una localidad válida de Bogotá.
+    const bogotaLocalities = availableLocalidades.map(locality => locality.toLowerCase());
+    result = result.filter(p => {
+      const location = (p.location || '').toLowerCase();
+      return bogotaLocalities.some(locality => location.includes(locality));
+    });
 
     // Filtro por Localidad / Comuna específica
     if (selectedLocalidad) {
@@ -308,7 +303,7 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
   }, [activeTab]);
 
   const handleCityChange = city => {
-    setSelectedCity(city);
+    setSelectedCity(BOGOTA_CITY);
     setSelectedLocalidad('');
     setSelectedFamilyChip(null);
   };
@@ -317,18 +312,18 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
     if (selectedFamilyChip === rec.id) {
     // Toggle off -> toda la zona de cobertura
       setSelectedFamilyChip(null);
-      setSelectedCity('');
+      setSelectedCity(BOGOTA_CITY);
       setSelectedLocalidad('');
     } else {
       setSelectedFamilyChip(rec.id);
-      setSelectedCity(rec.city || 'Bogotá D.C.');
-      setSelectedLocalidad(rec.neighborhood || '');
+      setSelectedCity(BOGOTA_CITY);
+      setSelectedLocalidad(rec.city === BOGOTA_CITY ? rec.neighborhood || '' : '');
     }
   };
 
   const clearFilters = () => {
     setSearchText('');
-    setSelectedCity('');
+    setSelectedCity(BOGOTA_CITY);
     setSelectedLocalidad('');
     setSelectedFamilyChip(null);
     setFilters(INITIAL_FILTERS);
@@ -367,7 +362,7 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
                 type="button"
                 onClick={() => {
                   setSelectedFamilyChip(null);
-                  setSelectedCity('');
+                  setSelectedCity(BOGOTA_CITY);
                   setSelectedLocalidad('');
                 }}
                 className={`px-3 py-1 rounded-full font-semibold border transition-all shrink-0 ${
@@ -414,28 +409,16 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
             </button>
           </form>
 
-          {/* Fila 2: Ciudad Nacional + Localidades Dinámicas + Orden + Filtros + Vista Lista/Mapa */}
+          {/* Fila 2: Cobertura Bogotá + localidades + orden + filtros + vista */}
           <div className="flex flex-wrap items-center gap-2.5">
-            {/* 1. Selector de Ciudad (Colombia) */}
+            {/* 1. Ciudad de cobertura fija */}
             <div className="relative flex-1 min-w-[160px] max-w-[210px]">
               <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[#0040a1] text-[17px] pointer-events-none">
                 location_city
               </span>
-              <select
-                className="w-full h-[38px] pl-8 pr-7 rounded-xl border border-[#c3c6d6] bg-white appearance-none focus:border-[#0040a1] focus:outline-none text-[13px] font-medium cursor-pointer"
-                value={selectedCity}
-                onChange={e => handleCityChange(e.target.value)}
-              >
-                <option value="">{t('geo.allCities')}</option>
-                {citiesList.map(c => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-              <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[#737785] text-[17px]">
-                expand_more
-              </span>
+              <div className="w-full h-[38px] pl-8 pr-3 rounded-xl border border-[#c3c6d6] bg-[#f3f3f6] text-[#424654] text-[13px] font-semibold flex items-center">
+                {BOGOTA_CITY}
+              </div>
             </div>
 
             {/* 2. Selector Dinámico de Localidad / Comuna (según la Ciudad seleccionada) */}
@@ -450,10 +433,9 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
                   setSelectedLocalidad(e.target.value);
                   setSelectedFamilyChip(null);
                 }}
-                disabled={!selectedCity && availableLocalidades.length === 0}
               >
                 <option value="">
-                  {selectedCity ? t('geo.allLocalities') : t('geo.selectCityFirst')}
+                  {t('geo.allLocalities')}
                 </option>
                 {availableLocalidades.map(l => (
                   <option key={l} value={l}>
@@ -544,7 +526,7 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
                 <button
                   type="button"
                   onClick={clearFilters}
-                  disabled={!searchText && !selectedCity && !selectedLocalidad && !selectedFamilyChip && activeFilterCount === 0 && filters.sortBy === 'rating'}
+                  disabled={!searchText && !selectedLocalidad && !selectedFamilyChip && activeFilterCount === 0 && filters.sortBy === 'rating'}
                   className="h-[34px] px-3 rounded-xl border border-[#0040a1]/30 bg-white text-[#0040a1] text-[12px] font-semibold flex items-center gap-1.5 transition-all hover:bg-[#dae2ff]/50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <span className="material-symbols-outlined text-[16px]">filter_alt_off</span>
@@ -970,7 +952,7 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
               <div>
                 <h3 className="font-bold text-[16px] text-[#0040a1] flex items-center gap-2">
                   <span className="material-symbols-outlined text-[20px]">map</span>
-                  {selectedCity || 'Colombia'} — {selectedLocalidad || t('geo.allLocalities')}
+                  {BOGOTA_CITY} — {selectedLocalidad || t('geo.allLocalities')}
                 </h3>
                 <p className="text-[12px] text-[#737785] mt-0.5">
                   {currentList.length} {t('geo.professionalsInArea')}
@@ -987,7 +969,7 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
             </div>
 
             <GoogleMap
-              city={selectedCity || 'Bogotá D.C.'}
+              city={BOGOTA_CITY}
               localidad={selectedLocalidad}
               professionals={currentList}
               patientLocation={selectedPatientRecord ? {
