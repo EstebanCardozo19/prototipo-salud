@@ -37,7 +37,6 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
   const [securityQuestionsConfigured, setSecurityQuestionsConfigured] = useState(null);
   const [savingSecurityQuestions, setSavingSecurityQuestions] = useState(false);
   const [securityQuestionsMsg, setSecurityQuestionsMsg] = useState(null);
-  const [notifEmail, setNotifEmail] = useState(true);
 
   // ── Foto de perfil ──────────────────────────────────────────
   const [photoUrl, setPhotoUrl] = useState(user.photo_url || null);
@@ -241,7 +240,7 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
     setPrefMsg(null);
     try {
       const prefs = loadPrefs();
-      const updated = { ...prefs, prefCity, prefLocality, notifEmail };
+      const updated = { ...prefs, prefCity, prefLocality };
       localStorage.setItem(PREFS_KEY, JSON.stringify(updated));
       // Disparar evento para que SearchPanel pueda escuchar el cambio
       window.dispatchEvent(new CustomEvent('salud:prefsChanged', { detail: updated }));
@@ -421,8 +420,9 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
                   <input
                     className={INPUT_CLASS}
                     type="tel"
+                    inputMode="numeric"
                     value={form.phone}
-                    onChange={e => setForm({ ...form, phone: e.target.value })}
+                    onChange={e => setForm({ ...form, phone: e.target.value.replace(/\D/g, '') })}
                     placeholder={t('account.phonePlaceholder')}
                   />
                 </div>
@@ -720,34 +720,7 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
               </div>
             </div>
 
-            {user.role !== 'admin' && (<>
-            {/* ─ Tarjeta: Notificaciones ─ */}
-            <div className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm p-6">
-              <h3 className="font-bold text-[17px] text-[#1a1c1e] mb-5 flex items-center gap-2">
-                <span className="material-symbols-outlined text-[22px] text-[#0040a1]">notifications</span>
-                {t('account.notifTitle')}
-              </h3>
-              <div className="flex flex-col gap-5">
-                {[
-                  { key: 'email', label: t('account.notifEmail'), desc: t('account.notifEmailDesc'), val: notifEmail, set: setNotifEmail },
-                ].map(item => (
-                  <div key={item.key} className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="font-semibold text-[14px] text-[#1a1c1e]">{item.label}</p>
-                      <p className="text-[12px] text-[#737785]">{item.desc}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => item.set(v => !v)}
-                      className={`w-12 h-6 rounded-full transition-colors shrink-0 relative ${item.val ? 'bg-[#0040a1]' : 'bg-[#c3c6d6]'}`}
-                    >
-                      <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${item.val ? 'left-6' : 'left-0.5'}`} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
+            {user.role === 'family' && (<>
             {/* Botón Guardar todo */}
             <div className="flex items-center gap-4">
               <button
