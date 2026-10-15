@@ -60,6 +60,103 @@ def validate_booking_schedule(
     if start < current_time:
         raise ValueError("La fecha y hora de inicio deben ser futuras en Bogotá")
 
+
+def validate_availability_schedule(start_hour: int, end_hour: int) -> None:
+    """Valida una franja semanal; un fin menor representa turno nocturno."""
+    if not 0 <= start_hour <= 23 or not 0 <= end_hour <= 23:
+        raise ValueError("Las horas de inicio y fin deben estar entre 00:00 y 23:00")
+    if start_hour == end_hour:
+        raise ValueError("La hora de finalización debe ser distinta de la hora de inicio")
+
+
+def _interval_for_date(service_date: calendar_date, start_hour: int, end_hour: int):
+    start = datetime.combine(service_date, time(hour=start_hour), BOOKING_TIMEZONE)
+    end_date = service_date + timedelta(days=1) if end_hour < start_hour else service_date
+    end = datetime.combine(end_date, time(hour=end_hour), BOOKING_TIMEZONE)
+    return start, end
+
+
+def schedules_overlap(
+    first_date: str, first_start_hour: int, first_end_hour: int,
+    second_date: str, second_start_hour: int, second_end_hour: int,
+) -> bool:
+    """Indica si dos servicios, incluidos los nocturnos, se solapan."""
+    first_start, first_end = _interval_for_date(
+        calendar_date.fromisoformat(first_date), first_start_hour, first_end_hour,
+    )
+    second_start, second_end = _interval_for_date(
+        calendar_date.fromisoformat(second_date), second_start_hour, second_end_hour,
+    )
+    return first_start < second_end and second_start < first_end
+
+
+def is_schedule_covered_by_availability(
+    service_date: str, start_hour: int, end_hour: int, availabilities: List[Availability],
+) -> bool:
+    """Comprueba que una solicitud completa cabe en una franja semanal activa.
+
+    También considera el bloque nocturno declarado el día anterior: por ejemplo,
+    lunes 22:00–06:00 cubre una solicitud del martes de 01:00 a 05:00.
+    """
+    requested_start, requested_end = _interval_for_date(
+        calendar_date.fromisoformat(service_date), start_hour, end_hour,
+    )
+    for availability in availabilities:
+        if not availability.is_active:
+            continue
+        for candidate_date in (
+            requested_start.date() - timedelta(days=1),
+            requested_start.date(),
+        ):
+            if availability.day_of_week.value != candidate_date.strftime("%A").lower():
+                continue
+            available_start, available_end = _interval_for_date(
+                candidate_date, availability.start_hour, availability.end_hour,
+            )
+            if available_start <= requested_start and requested_end <= available_end:
+                return True
+    return False
+
+
+def has_approved_booking_conflict(
+    professional_user_id: int, service_date: str, start_hour: int, end_hour: int, session: Session,
+    exclude_booking_id: Optional[int] = None,
+) -> bool:
+    """Comprueba conflictos contra servicios ya aprobados del profesional."""
+    bookings = session.exec(
+        select(Booking)
+        .where(Booking.professional_user_id == professional_user_id)
+        .where(Booking.status == BookingStatus.approved)
+    ).all()
+    return any(
+        booking.id != exclude_booking_id and schedules_overlap(
+            service_date, start_hour, end_hour,
+            booking.date, booking.start_hour, booking.end_hour,
+        )
+        for booking in bookings
+    )
+
+
+def validate_professional_schedule(
+    professional_user_id: int, service_date: str, start_hour: int, end_hour: int, session: Session,
+    exclude_booking_id: Optional[int] = None,
+) -> None:
+    availabilities = session.exec(
+        select(Availability).where(Availability.professional_user_id == professional_user_id)
+    ).all()
+    if not is_schedule_covered_by_availability(service_date, start_hour, end_hour, availabilities):
+        raise HTTPException(
+            status_code=409,
+            detail="El horario solicitado no coincide con la disponibilidad publicada del profesional",
+        )
+    if has_approved_booking_conflict(
+        professional_user_id, service_date, start_hour, end_hour, session, exclude_booking_id,
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="El profesional ya tiene un servicio aprobado que se cruza con este horario",
+        )
+
 def _recalc_professional_rating(professional_user_id: int, session: Session):
     """Recalcula rating_avg y rating_count en el perfil del profesional."""
     reviews = session.exec(
@@ -168,6 +265,23 @@ class AvailabilityCreate(BaseModel):
     end_hour: int
     is_active: bool = True
 
+    @field_validator("day_of_week")
+    @classmethod
+    def validate_day_of_week(cls, value):
+        try:
+            return DayOfWeek(value).value
+        except ValueError as error:
+            raise ValueError("El día de la semana no es válido") from error
+
+    @model_validator(mode="after")
+    def validate_schedule(self):
+        validate_availability_schedule(self.start_hour, self.end_hour)
+        return self
+
+
+class AvailabilityUpdate(AvailabilityCreate):
+    pass
+
 
 class AvailabilityResponse(BaseModel):
     id: int
@@ -256,6 +370,10 @@ def create_booking(
         raise HTTPException(status_code=404, detail="Profesional no encontrado")
     if professional.role.value != request.professional_role:
         raise HTTPException(status_code=400, detail="El rol no coincide con el profesional")
+
+    validate_professional_schedule(
+        professional.id, request.date, request.start_hour, request.end_hour, session,
+    )
     clinical_record = session.get(ClinicalRecord, request.clinical_record_id)
     if not clinical_record or clinical_record.family_user_id != current_user.id:
         raise HTTPException(status_code=403, detail="La ficha clínica no pertenece a tu cuenta")
@@ -464,6 +582,12 @@ def decide_booking(
     if decision.status not in ("approved", "rejected"):
         raise HTTPException(status_code=400, detail="Status debe ser 'approved' o 'rejected'")
 
+    if decision.status == "approved":
+        validate_professional_schedule(
+            current_user.id, booking.date, booking.start_hour, booking.end_hour,
+            session, exclude_booking_id=booking.id,
+        )
+
     booking.status = BookingStatus(decision.status)
     if decision.status == "rejected":
         booking.rejection_reason = decision.rejection_reason
@@ -586,27 +710,32 @@ def set_availability(
     current_user: User = Depends(require_role(UserRole.caregiver, UserRole.nurse)),
     session: Session = Depends(get_session),
 ):
-    existing = session.exec(
-        select(Availability)
-        .where(Availability.professional_user_id == current_user.id)
-        .where(Availability.day_of_week == DayOfWeek(request.day_of_week))
-    ).first()
-
-    if existing:
-        existing.start_hour = request.start_hour
-        existing.end_hour = request.end_hour
-        existing.is_active = request.is_active
-        session.add(existing)
-        session.commit()
-        session.refresh(existing)
-        return AvailabilityResponse(id=existing.id, day_of_week=existing.day_of_week.value,
-                start_hour=existing.start_hour, end_hour=existing.end_hour, is_active=existing.is_active)
-
     avail = Availability(
         professional_user_id=current_user.id,
         day_of_week=DayOfWeek(request.day_of_week),
         start_hour=request.start_hour, end_hour=request.end_hour, is_active=request.is_active,
     )
+    session.add(avail)
+    session.commit()
+    session.refresh(avail)
+    return AvailabilityResponse(id=avail.id, day_of_week=avail.day_of_week.value,
+            start_hour=avail.start_hour, end_hour=avail.end_hour, is_active=avail.is_active)
+
+
+@router.put("/availability/{avail_id}", response_model=AvailabilityResponse)
+def update_availability(
+    avail_id: int,
+    request: AvailabilityUpdate,
+    current_user: User = Depends(require_role(UserRole.caregiver, UserRole.nurse)),
+    session: Session = Depends(get_session),
+):
+    avail = session.get(Availability, avail_id)
+    if not avail or avail.professional_user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="No encontrado")
+    avail.day_of_week = DayOfWeek(request.day_of_week)
+    avail.start_hour = request.start_hour
+    avail.end_hour = request.end_hour
+    avail.is_active = request.is_active
     session.add(avail)
     session.commit()
     session.refresh(avail)

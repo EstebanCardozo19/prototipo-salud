@@ -3,7 +3,7 @@ import { useLang } from '../../contexts/LangContext';
 import TopBar from './TopBar';
 import SearchPanel from '../professionals/SearchPanel';
 import ChatPanel from '../chat/ChatPanel';
-import { CaregiverDashboard, NurseDashboard, AdminDashboard, ProfessionalPanel, ProfessionalCalendar } from '../dashboards';
+import { CaregiverDashboard, NurseDashboard, AdminDashboard, ProfessionalPanel, ProfessionalCalendar, AvailabilityManager } from '../dashboards';
 import AccountPanel from '../account/AccountPanel';
 import FamilyCalendar from '../patients/FamilyCalendar';
 import ServiceChatsModal from '../bookings/ServiceChatsModal';
@@ -65,6 +65,7 @@ export default function MainScreen({ user, token, onLogout, onUnauthorized, onUs
     }
     if (user.role === 'caregiver') {
       if (activeNav === 'calendar') return <ProfessionalCalendar token={token} />;
+      if (activeNav === 'availability') return <AvailabilityManager token={token} />;
       if (activeNav === 'medications') return <MedicationsScreen user={user} token={token} />;
       return (
         <div className="flex h-full">
@@ -81,6 +82,7 @@ export default function MainScreen({ user, token, onLogout, onUnauthorized, onUs
     }
     if (user.role === 'nurse') {
       if (activeNav === 'calendar') return <ProfessionalCalendar token={token} />;
+      if (activeNav === 'availability') return <AvailabilityManager token={token} />;
       if (activeNav === 'medications') return <MedicationsScreen user={user} token={token} />;
       return (
         <div className="flex h-full">

@@ -27,6 +27,8 @@ export default function BookingModal({ professional, token, onClose, onSuccess }
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [sent, setSent] = useState([]);
+  const [availability, setAvailability] = useState([]);
+  const [availabilityLoading, setAvailabilityLoading] = useState(true);
 
   // ── Familiares registrados ──────────────────────────────────
   const [familyRecords, setFamilyRecords] = useState([]);
@@ -39,6 +41,14 @@ export default function BookingModal({ professional, token, onClose, onSuccess }
       .then(data => setFamilyRecords(data))
       .catch(() => {});
   }, [token]);
+
+  useEffect(() => {
+    fetch(`/api/bookings/availability/${professional.user_id}`)
+      .then(response => response.ok ? response.json() : [])
+      .then(setAvailability)
+      .catch(() => setAvailability([]))
+      .finally(() => setAvailabilityLoading(false));
+  }, [professional.user_id]);
 
   const handleSelectRecord = (record) => {
     setSelectedRecord(record);
@@ -97,6 +107,24 @@ export default function BookingModal({ professional, token, onClose, onSuccess }
     )));
   };
 
+  const isCoveredByAvailability = day => {
+    const date = new Date(`${day.date}T12:00:00`);
+    const weekday = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][date.getDay()];
+    const previous = new Date(date); previous.setDate(previous.getDate() - 1);
+    const previousWeekday = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][previous.getDay()];
+    const start = day.startHour;
+    const end = day.endHour > start ? day.endHour : day.endHour + 24;
+    return availability.some(item => {
+      if (!item.is_active) return false;
+      const appliesToday = item.day_of_week === weekday;
+      const appliesFromYesterday = item.day_of_week === previousWeekday && item.end_hour < item.start_hour;
+      if (!appliesToday && !appliesFromYesterday) return false;
+      const availableStart = appliesFromYesterday ? item.start_hour - 24 : item.start_hour;
+      const availableEnd = appliesFromYesterday ? item.end_hour : (item.end_hour > item.start_hour ? item.end_hour : item.end_hour + 24);
+      return availableStart <= start && end <= availableEnd;
+    });
+  };
+
   const submit = async (e) => {
     e.preventDefault();
     const currentBogotaTime = getBogotaNow();
@@ -129,6 +157,10 @@ export default function BookingModal({ professional, token, onClose, onSuccess }
     }
     if (new Set(days.map(day => day.date)).size !== days.length) {
       setError(t('booking.duplicateDays'));
+      return;
+    }
+    if (!availabilityLoading && !days.every(isCoveredByAvailability)) {
+      setError('Uno o más horarios no coinciden con la disponibilidad publicada del profesional.');
       return;
     }
     setLoading(true);
@@ -291,6 +323,9 @@ export default function BookingModal({ professional, token, onClose, onSuccess }
             {/* ── Días ── */}
             <div>
               <label className={lCls}>{t('booking.serviceDays')}</label>
+              <div className="mb-2 rounded-xl border border-[#c3c6d6]/50 bg-[#f9f9fc] px-3 py-2 text-[12px] text-[#424654]">
+                {availabilityLoading ? 'Consultando disponibilidad del profesional…' : availability.length === 0 ? 'Este profesional aún no ha publicado disponibilidad. No podrás enviar una solicitud hasta que configure sus horarios.' : <>Disponibilidad publicada: {availability.filter(item => item.is_active).map(item => `${item.day_of_week}: ${String(item.start_hour).padStart(2, '0')}:00–${String(item.end_hour).padStart(2, '0')}:00`).join(' · ')}</>}
+              </div>
               <div className="flex flex-col gap-2">
                 {days.map((day, i) => (
                   <div key={i} className="rounded-xl border border-[#c3c6d6]/70 bg-[#f9f9fc] p-3 space-y-3">
