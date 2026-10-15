@@ -42,7 +42,10 @@ SYSTEM_PROMPT = (
     "con la descripción completa de las necesidades del paciente extraída de la conversación. "
     "Responde siempre en español, de forma empática y profesional. "
     "Cuando presentes los resultados, resalta por qué cada profesional es una buena opción "
-    "según las necesidades descritas."
+    "según las necesidades descritas. No diagnostiques enfermedades ni prescribas, "
+    "inicies, suspendas o modifiques medicamentos o tratamientos. No garantices que "
+    "un profesional sea el más adecuado: explica que la familia o responsable del "
+    "paciente toma la decisión final, idealmente con orientación del médico tratante."
 )
 
 HEADERS = {
@@ -58,6 +61,45 @@ TOOL_REGISTRY = {
 
 PREGUNTA_TIPO_PROFESIONAL = "¿Buscas un cuidador/a o un enfermero/a?"
 
+RESPUESTA_LIMITACIONES_AGENTE = (
+    "Soy un asistente de orientación para el cuidado domiciliario y para ayudarte a "
+    "encontrar perfiles de cuidadores o enfermeros. No diagnostico enfermedades, no "
+    "prescribo ni recomiendo iniciar, suspender o cambiar medicamentos, y no sustituyo "
+    "la valoración de un profesional de salud. Tampoco puedo garantizar que un cuidador "
+    "o enfermero sea el más adecuado: las recomendaciones son opciones basadas en la "
+    "información disponible y deben verificarse, entrevistarse y contratarse según tus "
+    "necesidades. La decisión final la toma la familia o la persona responsable del "
+    "paciente, idealmente con la orientación del médico tratante y del profesional que "
+    "prestará el servicio."
+)
+
+
+def _normalizar_texto(texto: str) -> str:
+    """Normaliza texto para comparar intenciones sin depender de tildes."""
+    normalizado = unicodedata.normalize("NFD", texto.lower())
+    return "".join(
+        caracter for caracter in normalizado if unicodedata.category(caracter) != "Mn"
+    )
+
+
+def _respuesta_segura_local(mensaje_usuario: str) -> str | None:
+    """Responde localmente preguntas de alcance y seguridad del asistente.
+
+    Estas consultas no requieren una búsqueda ni una llamada al proveedor de IA. Así
+    el chat sigue respondiendo aunque SAI, los embeddings o la base de datos fallen.
+    """
+    mensaje = _normalizar_texto(mensaje_usuario)
+    temas_limitacion = (
+        "limitacion", "que puedes hacer", "que no puedes", "puedes diagnosticar",
+        "diagnostica", "diagnostico", "diagnosticar", "prescribir", "prescribe",
+        "medicamento", "medicacion", "dosis", "tratamiento", "garantizar",
+        "decision final", "quien decide", "quien toma la decision", "mas adecuado",
+        "mas apropiado", "mejor cuidador", "mejor enfermero",
+    )
+    if any(tema in mensaje for tema in temas_limitacion):
+        return RESPUESTA_LIMITACIONES_AGENTE
+    return None
+
 
 def _inferir_tipo_profesional(mensajes: list[str]) -> str | None:
     """Obtiene el tipo solicitado, priorizando la mención más reciente.
@@ -67,10 +109,7 @@ def _inferir_tipo_profesional(mensajes: list[str]) -> str | None:
     conversacional está lento, responde vacío o no invoca una herramienta.
     """
     for mensaje in reversed(mensajes):
-        normalizado = unicodedata.normalize("NFD", mensaje.lower())
-        normalizado = "".join(
-            caracter for caracter in normalizado if unicodedata.category(caracter) != "Mn"
-        )
+        normalizado = _normalizar_texto(mensaje)
         if re.search(r"\benfermer(?:o|a|os|as)?\b", normalizado):
             return "nurse"
         if re.search(r"\bcuidador(?:a|es|as)?\b", normalizado):
@@ -253,6 +292,10 @@ def conversar(mensaje_usuario: str, historial: list[dict] = None, familiares: li
         dict con 'texto' (respuesta narrativa de SAI) y 'profesionales' (lista estructurada)
     """
     import json as _json
+
+    respuesta_segura = _respuesta_segura_local(mensaje_usuario)
+    if respuesta_segura:
+        return {"texto": respuesta_segura, "profesionales": []}
 
     tools = get_tool_definitions()
     historial = _normalizar_historial(historial)

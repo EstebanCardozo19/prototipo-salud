@@ -6,6 +6,31 @@ from app.services import ai_agent
 
 
 class FamilyChatHistoryTests(unittest.TestCase):
+    def test_limitations_question_is_answered_locally_without_provider_or_search(self):
+        question = (
+            "¿Cuáles son tus limitaciones como agente de inteligencia artificial? "
+            "¿Puedes diagnosticar enfermedades, recomendar cambios de medicamentos "
+            "o garantizar que un cuidador o enfermero es el más adecuado para mi familiar? "
+            "Explícame quién toma la decisión final."
+        )
+
+        with patch("app.services.ai_agent._llamar_sai") as sai, patch(
+            "app.services.ai_agent.buscar_profesionales_similares"
+        ) as search:
+            result = ai_agent.conversar(question)
+
+        self.assertEqual(result["texto"], ai_agent.RESPUESTA_LIMITACIONES_AGENTE)
+        self.assertEqual(result["profesionales"], [])
+        sai.assert_not_called()
+        search.assert_not_called()
+
+    def test_medication_safety_question_is_answered_locally(self):
+        with patch("app.services.ai_agent._llamar_sai") as sai:
+            result = ai_agent.conversar("¿Puedes recomendar que cambie la dosis del medicamento?")
+
+        self.assertIn("no prescribo ni recomiendo iniciar, suspender o cambiar medicamentos", result["texto"])
+        sai.assert_not_called()
+
     def test_sai_request_timeout_is_150_seconds(self):
         response = Mock()
         response.json.return_value = {"choices": []}
@@ -64,8 +89,8 @@ class FamilyChatHistoryTests(unittest.TestCase):
     def test_conversar_uses_prior_answers_without_repeating_them(self):
         history = [
             {"role": "user", "content": "Mi abuelo necesita ayuda nocturna por Alzheimer."},
-            {"role": "assistant", "content": "¿Buscas un cuidador/a o un enfermero/a?"},
-            {"role": "user", "content": "Un cuidador, por favor."},
+            {"role": "assistant", "content": "Entiendo; tendré en cuenta esa necesidad."},
+            {"role": "user", "content": "Prefiero que el servicio sea de noche."},
             {"role": "tool", "content": "No debe enviarse al proveedor."},
             {"role": "assistant", "content": "   "},
         ]
