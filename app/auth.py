@@ -3,6 +3,7 @@ Módulo de autenticación con JWT (JSON Web Tokens).
 Maneja registro, login, hash de contraseñas y protección de rutas.
 """
 import os
+import re
 import unicodedata
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -10,7 +11,7 @@ from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlmodel import Session, select
 
 from app.models import User, UserRole
@@ -105,6 +106,25 @@ class UserResponse(BaseModel):
 
 class UpdateMyAccountRequest(BaseModel):
     phone: Optional[str] = None
+
+    @field_validator("phone")
+    @classmethod
+    def validate_colombian_mobile_phone(cls, value: Optional[str]) -> Optional[str]:
+        """Acepta un celular colombiano o un campo opcional vacío.
+
+        El teléfono se comparte entre cuentas familiares y profesionales, por lo
+        que esta validación protege por igual a familiares, cuidadores y
+        enfermeros, incluyendo solicitudes directas a la API.
+        """
+        if value is None:
+            return None
+
+        phone = value.strip()
+        if not phone:
+            return None
+        if not re.fullmatch(r"3\d{9}", phone):
+            raise ValueError("Ingresa un número celular válido de 10 dígitos")
+        return phone
 
 
 # --- Funciones de utilidad ---

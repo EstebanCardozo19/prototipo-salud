@@ -257,11 +257,9 @@ def update_me(
     session: Session = Depends(get_session),
 ):
     """Actualiza el teléfono de la cuenta autenticada."""
-    phone = request.phone.strip() if request.phone else None
-    if phone and len(phone) > 30:
-        raise HTTPException(status_code=422, detail="El teléfono no puede superar 30 caracteres")
-
-    current_user.phone = phone
+    # UpdateMyAccountRequest ya normaliza el campo opcional y valida que el
+    # celular colombiano tenga diez dígitos y empiece por 3.
+    current_user.phone = request.phone
     session.add(current_user)
     session.commit()
     session.refresh(current_user)

@@ -15,6 +15,7 @@ const SECURITY_QUESTIONS = [
 
 // ─── Clave en localStorage para las preferencias ──────────────
 const PREFS_KEY = 'salud_user_prefs';
+const COLOMBIAN_MOBILE_PHONE = /^3\d{9}$/;
 
 function PasswordRequirements({ validation, t }) {
   return (
@@ -159,8 +160,12 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
 
   const saveProfile = async (e) => {
     e.preventDefault();
-    setSaving(true);
     setMsg(null);
+    if (form.phone && !COLOMBIAN_MOBILE_PHONE.test(form.phone)) {
+      setMsg({ type: 'err', text: t('account.phoneInvalid') });
+      return;
+    }
+    setSaving(true);
     try {
       const res = await fetch('/api/auth/me', {
         method: 'PUT',
@@ -436,9 +441,16 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
                     type="tel"
                     inputMode="numeric"
                     value={form.phone}
-                    onChange={e => setForm({ ...form, phone: e.target.value.replace(/\D/g, '') })}
+                    onChange={e => {
+                      const phone = e.target.value;
+                      if (/^\d{0,10}$/.test(phone)) setForm({ ...form, phone });
+                    }}
                     placeholder={t('account.phonePlaceholder')}
+                    maxLength={10}
+                    pattern="3[0-9]{9}"
+                    aria-describedby="phone-help"
                   />
+                  <p id="phone-help" className="mt-1 text-[12px] text-[#737785]">{t('account.phoneHint')}</p>
                 </div>
                 {msg && <p className={`text-[13px] ${msg.type === 'ok' ? 'text-green-600' : 'text-red-600'}`}>{msg.text}</p>}
                 <button
