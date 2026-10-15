@@ -41,6 +41,16 @@ secreto aleatorio de al menos 32 caracteres. No reutilices `JWT_SECRET_KEY`, no 
 repositorio y conserva sus valores en un gestor de secretos: perder la clave de
 cifrado impide recuperar los datos protegidos.
 
+### Embeddings en Railway
+
+La imagen Docker descarga `all-MiniLM-L6-v2` durante el build y lo conserva en
+la imagen para utilizarlo sin conexión durante la ejecución. En Railway se debe
+mantener `PRELOAD_EMBEDDING_MODEL=false` para que los health checks no tengan que
+esperar la carga de PyTorch y del modelo; el modelo se carga bajo demanda al usar
+la búsqueda semántica. `HF_TOKEN` es opcional y solo se configura como secreto
+en Railway si se necesitan descargas autenticadas en builds futuros; no se debe
+guardar en `.env` versionado ni en Git.
+
 ## Protección de datos en reposo
 
 - Las cuentas de familiares guardan el email y nombre cifrados. El inicio de

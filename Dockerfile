@@ -24,9 +24,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # de que exista tráfico de usuarios. El contenedor podrá usarlo sin red.
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2', cache_folder='/opt/sentence-transformers')"
 
+# Railway puede sobrescribir PRELOAD_EMBEDDING_MODEL. Se deja desactivado para
+# que FastAPI responda health checks sin cargar PyTorch y el modelo al arrancar.
 ENV HF_HUB_OFFLINE=1 \
     TRANSFORMERS_OFFLINE=1 \
-    PRELOAD_EMBEDDING_MODEL=true
+    PRELOAD_EMBEDDING_MODEL=false
 
 COPY . .
 
