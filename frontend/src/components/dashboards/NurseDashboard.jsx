@@ -108,8 +108,21 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
       return;
     }
 
+    const experienceYears = form.experience_years === '' || form.experience_years === undefined || form.experience_years === null
+      ? null
+      : Number(form.experience_years);
+    const hourlyRate = Number(form.hourly_rate);
+
     if (form.hourly_rate === '' || form.hourly_rate === undefined || form.hourly_rate === null) {
-      setSaveError('Ingresa una tarifa por hora válida.');
+      setSaveError('La tarifa por hora es obligatoria.');
+      return;
+    }
+    if (!Number.isFinite(hourlyRate) || hourlyRate <= 0) {
+      setSaveError('La tarifa por hora debe ser un número mayor que cero.');
+      return;
+    }
+    if (experienceYears !== null && (!Number.isInteger(experienceYears) || experienceYears < 0)) {
+      setSaveError('Los años de experiencia deben ser un número entero igual o mayor que cero.');
       return;
     }
 
@@ -121,8 +134,8 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
         body: JSON.stringify({
           bio: form.bio,
           location: selectedLocalidad,
-          experience_years: Number(form.experience_years),
-          hourly_rate: Number(form.hourly_rate),
+          ...(experienceYears !== null && { experience_years: experienceYears }),
+          hourly_rate: hourlyRate,
           institution: form.institution,
         }),
       });
@@ -281,10 +294,12 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
                     <input
                       className={INPUT_CLASS}
                       type={type}
-                      min="0"
+                      min={key === 'hourly_rate' ? '1' : '0'}
+                      step="1"
+                      required={key === 'hourly_rate'}
                       value={form[key] ?? ''}
                       placeholder={key === 'hourly_rate' ? 'Ej. 25000' : undefined}
-                      onChange={e => setForm({ ...form, [key]: e.target.value === '' ? '' : Number(e.target.value) })}
+                      onChange={e => { setForm({ ...form, [key]: e.target.value }); setSaveError(''); }}
                     />
                   </div>
                 ))}

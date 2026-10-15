@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
 from sqlmodel import Session, select
 from typing import Optional, List
+import math
 
 from app.database import get_session
 from app.models import User, UserRole, NurseProfile, NurseSpecialty, ProfileStatus
@@ -30,6 +31,40 @@ class NurseUpdateRequest(BaseModel):
     bio: Optional[str] = None
     location: Optional[str] = None
     hourly_rate: Optional[float] = None
+
+    @field_validator("experience_years", mode="before")
+    @classmethod
+    def experience_years_must_be_a_non_negative_integer(cls, value):
+        if value is None:
+            return value
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError("Los años de experiencia deben ser un número entero igual o mayor que cero")
+        if value < 0:
+            raise ValueError("Los años de experiencia no pueden ser negativos")
+        return value
+
+    @field_validator("hourly_rate", mode="before")
+    @classmethod
+    def hourly_rate_must_be_positive(cls, value):
+        if value is None:
+            raise ValueError("La tarifa por hora es obligatoria y debe ser mayor que cero")
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError("La tarifa por hora debe ser un número mayor que cero")
+        if not math.isfinite(value) or value <= 0:
+            raise ValueError("La tarifa por hora debe ser mayor que cero")
+        return value
+
+    @field_validator("specialty", "license_number")
+    @classmethod
+    def required_professional_text_must_not_be_blank(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None and not value.strip():
+            raise ValueError("Este dato profesional obligatorio no puede estar vacío")
+        return value.strip() if value is not None else value
+
+    @field_validator("institution")
+    @classmethod
+    def normalize_optional_institution(cls, value: Optional[str]) -> Optional[str]:
+        return value.strip() or None if value is not None else None
 
     @field_validator("location")
     @classmethod
