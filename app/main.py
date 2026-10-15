@@ -66,6 +66,11 @@ async def lifespan(app: FastAPI):
         # BUG-001: 5.0 no representa una valoración real cuando el contador es
         # cero. Reconciliar los acumulados desde ``reviews`` conserva todas las
         # reseñas existentes y también corrige perfiles creados antes del fix.
+        # Las instalaciones previas crearon esta columna como NOT NULL; se debe
+        # eliminar primero esa restricción para que AVG pueda representar la
+        # ausencia de reseñas con NULL, no con una valoración ficticia de 0 o 5.
+        conn.execute(text("ALTER TABLE caregiver_profiles ALTER COLUMN rating_avg DROP NOT NULL"))
+        conn.execute(text("ALTER TABLE nurse_profiles ALTER COLUMN rating_avg DROP NOT NULL"))
         conn.execute(text("ALTER TABLE caregiver_profiles ALTER COLUMN rating_avg DROP DEFAULT"))
         conn.execute(text("ALTER TABLE nurse_profiles ALTER COLUMN rating_avg DROP DEFAULT"))
         conn.execute(text("""
