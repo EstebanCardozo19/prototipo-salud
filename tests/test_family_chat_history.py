@@ -1,11 +1,20 @@
 """Pruebas del contexto conversacional del asistente para familias."""
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from app.services import ai_agent
 
 
 class FamilyChatHistoryTests(unittest.TestCase):
+    def test_sai_request_timeout_is_150_seconds(self):
+        response = Mock()
+        response.json.return_value = {"choices": []}
+
+        with patch("app.services.ai_agent.requests.post", return_value=response) as post:
+            ai_agent._llamar_sai([], [])
+
+        self.assertEqual(post.call_args.kwargs["timeout"], 150)
+
     def test_explicit_nurse_request_searches_without_asking_again(self):
         history = [
             {"role": "user", "content": "Mi abuelo necesita ayuda nocturna por Alzheimer."},

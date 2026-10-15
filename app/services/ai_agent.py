@@ -119,7 +119,7 @@ def _llamar_sai(messages: list[dict], tools: list[dict]) -> dict:
         "max_tokens": 1000,
     }
 
-    response = requests.post(API_URL, headers=HEADERS, json=payload, timeout=60)
+    response = requests.post(API_URL, headers=HEADERS, json=payload, timeout=150)
     response.raise_for_status()
     return response.json()
 
