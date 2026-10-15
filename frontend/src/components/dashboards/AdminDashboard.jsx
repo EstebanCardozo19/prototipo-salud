@@ -117,6 +117,20 @@ export default function AdminDashboard({ token }) {
     load();
   };
 
+  const updateUserName = async (user) => {
+    const full_name = window.prompt('Ingresa el nuevo nombre completo:', user.full_name);
+    if (full_name === null || !full_name.trim() || full_name.trim() === user.full_name) return;
+
+    const response = await fetch(`/api/admin/users/${user.id}/full-name`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ full_name: full_name.trim() }),
+    });
+    if (!response.ok) return;
+    const updatedUser = await response.json();
+    setUsers(currentUsers => currentUsers.map(currentUser => currentUser.id === updatedUser.id ? updatedUser : currentUser));
+  };
+
   const roleBadge = {
     admin: 'bg-gray-800 text-white',
     nurse: 'bg-[#006a61] text-white',
@@ -253,12 +267,20 @@ export default function AdminDashboard({ token }) {
                 </td>
                 <td className="px-4 py-3">{u.is_active ? '✅' : '❌'}</td>
                 <td className="px-4 py-3">
-                  <button
-                    onClick={() => toggle(u.id)}
-                    className="px-3 py-1 border border-[#c3c6d6] text-[#424654] rounded-lg text-[12px] font-semibold hover:bg-[#f3f3f6] transition-all"
-                  >
-                    {u.is_active ? t('admin.deactivate') : t('admin.activate')}
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => updateUserName(u)}
+                      className="px-3 py-1 border border-[#0040a1] text-[#0040a1] rounded-lg text-[12px] font-semibold hover:bg-[#0040a1]/5 transition-all"
+                    >
+                      Editar nombre
+                    </button>
+                    <button
+                      onClick={() => toggle(u.id)}
+                      className="px-3 py-1 border border-[#c3c6d6] text-[#424654] rounded-lg text-[12px] font-semibold hover:bg-[#f3f3f6] transition-all"
+                    >
+                      {u.is_active ? t('admin.deactivate') : t('admin.activate')}
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

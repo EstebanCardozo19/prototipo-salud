@@ -104,7 +104,6 @@ class UserResponse(BaseModel):
 
 
 class UpdateMyAccountRequest(BaseModel):
-    full_name: str
     phone: Optional[str] = None
 
 

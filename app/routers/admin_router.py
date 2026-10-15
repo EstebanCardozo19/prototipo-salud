@@ -7,7 +7,7 @@ from app.auth import require_role
 from app.database import get_session
 from app.models import CaregiverProfile, NurseProfile, ProfessionalVerification, ProfileStatus, User, UserRole, VerificationDocument
 from app.routers.notifications_router import create_notification
-from app.security.encryption import user_email, user_full_name
+from app.security.encryption import encrypt_text, user_email, user_full_name
 
 router = APIRouter(prefix='/api/admin', tags=['Administración'])
 class ReviewRequest(BaseModel): status: str; reason: Optional[str] = None
@@ -15,6 +15,7 @@ class DocumentResponse(BaseModel): id: int; document_type: str; document_name: O
 class PendingProfileResponse(BaseModel):
     id: int; user_id: int; full_name: str; email: str; role: str; location: str; status: str; experience_years: int; submitted_at: Optional[datetime]; documents: list[DocumentResponse]; profile_data: dict[str, Any]
 class AdminUserResponse(BaseModel): id: int; email: str; full_name: str; role: str; is_active: bool
+class UpdateUserNameRequest(BaseModel): full_name: str
 def serialize(v, u, s):
     model=CaregiverProfile if v.role==UserRole.caregiver else NurseProfile; p=s.exec(select(model).where(model.user_id==u.id)).first(); docs=s.exec(select(VerificationDocument).where(VerificationDocument.verification_id==v.id)).all()
     profile_data = {
@@ -54,3 +55,16 @@ def toggle(user_id:int,current_user:User=Depends(require_role(UserRole.admin)),s
     u=session.get(User,user_id)
     if not u:raise HTTPException(404,'Usuario no encontrado')
     u.is_active=not u.is_active;session.add(u);session.commit();return {'id':u.id,'is_active':u.is_active}
+
+@router.put('/users/{user_id}/full-name', response_model=AdminUserResponse)
+def update_user_full_name(user_id: int, request: UpdateUserNameRequest, current_user: User = Depends(require_role(UserRole.admin)), session: Session = Depends(get_session)):
+    """Permite exclusivamente a administradores modificar el nombre de una cuenta."""
+    full_name = request.full_name.strip()
+    if not full_name:
+        raise HTTPException(422, 'El nombre completo es obligatorio')
+    u = session.get(User, user_id)
+    if not u:
+        raise HTTPException(404, 'Usuario no encontrado')
+    u.full_name = encrypt_text(full_name)
+    session.add(u); session.commit(); session.refresh(u)
+    return AdminUserResponse(id=u.id, email=user_email(u), full_name=user_full_name(u), role=u.role.value, is_active=u.is_active)

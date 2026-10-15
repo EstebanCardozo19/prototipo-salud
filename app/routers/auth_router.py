@@ -256,16 +256,11 @@ def update_me(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
-    """Actualiza los datos personales editables de la cuenta autenticada."""
-    full_name = request.full_name.strip()
-    if not full_name:
-        raise HTTPException(status_code=422, detail="El nombre completo es obligatorio")
-
+    """Actualiza el teléfono de la cuenta autenticada."""
     phone = request.phone.strip() if request.phone else None
     if phone and len(phone) > 30:
         raise HTTPException(status_code=422, detail="El teléfono no puede superar 30 caracteres")
 
-    current_user.full_name = encrypt_text(full_name) if current_user.role == UserRole.family else full_name
     current_user.phone = phone
     session.add(current_user)
     session.commit()

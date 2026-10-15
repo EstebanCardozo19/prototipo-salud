@@ -154,7 +154,6 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          full_name: form.full_name,
           phone: form.phone,
         }),
       });
@@ -400,10 +399,10 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
                 <div>
                   <label className={LABEL_CLASS}>{t('account.fullName')}</label>
                   <input
-                    className={INPUT_CLASS}
+                    className={`${INPUT_CLASS} bg-[#f3f3f6] cursor-not-allowed opacity-70`}
                     value={form.full_name}
-                    onChange={e => setForm({ ...form, full_name: e.target.value })}
-                    required
+                    disabled
+                    title="El nombre solo puede ser modificado por un administrador"
                   />
                 </div>
                 <div>
