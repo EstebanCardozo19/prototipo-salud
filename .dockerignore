@@ -1,0 +1,27 @@
+# Secretos y configuración local
+.env
+.env.*
+!.env.example
+
+# Entornos y dependencias instaladas localmente
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+frontend/node_modules/
+frontend/dist/
+
+# Datos locales y archivos privados de usuarios
+uploads/
+private_uploads/
+pgdata/
+
+# Control de versiones y archivos de desarrollo
+.git/
+.vscode/
+.idea/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.log

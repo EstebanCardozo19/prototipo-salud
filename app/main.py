@@ -34,6 +34,12 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     validate_authentication_configuration()
     validate_encryption_configuration()
+    if os.getenv("PRELOAD_EMBEDDING_MODEL", "").lower() in {"1", "true", "yes"}:
+        from app.services.embedding_service import precargar_modelo
+
+        logger.info("Precargando el modelo local de embeddings.")
+        precargar_modelo()
+        logger.info("Modelo local de embeddings listo.")
     # Crear carpeta de uploads si no existe
     Path("uploads/profiles").mkdir(parents=True, exist_ok=True)
     Path("private_uploads/clinical_records").mkdir(parents=True, exist_ok=True)
