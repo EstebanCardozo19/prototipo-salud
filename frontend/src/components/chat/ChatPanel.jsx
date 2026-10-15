@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useLang } from '../../contexts/LangContext';
 import Spinner from '../common/Spinner';
 import ProfessionalDetailModal from '../professionals/ProfessionalDetailModal';
+import { getAssetUrl } from '../../utils/helpers';
 
 // ─── ChatPanel ───────────────────────────────────────────────
 export default function ChatPanel({ user, token, onUnauthorized }) {
@@ -158,7 +159,7 @@ export default function ChatPanel({ user, token, onUnauthorized }) {
                         {/* Avatar */}
                         {prof.photo_url ? (
                           <img
-                            src={prof.photo_url}
+                            src={getAssetUrl(prof.photo_url)}
                             alt={prof.full_name}
                             className="w-12 h-12 rounded-xl object-cover shrink-0 border border-[#c3c6d6]/30"
                           />
@@ -182,18 +183,18 @@ export default function ChatPanel({ user, token, onUnauthorized }) {
                               </span>
                             ))}
                           </div>
-                          <div className="flex items-center gap-2 mt-1">
+                          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
                             <span className="text-[13px] font-bold text-[#0040a1]">
                               ${Number(prof.hourly_rate).toLocaleString('es-CO')}/h
                             </span>
-                            <span className="text-[11px] text-[#424654] flex items-center gap-1">
+                            <span className="flex min-w-0 items-center gap-1 text-[11px] text-[#424654]">
                               <span className="material-symbols-outlined text-[13px] text-[#0040a1]/50">
                                 location_on
                               </span>
-                              {prof.location}
+                              <span className="truncate">{prof.location}</span>
                             </span>
                             {prof.similitud && (
-                              <span className="text-[10px] bg-green-50 text-green-700 border border-green-200 px-1.5 py-0.5 rounded-lg font-semibold ml-auto">
+                              <span className="w-fit shrink-0 whitespace-nowrap rounded-lg border border-green-200 bg-green-50 px-1.5 py-0.5 text-[10px] font-semibold text-green-700">
                                 {Math.round(prof.similitud * 100)}{t('professional.compatibShort')}
                               </span>
                             )}

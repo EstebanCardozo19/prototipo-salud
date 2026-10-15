@@ -2,6 +2,18 @@
 
 import { translations } from '../i18n';
 
+// Convierte rutas de archivos servidos por la API en URLs accesibles desde el
+// frontend estático. En desarrollo se conserva la ruta relativa para que Vite
+// la resuelva mediante su proxy; en producción VITE_API_URL debe apuntar a la
+// URL pública del backend.
+const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+
+export function getAssetUrl(path) {
+  if (!path || /^(?:https?:)?\/\//i.test(path) || path.startsWith('data:')) return path;
+  if (!API_URL) return path;
+  return `${API_URL}${path.startsWith('/') ? path : `/${path}`}`;
+}
+
 // Helpers para etiquetas traducidas
 export function getSpecialtyLabel(key, lang) {
   return translations.specialties[key]?.[lang] || translations.specialties[key]?.es || key;

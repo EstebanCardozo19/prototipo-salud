@@ -1,5 +1,5 @@
 import StarRating from '../common/StarRating';
-import { getMobilityLabel } from '../../utils/helpers';
+import { getAssetUrl, getMobilityLabel } from '../../utils/helpers';
 import { useLang } from '../../contexts/LangContext';
 
 /** Información limitada de una solicitud para que el profesional pueda decidirla. */
@@ -16,7 +16,7 @@ export default function BookingFamilyInfo({ booking }) {
     <div className="mb-3 rounded-xl border border-[#c3c6d6]/40 bg-[#f9f9fc] p-3 space-y-3">
       <div className="flex items-center gap-3">
         {booking.family_photo_url ? (
-          <img src={booking.family_photo_url} alt={booking.family_name || 'Familia'} className="h-11 w-11 rounded-xl object-cover" />
+          <img src={getAssetUrl(booking.family_photo_url)} alt={booking.family_name || 'Familia'} className="h-11 w-11 rounded-xl object-cover" />
         ) : (
           <div className="h-11 w-11 rounded-xl bg-[#0040a1] text-white flex items-center justify-center font-bold">
             {(booking.family_name || 'F').charAt(0).toUpperCase()}

@@ -5,7 +5,7 @@ import FamilyPatientPanel from '../patients/FamilyPatientPanel';
 import CaregiverDashboard from '../dashboards/CaregiverDashboard';
 import NurseDashboard from '../dashboards/NurseDashboard';
 import { INPUT_CLASS, LABEL_CLASS } from '../../constants';
-import { getRoleLabel } from '../../utils/helpers';
+import { getAssetUrl, getRoleLabel } from '../../utils/helpers';
 import { BOGOTA_CITY, getLocalidadesForCity } from '../../constants/colombiaGeo';
 import { getPasswordValidation } from '../../utils/password';
 
@@ -290,7 +290,7 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
           <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
             {photoUrl ? (
               <img
-                src={photoUrl}
+                src={getAssetUrl(photoUrl)}
                 alt={user.full_name}
                 className="w-16 h-16 rounded-full object-cover border-2 border-[#0040a1]/20 shadow-md"
               />
@@ -360,7 +360,7 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
                   <div className="relative cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                     {photoUrl ? (
                       <img
-                        src={photoUrl}
+                        src={getAssetUrl(photoUrl)}
                         alt={user.full_name}
                         className="w-20 h-20 rounded-full object-cover border-2 border-[#0040a1]/20 shadow-md"
                       />

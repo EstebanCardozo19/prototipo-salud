@@ -4,6 +4,7 @@ import { useToast } from '../../contexts/ToastContext';
 import StarRating from '../common/StarRating';
 import BookingModal from '../bookings/BookingModal';
 import ProfessionalDetailModal from './ProfessionalDetailModal';
+import { getAssetUrl } from '../../utils/helpers';
 
 // ─── ProfessionalCard ────────────────────────────────────────
 // Click en la tarjeta → abre modal de detalle con mapa.
@@ -95,7 +96,7 @@ export default function ProfessionalCard({
         {/* ── Header: avatar + nombre + rating ── */}
         <div className="flex items-start gap-4">
           {photoUrl ? (
-            <img src={photoUrl} alt={name}
+            <img src={getAssetUrl(photoUrl)} alt={name}
               className="w-16 h-16 rounded-2xl object-cover shrink-0 border border-[#c3c6d6]/30 shadow-sm" />
           ) : (
             <div className="w-16 h-16 rounded-2xl bg-[#dae2ff] text-[#0040a1] flex items-center justify-center text-xl font-bold shrink-0 border border-[#c3c6d6]/30">

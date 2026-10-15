@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useLang } from '../../contexts/LangContext';
 import BookingModal from '../bookings/BookingModal';
 import StarRating from '../common/StarRating';
-import { getRoleLabel, getSpecialtyLabel } from '../../utils/helpers';
+import { getAssetUrl, getRoleLabel, getSpecialtyLabel } from '../../utils/helpers';
 import { getCityCoords, getLocalidadCoords } from '../../constants/colombiaGeo';
 
 // Inyectar CSS de Leaflet una sola vez
@@ -174,7 +174,7 @@ export default function ProfessionalDetailModal({ professional, token, reviews =
             </button>
 
             {professional.photo_url ? (
-              <img src={professional.photo_url} alt={professional.full_name}
+              <img src={getAssetUrl(professional.photo_url)} alt={professional.full_name}
                 className="w-[56px] h-[56px] rounded-xl object-cover border-2 border-white/30 shadow-lg shrink-0" />
             ) : (
               <div className="w-[56px] h-[56px] rounded-xl bg-white/20 text-white flex items-center justify-center text-xl font-bold shrink-0 border-2 border-white/30">

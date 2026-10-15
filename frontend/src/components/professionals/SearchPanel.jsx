@@ -12,7 +12,7 @@ import ProfessionalDetailModal from './ProfessionalDetailModal';
 import StarRating from '../common/StarRating';
 import { SPECIALTIES, SPECIALTIES_KEYS } from '../../constants';
 import { BOGOTA_CITY, getLocalidadesForCity, getFamilyLocations } from '../../constants/colombiaGeo';
-import { guessGender, getSpecialtyLabel } from '../../utils/helpers';
+import { getAssetUrl, guessGender, getSpecialtyLabel } from '../../utils/helpers';
 
 const PREFS_KEY = 'salud_user_prefs';
 const INITIAL_FILTERS = {
@@ -832,7 +832,7 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
                           className="flex min-w-0 flex-1 items-center gap-3 text-left group"
                         >
                           {b.professional_photo_url ? (
-                            <img src={b.professional_photo_url} alt={b.professional_name} className="w-11 h-11 rounded-xl object-cover shrink-0" />
+                            <img src={getAssetUrl(b.professional_photo_url)} alt={b.professional_name} className="w-11 h-11 rounded-xl object-cover shrink-0" />
                           ) : (
                             <div className="w-11 h-11 rounded-xl bg-[#0040a1] text-white flex items-center justify-center font-bold shrink-0">
                               {(b.professional_name || '?').split(' ').map(name => name[0]).slice(0, 2).join('').toUpperCase()}
