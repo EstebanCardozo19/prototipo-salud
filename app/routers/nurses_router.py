@@ -1,19 +1,22 @@
 """
 Router de enfermeros: CRUD de perfiles.
 """
-from fastapi import APIRouter, Depends, HTTPException
+import logging
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, field_validator
 from sqlmodel import Session, select
 from typing import Optional, List
 import math
 
-from app.database import get_session
+from app.database import engine, get_session
 from app.models import User, UserRole, NurseProfile, NurseSpecialty, ProfileStatus
 from app.auth import get_current_user, require_role
 from app.services.bogota_locations import validate_bogota_professional_location
 from app.services.embedding_service import generar_embedding
 
 router = APIRouter(prefix="/api/nurses", tags=["Enfermeros"])
+logger = logging.getLogger(__name__)
 
 SPECIALTY_LABELS = {
     "general": "Enfermería General", "geriatrics": "Geriatría", "neurology": "Neurología",
@@ -22,6 +25,21 @@ SPECIALTY_LABELS = {
     "internal_medicine": "Medicina Interna", "endocrinology": "Endocrinología",
     "nephrology": "Nefrología", "orthopedics": "Ortopedia",
 }
+
+
+def regenerate_nurse_embedding(profile_id: int, text: str) -> None:
+    """Actualiza el índice semántico sin retrasar la respuesta de edición."""
+    try:
+        embedding = generar_embedding(text)
+        with Session(engine) as session:
+            profile = session.get(NurseProfile, profile_id)
+            if not profile:
+                return
+            profile.embedding = embedding
+            session.add(profile)
+            session.commit()
+    except Exception:
+        logger.exception("No fue posible regenerar el embedding del perfil de enfermería %s", profile_id)
 
 class NurseUpdateRequest(BaseModel):
     specialty: Optional[str] = None
@@ -154,16 +172,24 @@ def get_nurse(nurse_id: int, session: Session = Depends(get_session)):
     return NurseResponse(id=p.id, user_id=p.user_id, full_name=u.full_name, email=u.email, photo_url=u.photo_url, specialty=p.specialty.value, license_number=p.license_number, institution=p.institution, experience_years=p.experience_years, bio=p.bio, location=p.location, hourly_rate=p.hourly_rate, status=p.status.value, rating_avg=p.rating_avg, rating_count=p.rating_count)
 
 @router.put("/me", response_model=NurseResponse)
-def update_my_profile(request: NurseUpdateRequest, current_user: User = Depends(require_role(UserRole.nurse)), session: Session = Depends(get_session)):
+def update_my_profile(
+    request: NurseUpdateRequest,
+    current_user: User = Depends(require_role(UserRole.nurse)),
+    session: Session = Depends(get_session),
+    background_tasks: BackgroundTasks = None,
+):
     p = session.exec(select(NurseProfile).where(NurseProfile.user_id == current_user.id)).first()
     if not p: raise HTTPException(status_code=404, detail="Perfil no encontrado")
     update_data = request.model_dump(exclude_unset=True)
     for k, v in update_data.items():
         if k == "specialty" and v: setattr(p, k, NurseSpecialty(v))
         else: setattr(p, k, v)
-    if any(key in update_data for key in ("specialty", "bio", "location")) and p.bio:
-        p.embedding = generar_embedding(
-            f"{p.bio} Especialidad: {p.specialty.value}. Localidad: {p.location}."
-        )
     session.add(p); session.commit(); session.refresh(p)
+    if any(key in update_data for key in ("specialty", "bio", "location")) and p.bio:
+        embedding_text = f"{p.bio} Especialidad: {p.specialty.value}. Localidad: {p.location}."
+        if background_tasks:
+            background_tasks.add_task(regenerate_nurse_embedding, p.id, embedding_text)
+        else:
+            # Mantiene la función utilizable directamente fuera de una petición FastAPI.
+            regenerate_nurse_embedding(p.id, embedding_text)
     return NurseResponse(id=p.id, user_id=p.user_id, full_name=current_user.full_name, email=current_user.email, photo_url=current_user.photo_url, specialty=p.specialty.value, license_number=p.license_number, institution=p.institution, experience_years=p.experience_years, bio=p.bio, location=p.location, hourly_rate=p.hourly_rate, status=p.status.value, rating_avg=p.rating_avg, rating_count=p.rating_count)

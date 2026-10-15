@@ -41,6 +41,14 @@ class FakeSession:
         pass
 
 
+class FakeBackgroundTasks:
+    def __init__(self):
+        self.tasks = []
+
+    def add_task(self, func, *args, **kwargs):
+        self.tasks.append((func, args, kwargs))
+
+
 class NurseProfileValidationTests(unittest.TestCase):
     def setUp(self):
         self.user = User(
@@ -90,6 +98,19 @@ class NurseProfileValidationTests(unittest.TestCase):
             with self.subTest(field=field):
                 with self.assertRaisesRegex(ValidationError, "dato profesional obligatorio"):
                     NurseUpdateRequest(**{field: "   "})
+
+    def test_schedules_embedding_regeneration_after_saving_profile(self):
+        background_tasks = FakeBackgroundTasks()
+        request = NurseUpdateRequest(bio="Experiencia en cuidado geriátrico")
+
+        response = update_my_profile(request, self.user, self.session, background_tasks)
+
+        self.assertEqual(response.bio, "Experiencia en cuidado geriátrico")
+        self.assertTrue(self.session.committed)
+        self.assertEqual(len(background_tasks.tasks), 1)
+        _, args, _ = background_tasks.tasks[0]
+        self.assertEqual(args[0], self.profile.id)
+        self.assertIn("Experiencia en cuidado geriátrico", args[1])
 
 
 if __name__ == "__main__":
