@@ -3,7 +3,10 @@ Router de solicitudes de contratación, disponibilidad y reseñas.
 Sistema de rating bidireccional: familiar → profesional y profesional → familiar.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, field_validator
+from datetime import date as calendar_date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
+
+from pydantic import BaseModel, field_validator, model_validator
 from sqlmodel import Session, select
 from typing import Optional, List
 
@@ -21,8 +24,41 @@ from app.services.ratings import calculate_rating_summary
 
 router = APIRouter(prefix="/api/bookings", tags=["Solicitudes y Calendario"])
 
+BOOKING_TIMEZONE = ZoneInfo("America/Bogota")
+
 
 # ── Helpers ──────────────────────────────────────────────────
+
+def validate_booking_schedule(
+    service_date: str,
+    start_hour: int,
+    end_hour: int,
+    now: datetime | None = None,
+) -> None:
+    """Valida un horario de solicitud en la zona horaria de Bogotá.
+
+    Un fin menor al inicio representa un turno nocturno que termina al día
+    siguiente. Un fin igual al inicio no define una duración válida.
+    """
+    try:
+        parsed_date = calendar_date.fromisoformat(service_date)
+    except (TypeError, ValueError) as error:
+        raise ValueError("La fecha del servicio debe tener el formato AAAA-MM-DD") from error
+
+    if not 0 <= start_hour <= 23 or not 0 <= end_hour <= 23:
+        raise ValueError("Las horas de inicio y fin deben estar entre 00:00 y 23:00")
+    if end_hour == start_hour:
+        raise ValueError("La hora de finalización debe ser distinta de la hora de inicio")
+
+    current_time = now or datetime.now(BOOKING_TIMEZONE)
+    if current_time.tzinfo is None:
+        current_time = current_time.replace(tzinfo=BOOKING_TIMEZONE)
+    else:
+        current_time = current_time.astimezone(BOOKING_TIMEZONE)
+
+    start = datetime.combine(parsed_date, time(hour=start_hour), BOOKING_TIMEZONE)
+    if start < current_time:
+        raise ValueError("La fecha y hora de inicio deben ser futuras en Bogotá")
 
 def _recalc_professional_rating(professional_user_id: int, session: Session):
     """Recalcula rating_avg y rating_count en el perfil del profesional."""
@@ -60,6 +96,11 @@ class BookingCreate(BaseModel):
     end_hour: int
     notes: Optional[str] = None
     location_sharing_preference: str = "locality_neighborhood"
+
+    @model_validator(mode="after")
+    def validate_schedule(self):
+        validate_booking_schedule(self.date, self.start_hour, self.end_hour)
+        return self
 
     @field_validator("location_sharing_preference")
     @classmethod

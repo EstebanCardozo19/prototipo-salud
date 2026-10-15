@@ -29,8 +29,12 @@ def service_schedule(booking: Booking) -> tuple[datetime, datetime]:
     except (TypeError, ValueError) as error:
         raise ValueError("El servicio tiene una fecha u horario inválido") from error
 
-    if end <= start:
-        raise ValueError("La hora de finalización debe ser posterior a la hora de inicio")
+    if end == start:
+        raise ValueError("La hora de finalización debe ser distinta de la hora de inicio")
+    if end < start:
+        # La API representa un turno nocturno con una hora de fin menor a la
+        # de inicio; en ese caso, su fin corresponde al día siguiente.
+        end += timedelta(days=1)
     return start, end
 
 

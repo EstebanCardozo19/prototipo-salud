@@ -7,10 +7,22 @@ import { getMobilityLabel } from '../../utils/helpers';
 // ─── BookingModal ─────────────────────────────────────────────
 export default function BookingModal({ professional, token, onClose, onSuccess }) {
   const { t, lang } = useLang();
-  const today = new Date().toISOString().split('T')[0];
+  const getBogotaNow = () => {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Bogota', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23',
+    }).formatToParts(new Date()).reduce((result, part) => ({ ...result, [part.type]: part.value }), {});
+    return { date: `${parts.year}-${parts.month}-${parts.day}`, hour: Number(parts.hour) };
+  };
+  const bogotaNow = getBogotaNow();
+  const today = bogotaNow.date;
+  const initialDate = bogotaNow.hour < 23
+    ? today
+    : new Date(`${today}T12:00:00`).toISOString().split('T')[0];
+  const initialStartHour = bogotaNow.hour < 23 ? bogotaNow.hour + 1 : 8;
+  const initialEndHour = initialStartHour < 20 ? initialStartHour + 4 : (initialStartHour + 4) % 24;
   const hours = Array.from({ length: 24 }, (_, i) => i);
 
-  const [days, setDays] = useState([{ date: today, startHour: 8, endHour: 12 }]);
+  const [days, setDays] = useState([{ date: initialDate, startHour: initialStartHour, endHour: initialEndHour }]);
   const [notes, setNotes] = useState('');
   const [locationSharingPreference, setLocationSharingPreference] = useState('locality_neighborhood');
   const [loading, setLoading] = useState(false);
@@ -101,9 +113,20 @@ export default function BookingModal({ professional, token, onClose, onSuccess }
 
   const submit = async (e) => {
     e.preventDefault();
-    const invalidSchedule = days.find(day => day.endHour <= day.startHour);
+    const currentBogotaTime = getBogotaNow();
+    const invalidPastDate = days.find(day => day.date < currentBogotaTime.date);
+    if (invalidPastDate) {
+      setError(t('booking.dateMustBeFuture'));
+      return;
+    }
+    const invalidPastStart = days.find(day => day.date === currentBogotaTime.date && day.startHour <= currentBogotaTime.hour);
+    if (invalidPastStart) {
+      setError(t('booking.startMustBeFuture'));
+      return;
+    }
+    const invalidSchedule = days.find(day => day.endHour === day.startHour);
     if (invalidSchedule) {
-      setError(t('booking.endMustBeGreater'));
+      setError(t('booking.endMustDiffer'));
       return;
     }
     if (!notes.trim()) {
@@ -309,7 +332,7 @@ export default function BookingModal({ professional, token, onClose, onSuccess }
                       <div>
                         <label className={lCls}>{t('booking.startHour')}</label>
                         <select className={iCls} value={day.startHour} onChange={e => updateSchedule(i, 'startHour', e.target.value)}>
-                          {hours.map(h => <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>)}
+                          {hours.map(h => <option key={h} value={h} disabled={day.date === today && h <= bogotaNow.hour}>{String(h).padStart(2, '0')}:00</option>)}
                         </select>
                       </div>
                       <div>
@@ -321,9 +344,9 @@ export default function BookingModal({ professional, token, onClose, onSuccess }
                     </div>
                     <p className="text-[12px] text-[#424654]">
                       {t('booking.duration')}{' '}
-                      {day.endHour > day.startHour
-                        ? `${day.endHour - day.startHour} ${t('booking.hours')}`
-                        : <span className="text-red-500">{t('booking.endMustBeGreater')}</span>}
+                      {day.endHour !== day.startHour
+                        ? `${day.endHour > day.startHour ? day.endHour - day.startHour : 24 - day.startHour + day.endHour} ${t('booking.hours')}${day.endHour < day.startHour ? ` (${t('booking.overnight')})` : ''}`
+                        : <span className="text-red-500">{t('booking.endMustDiffer')}</span>}
                     </p>
                   </div>
                 ))}
