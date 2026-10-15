@@ -30,6 +30,7 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
   const [form, setForm] = useState({});
   const [loading, setLoading] = useState(true);
   const [saveError, setSaveError] = useState('');
+  const [saveSuccess, setSaveSuccess] = useState('');
 
   const [bookings, setBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
@@ -103,6 +104,7 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
 
   const save = async (e) => {
     e.preventDefault();
+    setSaveSuccess('');
     if (!selectedLocalidad) {
       setSaveError('Selecciona una localidad de Bogotá D.C. para guardar tu perfil.');
       return;
@@ -144,6 +146,7 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
         setProfile(updatedProfile);
         setForm(updatedProfile);
         setEditing(false);
+        setSaveSuccess('Datos guardados correctamente.');
         return;
       }
 
@@ -190,8 +193,15 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
                 {t('nurse_dash.pending')}
               </div>
             ) : !editing ? (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                <div className="lg:col-span-4 flex flex-col gap-6">
+              <>
+                {saveSuccess && (
+                  <p role="status" className="max-w-3xl rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-[14px] font-semibold text-green-700 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[20px]">check_circle</span>
+                    {saveSuccess}
+                  </p>
+                )}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  <div className="lg:col-span-4 flex flex-col gap-6">
                   <div className="bg-white rounded-lg border border-[#E2E8F0] shadow-sm p-8 flex flex-col h-full">
                     <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#F1F5F9] text-[#002b6c]">
                       <span className="material-symbols-outlined">badge</span>
@@ -235,7 +245,7 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
                       <span className={`inline-flex items-center px-3 py-1 rounded-full text-[12px] font-bold ${profile.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-[#FEF3C7] text-[#92400E]'}`}>
                         {profile.status === 'approved' ? t('bookingStatus.approved') : 'Pendiente'}
                       </span>
-                      <button onClick={() => setEditing(true)} className="bg-[#004099] text-white px-6 py-2 rounded-lg text-[14px] font-semibold hover:bg-[#002b6c] transition-colors shadow-sm hover:shadow-md">
+                      <button onClick={() => { setSaveSuccess(''); setEditing(true); }} className="bg-[#004099] text-white px-6 py-2 rounded-lg text-[14px] font-semibold hover:bg-[#002b6c] transition-colors shadow-sm hover:shadow-md">
                         Editar Perfil
                       </button>
                     </div>
@@ -264,8 +274,9 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
                     </div>
                   )}
                   <VerificationSection token={token} />
+                  </div>
                 </div>
-              </div>
+              </>
             ) : (
               <form onSubmit={save} className="max-w-3xl bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm p-6 space-y-4">
                 <div>
