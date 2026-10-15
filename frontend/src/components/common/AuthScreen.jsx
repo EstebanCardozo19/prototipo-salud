@@ -3,6 +3,7 @@ import { useLang } from '../../contexts/LangContext';
 import { useToast } from '../../contexts/ToastContext';
 import Spinner from './Spinner';
 import { INPUT_CLASS, LABEL_CLASS } from '../../constants';
+import { getPasswordValidation } from '../../utils/password';
 
 const SECURITY_QUESTIONS = [
   { value: 'first_pet', label: 'auth.securityQuestionFirstPet' },
@@ -12,6 +13,19 @@ const SECURITY_QUESTIONS = [
   { value: 'favorite_book', label: 'auth.securityQuestionFavoriteBook' },
   { value: 'mother_middle_name', label: 'auth.securityQuestionMotherMiddleName' },
 ];
+
+function PasswordRequirements({ validation, t }) {
+  return (
+    <ul className="mt-2 space-y-1 text-[12px]" aria-live="polite">
+      {validation.requirements.map(requirement => (
+        <li key={requirement.key} className={`flex items-center gap-1.5 ${requirement.met ? 'text-green-600' : 'text-[#737785]'}`}>
+          <span className="material-symbols-outlined text-[16px]">{requirement.met ? 'check_circle' : 'radio_button_unchecked'}</span>
+          {t(`auth.passwordRequirement${requirement.key[0].toUpperCase()}${requirement.key.slice(1)}`)}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 // ─── AuthScreen ─────────────────────────────────────────────
 export default function AuthScreen({ onLogin, initialTab = 'login', onBack }) {
@@ -28,6 +42,8 @@ export default function AuthScreen({ onLogin, initialTab = 'login', onBack }) {
   const [recoveryAnswers, setRecoveryAnswers] = useState({ answer1: '', answer2: '', password: '', confirm: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const registrationPasswordValidation = getPasswordValidation(password);
+  const recoveryPasswordValidation = getPasswordValidation(recoveryAnswers.password);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -65,6 +81,10 @@ export default function AuthScreen({ onLogin, initialTab = 'login', onBack }) {
   const handleRegister = async (e) => {
     e.preventDefault();
     setError('');
+    if (!registrationPasswordValidation.isValid) {
+      setError(t('auth.passwordRequirementsError'));
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch('/api/auth/register', {
@@ -124,8 +144,8 @@ export default function AuthScreen({ onLogin, initialTab = 'login', onBack }) {
       setError(t('auth.passwordMismatch'));
       return;
     }
-    if (recoveryAnswers.password.length < 6) {
-      setError(t('auth.minPassword'));
+    if (!recoveryPasswordValidation.isValid) {
+      setError(t('auth.passwordRequirementsError'));
       return;
     }
     setLoading(true);
@@ -245,8 +265,12 @@ export default function AuthScreen({ onLogin, initialTab = 'login', onBack }) {
                 <div><h2 className="font-bold text-[18px] text-[#1a1c1e]">{t('auth.answerSecurityQuestions')}</h2><p className="text-[13px] text-[#737785] mt-1">{t('auth.recoveryAnswerHint')}</p></div>
                 <div><label className={labelCls}>{t(`auth.securityQuestions.${recoveryQuestions.security_question_1}`)}</label><input className={inputCls} type="text" value={recoveryAnswers.answer1} onChange={e => setRecoveryAnswers(v => ({ ...v, answer1: e.target.value }))} required /></div>
                 <div><label className={labelCls}>{t(`auth.securityQuestions.${recoveryQuestions.security_question_2}`)}</label><input className={inputCls} type="text" value={recoveryAnswers.answer2} onChange={e => setRecoveryAnswers(v => ({ ...v, answer2: e.target.value }))} required /></div>
-                <div><label className={labelCls}>{t('auth.newPassword')}</label><input className={inputCls} type="password" minLength={6} value={recoveryAnswers.password} onChange={e => setRecoveryAnswers(v => ({ ...v, password: e.target.value }))} required /></div>
-                <div><label className={labelCls}>{t('auth.confirmPassword')}</label><input className={inputCls} type="password" minLength={6} value={recoveryAnswers.confirm} onChange={e => setRecoveryAnswers(v => ({ ...v, confirm: e.target.value }))} required /></div>
+                <div>
+                  <label className={labelCls}>{t('auth.newPassword')}</label>
+                  <input className={inputCls} type="password" minLength={8} value={recoveryAnswers.password} onChange={e => setRecoveryAnswers(v => ({ ...v, password: e.target.value }))} required />
+                  <PasswordRequirements validation={recoveryPasswordValidation} t={t} />
+                </div>
+                <div><label className={labelCls}>{t('auth.confirmPassword')}</label><input className={inputCls} type="password" minLength={8} value={recoveryAnswers.confirm} onChange={e => setRecoveryAnswers(v => ({ ...v, confirm: e.target.value }))} required /></div>
                 <button type="submit" disabled={loading} className="h-[48px] bg-[#0040a1] text-white rounded-xl font-bold text-[15px] disabled:opacity-60">{loading ? <Spinner sm /> : t('auth.resetPassword')}</button>
                 <button type="button" onClick={showLogin} className="text-[13px] font-semibold text-[#0040a1] hover:underline">{t('auth.backToLogin')}</button>
               </form>
@@ -281,8 +305,9 @@ export default function AuthScreen({ onLogin, initialTab = 'login', onBack }) {
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   required
-                  minLength={6}
+                  minLength={8}
                 />
+                <PasswordRequirements validation={registrationPasswordValidation} t={t} />
               </div>
               <div className="rounded-xl border border-[#c3c6d6]/60 bg-[#f9f9fc] p-4 space-y-3">
                 <p className="font-bold text-[14px] text-[#1a1c1e]">{t('auth.securityQuestionsTitle')}</p>

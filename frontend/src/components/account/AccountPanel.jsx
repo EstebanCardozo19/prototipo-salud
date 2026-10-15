@@ -7,6 +7,7 @@ import NurseDashboard from '../dashboards/NurseDashboard';
 import { INPUT_CLASS, LABEL_CLASS } from '../../constants';
 import { getRoleLabel } from '../../utils/helpers';
 import { BOGOTA_CITY, getLocalidadesForCity } from '../../constants/colombiaGeo';
+import { getPasswordValidation } from '../../utils/password';
 
 const SECURITY_QUESTIONS = [
   'first_pet', 'birth_city', 'favorite_teacher', 'childhood_friend', 'favorite_book', 'mother_middle_name',
@@ -14,6 +15,19 @@ const SECURITY_QUESTIONS = [
 
 // ─── Clave en localStorage para las preferencias ──────────────
 const PREFS_KEY = 'salud_user_prefs';
+
+function PasswordRequirements({ validation, t }) {
+  return (
+    <ul className="mt-2 space-y-1 text-[12px]" aria-live="polite">
+      {validation.requirements.map(requirement => (
+        <li key={requirement.key} className={`flex items-center gap-1.5 ${requirement.met ? 'text-green-600' : 'text-[#737785]'}`}>
+          <span className="material-symbols-outlined text-[16px]">{requirement.met ? 'check_circle' : 'radio_button_unchecked'}</span>
+          {t(`account.passwordRequirement${requirement.key[0].toUpperCase()}${requirement.key.slice(1)}`)}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 function loadPrefs() {
   try {
@@ -37,6 +51,7 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
   const [securityQuestionsConfigured, setSecurityQuestionsConfigured] = useState(null);
   const [savingSecurityQuestions, setSavingSecurityQuestions] = useState(false);
   const [securityQuestionsMsg, setSecurityQuestionsMsg] = useState(null);
+  const newPasswordValidation = getPasswordValidation(pwForm.next);
 
   // ── Foto de perfil ──────────────────────────────────────────
   const [photoUrl, setPhotoUrl] = useState(user.photo_url || null);
@@ -178,8 +193,8 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
       setPwMsg({ type: 'err', text: t('account.passwordMismatch') });
       return;
     }
-    if (pwForm.next.length < 6) {
-      setPwMsg({ type: 'err', text: t('account.passwordShort') });
+    if (!newPasswordValidation.isValid) {
+      setPwMsg({ type: 'err', text: t('account.passwordRequirementsError') });
       return;
     }
     setSavingPw(true);
@@ -473,8 +488,9 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
                     value={pwForm.next}
                     onChange={e => setPwForm({ ...pwForm, next: e.target.value })}
                     required
-                    minLength={6}
+                    minLength={8}
                   />
+                  <PasswordRequirements validation={newPasswordValidation} t={t} />
                 </div>
                 <div>
                   <label className={LABEL_CLASS}>{t('account.confirmPassword')}</label>
@@ -484,7 +500,7 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
                     value={pwForm.confirm}
                     onChange={e => setPwForm({ ...pwForm, confirm: e.target.value })}
                     required
-                    minLength={6}
+                    minLength={8}
                   />
                 </div>
                 {pwMsg && (
