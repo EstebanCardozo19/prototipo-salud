@@ -38,7 +38,7 @@ export default function LandingPage({ onAccess }) {
   }, []);
 
   const navButtonClass = id => `rounded-lg px-3 py-2 transition-all ${activeSection === id ? 'bg-[#dae2ff] text-[#0040a1]' : 'text-[#424654] hover:bg-[#f3f3f6] hover:text-[#0040a1]'}`;
-  return <main className="min-h-screen overflow-x-hidden bg-[#f9f9fc] text-[#1a1c1e]">
+  return <main className="landing min-h-screen overflow-x-hidden bg-[#f9f9fc] text-[#1a1c1e]">
     <header className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 ${isScrolled ? 'border-b border-[#c3c6d6]/50 bg-white/95 shadow-[0_8px_24px_rgba(0,48,112,.09)] backdrop-blur-xl' : 'bg-white/80 backdrop-blur-md'}`}>
       <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between gap-4 px-5 md:px-8">
         <button type="button" onClick={() => goTo('inicio')} className="flex items-center gap-2 text-left"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#0056d2] to-[#003070] text-white shadow-md shadow-[#0040a1]/20"><span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>favorite</span></span><span><b className="block text-[16px] leading-tight text-[#0040a1]">Atención Domiciliaria</b><small className="text-[10px] font-bold uppercase tracking-[.13em] text-[#006a61]">Cuidado que acompaña</small></span></button>

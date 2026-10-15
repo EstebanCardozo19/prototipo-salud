@@ -69,3 +69,227 @@
 @media (prefers-reduced-motion: reduce) {
   .toast-enter, .toast-progress { animation: none; }
 }
+
+/* Página pública: una capa visual acotada que no afecta los paneles autenticados. */
+.landing {
+  background: #fbfcff;
+  color: #17233d;
+}
+
+.landing header > div {
+  max-width: 80rem;
+}
+
+.landing h1,
+.landing h2,
+.landing h3 {
+  color: #152b4f;
+  letter-spacing: -0.028em;
+}
+
+.landing #inicio {
+  min-height: 42rem;
+  background:
+    radial-gradient(circle at 7% 17%, rgba(141, 241, 227, .44), transparent 26rem),
+    radial-gradient(circle at 92% 13%, rgba(178, 197, 255, .58), transparent 24rem),
+    linear-gradient(135deg, #edf4ff 0%, #fbfcff 53%, #eaf9f6 100%);
+}
+
+.landing #inicio > div {
+  max-width: 80rem;
+}
+
+.landing #inicio h1 {
+  font-size: clamp(2.55rem, 5.3vw, 4rem);
+  line-height: 1.04;
+  letter-spacing: -0.052em;
+  color: #10264c;
+}
+
+.landing #inicio h1 span {
+  display: inline-block;
+  color: #0040a1;
+}
+
+.landing #inicio h1 + p {
+  max-width: 37rem;
+  color: #52627b;
+}
+
+.landing #inicio button {
+  border-radius: 9999px;
+}
+
+.landing #inicio > div > div:last-child > div:first-child {
+  border-width: 7px;
+  border-radius: 2rem;
+  box-shadow: 0 28px 65px rgba(11, 54, 125, .20);
+}
+
+.landing #servicios {
+  max-width: 80rem;
+  padding-top: 7rem;
+  padding-bottom: 7rem;
+}
+
+.landing #servicios > h2,
+.landing #como-funciona h2,
+.landing #quienes-somos h2 {
+  font-size: clamp(2rem, 3.5vw, 2.8rem);
+  line-height: 1.12;
+}
+
+.landing #servicios article {
+  position: relative;
+  overflow: hidden;
+  min-height: 14rem;
+  border-color: #dce6f3;
+  border-radius: 1.35rem;
+  box-shadow: 0 10px 28px rgba(24, 63, 119, .055);
+}
+
+.landing #servicios article::after {
+  position: absolute;
+  top: -2.5rem;
+  right: -2rem;
+  width: 7rem;
+  height: 7rem;
+  border-radius: 9999px;
+  background: #e9f1ff;
+  content: '';
+  opacity: .7;
+}
+
+.landing #servicios article > * {
+  position: relative;
+  z-index: 1;
+}
+
+.landing #servicios article:hover {
+  border-color: #9dbce9;
+  box-shadow: 0 20px 42px rgba(24, 63, 119, .12);
+}
+
+.landing #como-funciona {
+  position: relative;
+  overflow: hidden;
+  padding-top: 6rem;
+  padding-bottom: 6rem;
+  background: linear-gradient(122deg, #00327f, #0056c9 58%, #006a8c);
+}
+
+.landing #como-funciona::before {
+  position: absolute;
+  top: -11rem;
+  right: -7rem;
+  width: 30rem;
+  height: 30rem;
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 9999px;
+  content: '';
+}
+
+.landing #como-funciona > div {
+  position: relative;
+  max-width: 80rem;
+}
+
+.landing #como-funciona > div > div > div {
+  border-top: 0;
+  border-radius: 1.25rem;
+  background: rgba(255, 255, 255, .09);
+  padding: 1.6rem;
+  backdrop-filter: blur(5px);
+}
+
+.landing #quienes-somos {
+  position: relative;
+  overflow: hidden;
+  padding-top: 7rem;
+  padding-bottom: 7rem;
+  background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
+}
+
+.landing #quienes-somos::before {
+  position: absolute;
+  top: 7rem;
+  left: -10rem;
+  width: 25rem;
+  height: 25rem;
+  border-radius: 9999px;
+  background: rgba(141, 241, 227, .2);
+  content: '';
+  filter: blur(60px);
+}
+
+.landing #quienes-somos > div {
+  position: relative;
+  max-width: 80rem;
+}
+
+.landing #quienes-somos > div:first-child > div:first-child > div:first-child {
+  border-radius: 2rem;
+  background: linear-gradient(145deg, #e7f7f4, #e6efff);
+  padding: .75rem;
+  box-shadow: 0 24px 55px rgba(21, 76, 132, .14);
+}
+
+.landing #quienes-somos > div:first-child > div:first-child img {
+  height: 27rem;
+  border-radius: 1.45rem;
+}
+
+.landing #quienes-somos > div:first-child > div:last-child {
+  max-width: 39rem;
+}
+
+.landing #quienes-somos > div:first-child > div:last-child > div:last-child {
+  border-color: #bce8e0;
+  border-radius: 1.15rem;
+  background: linear-gradient(135deg, #f1fbf9, #f4f8ff);
+  padding: 1.35rem;
+}
+
+.landing #quienes-somos > div:last-child {
+  gap: 1.25rem;
+}
+
+.landing #quienes-somos article {
+  border-color: #dce6f3;
+  border-radius: 1.25rem;
+  background: rgba(255, 255, 255, .82);
+  padding: 1.85rem 1.5rem;
+  box-shadow: 0 10px 28px rgba(24, 63, 119, .05);
+}
+
+.landing #quienes-somos article .material-symbols-outlined {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 1rem;
+  background: #e8f1ff;
+}
+
+.landing > section:not([id]) {
+  position: relative;
+  padding-top: 5rem;
+  padding-bottom: 5rem;
+  background: linear-gradient(135deg, #edf4ff, #f4fbfa);
+}
+
+.landing > section:not([id]) h2 {
+  font-size: clamp(1.8rem, 3vw, 2.3rem);
+}
+
+.landing > section:not([id]) button {
+  border-radius: 9999px;
+  box-shadow: 0 12px 24px rgba(0, 106, 97, .18);
+}
+
+@media (max-width: 767px) {
+  .landing #inicio { min-height: auto; }
+  .landing #servicios, .landing #quienes-somos { padding-top: 5rem; padding-bottom: 5rem; }
+  .landing #quienes-somos > div:first-child > div:first-child img { height: 21rem; }
+}
