@@ -60,14 +60,14 @@ Solo accesible para roles `caregiver` y `nurse` (salvo la descarga, que también
 
 | Rol | Tipos requeridos |
 |---|---|
-| `caregiver` | Ninguno. Puede adjuntar opcionalmente `identity`, `training`, `work_reference` y certificados adicionales. |
+| `caregiver` | `identity`, `work_reference` (`training` es opcional) |
 | `nurse` | `identity`, `professional_license`, `nursing_degree` |
 
 - Formatos admitidos: `application/pdf`, `image/jpeg` e `image/png`.
 - Tamaño máximo: 10 MB por archivo.
 - Los documentos `training`, `nursing_degree` y `additional_certificate` requieren un `document_name` no vacío (máximo 150 caracteres).
 - Al reemplazar un tipo documental se elimina el archivo anterior del almacenamiento privado.
-- Para enfermería, el envío requiere todos los tipos obligatorios; para cuidadores, los soportes son opcionales. En ambos casos el perfil debe tener `location` y `bio`.
+- El envío requiere todos los tipos obligatorios para cada rol. El perfil también debe tener `location` y `bio`.
 - Los documentos se guardan en `private_uploads/verification`; no están expuestos bajo `/uploads`.
 
 ## Admin — `app/routers/admin_router.py` · `/api/admin`
@@ -76,8 +76,8 @@ Solo accesible con rol `admin`.
 
 | Endpoint | Descripción |
 |---|---|
-| `GET /users` | Lista todos los usuarios del sistema |
+| `GET /users` | Lista todos los usuarios del sistema, incluyendo `verification_status` y `verification_submitted_at` para profesionales |
 | `GET /profiles/pending` | Solicitudes enviadas y pendientes, con documentos y enlaces de descarga privados |
 | `PUT /verifications/{id}/review` | Aprueba o rechaza una solicitud. Body: `status` (`approved`/`rejected`) y `reason` obligatorio al rechazar |
 
-La revisión actualiza tanto la solicitud como el estado del perfil profesional. Un cuidador o enfermero solo aparece en búsquedas públicas cuando su `status = approved`.
+La revisión actualiza tanto la solicitud como el estado del perfil profesional. Un cuidador o enfermero solo aparece en búsquedas públicas cuando su `status = approved`. La cuenta puede estar activa para permitir que el profesional inicie sesión y cargue sus soportes; **cuenta activa no significa perfil aprobado**. Un profesional nuevo permanece en borrador, sin ser visible públicamente ni aparecer para revisión administrativa, hasta que envía todos sus documentos obligatorios.

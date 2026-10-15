@@ -45,8 +45,8 @@ Misma estructura para ambos. Dos tabs.
 - Muestra el motivo indicado por el administrador al rechazarla.
 - Permite cargar y reemplazar documentos con `POST /api/verification/documents/{document_type}` usando `FormData`, con el campo `file` y `document_name` para certificados o títulos. El selector se deshabilita hasta diligenciar ese nombre.
 - Valida en el navegador PDF/JPEG/PNG y máximo 10 MB; el backend repite estas validaciones.
-- Para enfermeros permite enviar o reenviar mediante `POST /api/verification/submit` cuando todos los documentos requeridos están cargados. Para cuidadores, los documentos son opcionales y puede enviarse con localidad y biografía completas.
-- Mientras la solicitud está pendiente o aprobada, los documentos se muestran como enlaces privados y no se pueden modificar desde la interfaz. Una solicitud rechazada permite corregirlos y reenviarla.
+- Permite enviar o reenviar mediante `POST /api/verification/submit` solo cuando todos los documentos requeridos están cargados. Los cuidadores requieren identidad y referencia laboral; su certificado de formación es opcional. Los enfermeros requieren identidad, licencia profesional y título de enfermería.
+- Mientras la solicitud está pendiente o aprobada, los documentos requeridos se muestran como enlaces privados y no se pueden modificar desde la interfaz. Durante la revisión (`pending`) sí se pueden adjuntar certificados o títulos adicionales, sin reemplazar los soportes existentes. Una solicitud rechazada permite corregir los documentos y reenviarla.
 - El backend también exige que el perfil tenga localidad y biografía, por lo que el profesional debe guardar esos datos antes de enviar.
 
 ### Tab "Mis Servicios"
@@ -71,6 +71,7 @@ Al calificar → marca `reviewed_by_professional: true` en el estado local.
 
 Solo para rol `admin`.
 
-- Lista todos los usuarios del sistema
-- Muestra solicitudes enviadas de cuidadores/enfermeros pendientes de revisión y sus enlaces de documentos privados
+- Lista todos los usuarios del sistema y muestra separadamente la **verificación** y la **cuenta activa**. Una cuenta activa permite al profesional cargar documentos; no significa que esté aprobado.
+- En **Usuarios registrados**, los cuidadores y enfermeros con una solicitud pendiente tienen la acción **Ver documentos y autorizar**. Abre los documentos privados enviados para su revisión y permite aprobar o rechazar la solicitud.
+- Muestra solicitudes enviadas de cuidadores/enfermeros pendientes de revisión y sus enlaces de documentos privados.
 - Botones Aprobar / Rechazar que llaman a `PUT /api/admin/verifications/{verification_id}/review`; el rechazo solicita un motivo obligatorio

@@ -12,11 +12,13 @@ from app.models import CaregiverProfile, NurseProfile, ProfessionalVerification,
 
 router = APIRouter(prefix="/api/verification", tags=["Verificación profesional"])
 DOCUMENT_DIR = Path("private_uploads/verification"); DOCUMENT_DIR.mkdir(parents=True, exist_ok=True)
-# Los cuidadores pueden adjuntar soportes para facilitar la revisión, pero no se
-# les exige ningún documento para enviar la solicitud. La documentación sí es
-# obligatoria para el ejercicio profesional de enfermería.
+# La solicitud permanece en borrador mientras el profesional reúne estos
+# soportes. Solo una solicitud documentada puede pasar a revisión administrativa.
 REQUIRED = {
-    UserRole.caregiver: set(),
+    UserRole.caregiver: {
+        VerificationDocumentType.identity,
+        VerificationDocumentType.work_reference,
+    },
     UserRole.nurse: {
         VerificationDocumentType.identity,
         VerificationDocumentType.professional_license,
@@ -34,6 +36,15 @@ def verification_for(user, session):
     if not item:
         item = ProfessionalVerification(user_id=user.id, role=user.role); session.add(item); session.commit(); session.refresh(item)
     return item
+
+def can_modify_document(status: ProfileStatus, submitted_at: Optional[datetime], document_type: VerificationDocumentType) -> bool:
+    """Un borrador se edita libremente; una solicitud enviada solo admite soportes adicionales."""
+    if status == ProfileStatus.approved:
+        return False
+    if status == ProfileStatus.pending and submitted_at is not None:
+        return document_type == VerificationDocumentType.additional_certificate
+    return True
+
 def serialize(item, session):
     docs = session.exec(select(VerificationDocument).where(VerificationDocument.verification_id == item.id)).all()
     return VerificationResponse(id=item.id, role=item.role.value, status=item.status.value, submitted_at=item.submitted_at, reviewed_at=item.reviewed_at, rejection_reason=item.rejection_reason, required_documents=sorted(x.value for x in REQUIRED[item.role]), documents=[DocumentResponse(id=d.id, document_type=d.document_type.value, document_name=d.document_name, original_filename=d.original_filename, download_url=f'/api/verification/documents/{d.id}/download') for d in docs])
@@ -49,6 +60,11 @@ async def upload(document_type: VerificationDocumentType, file: UploadFile = Fil
         | ({VerificationDocumentType.identity, VerificationDocumentType.training, VerificationDocumentType.work_reference} if current_user.role == UserRole.caregiver else set())
     )
     if document_type not in allowed_documents: raise HTTPException(400, 'Documento no permitido para este rol')
+    item = verification_for(current_user, session)
+    if not can_modify_document(item.status, item.submitted_at, document_type):
+        if item.status == ProfileStatus.approved:
+            raise HTTPException(409, 'La solicitud ya fue aprobada y sus documentos no se pueden modificar')
+        raise HTTPException(409, 'Durante la revisión solo puede adjuntar certificados o títulos adicionales')
     document_name = (document_name or '').strip() or None
     if document_type in {VerificationDocumentType.training, VerificationDocumentType.nursing_degree, VerificationDocumentType.additional_certificate} and not document_name:
         raise HTTPException(400, 'Indique el nombre del certificado o título')
@@ -56,7 +72,7 @@ async def upload(document_type: VerificationDocumentType, file: UploadFile = Fil
     if file.content_type not in {'application/pdf','image/jpeg','image/png'}: raise HTTPException(415, 'Use PDF, JPEG o PNG')
     content = await file.read()
     if not content or len(content) > 10 * 1024 * 1024: raise HTTPException(413, 'El archivo debe pesar máximo 10 MB')
-    item = verification_for(current_user, session); old = None if document_type == VerificationDocumentType.additional_certificate else session.exec(select(VerificationDocument).where(VerificationDocument.verification_id == item.id, VerificationDocument.document_type == document_type)).first()
+    old = None if document_type == VerificationDocumentType.additional_certificate else session.exec(select(VerificationDocument).where(VerificationDocument.verification_id == item.id, VerificationDocument.document_type == document_type)).first()
     if old:
         path = DOCUMENT_DIR / old.stored_filename
         if path.exists(): path.unlink()

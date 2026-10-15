@@ -28,6 +28,7 @@ export default function CaregiverDashboard({ user, token, initialTab = 'profile'
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({});
   const [loading, setLoading] = useState(true);
+  const [saveError, setSaveError] = useState('');
 
   // Servicios / bookings
   const [bookings, setBookings] = useState([]);
@@ -114,15 +115,42 @@ export default function CaregiverDashboard({ user, token, initialTab = 'profile'
 
   const save = async (e) => {
     e.preventDefault();
-    const fullLocation = selectedLocalidad ? `${selectedLocalidad}, ${selectedCity}` : selectedCity;
+    if (!selectedLocalidad) {
+      setSaveError('Selecciona una localidad de Bogotá D.C. para guardar tu perfil.');
+      return;
+    }
+
+    if (form.hourly_rate === '' || form.hourly_rate === undefined || form.hourly_rate === null) {
+      setSaveError('Ingresa una tarifa por hora válida.');
+      return;
+    }
+
+    setSaveError('');
     try {
       const res = await fetch('/api/caregivers/me', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ bio: form.bio, location: fullLocation, experience_years: form.experience_years, hourly_rate: form.hourly_rate }),
+        body: JSON.stringify({
+          bio: form.bio,
+          location: selectedLocalidad,
+          experience_years: Number(form.experience_years),
+          hourly_rate: Number(form.hourly_rate),
+        }),
       });
-      if (res.ok) { setProfile(await res.json()); setEditing(false); }
-    } catch (e) { console.error(e); }
+      if (res.ok) {
+        const updatedProfile = await res.json();
+        setProfile(updatedProfile);
+        setForm(updatedProfile);
+        setEditing(false);
+        return;
+      }
+
+      const error = await res.json().catch(() => null);
+      setSaveError(error?.detail || 'No fue posible guardar el perfil. Inténtalo de nuevo.');
+    } catch (e) {
+      console.error(e);
+      setSaveError('No fue posible conectar con el servidor. Inténtalo de nuevo.');
+    }
   };
 
   if (loading) return <div className="flex items-center justify-center h-full"><Spinner /></div>;
@@ -240,8 +268,8 @@ export default function CaregiverDashboard({ user, token, initialTab = 'profile'
                   </div>
                   <div>
                     <label className={LABEL_CLASS}>{t('geo.locality')}</label>
-                    <select className={INPUT_CLASS} value={selectedLocalidad} onChange={e => setSelectedLocalidad(e.target.value)}>
-                      <option value="">{t('geo.allLocalities')}</option>
+                    <select className={INPUT_CLASS} required value={selectedLocalidad} onChange={e => { setSelectedLocalidad(e.target.value); setSaveError(''); }}>
+                      <option value="">Selecciona una localidad</option>
                       {availableLocalidades.map(l => <option key={l} value={l}>{l}</option>)}
                     </select>
                   </div>
@@ -256,9 +284,9 @@ export default function CaregiverDashboard({ user, token, initialTab = 'profile'
                       className={INPUT_CLASS}
                       type={type}
                       min="0"
-                      value={key === 'hourly_rate' && !form[key] ? '' : (form[key] ?? '')}
+                      value={form[key] ?? ''}
                       placeholder={key === 'hourly_rate' ? 'Ej. 25000' : undefined}
-                      onChange={e => setForm({ ...form, [key]: +e.target.value })}
+                      onChange={e => setForm({ ...form, [key]: e.target.value === '' ? '' : Number(e.target.value) })}
                     />
                   </div>
                 ))}
@@ -270,6 +298,7 @@ export default function CaregiverDashboard({ user, token, initialTab = 'profile'
                   <button type="submit" className="h-[40px] px-6 bg-[#0040a1] text-white rounded-xl font-semibold text-[14px] hover:bg-[#003080] transition-all">{t('caregiver_dash.save')}</button>
                   <button type="button" onClick={() => setEditing(false)} className="h-[40px] px-6 bg-[#f3f3f6] text-[#424654] rounded-xl font-semibold text-[14px] hover:bg-[#e8e8ea] transition-all">{t('caregiver_dash.cancel')}</button>
                 </div>
+                {saveError && <p role="alert" className="text-[13px] font-medium text-red-600">{saveError}</p>}
               </form>
             )}
           </div>

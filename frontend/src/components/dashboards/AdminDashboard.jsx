@@ -31,6 +31,25 @@ export default function AdminDashboard({ token }) {
     });
   }, [users, searchTerm, roleFilter, statusFilter]);
 
+  const pendingProfilesByUserId = useMemo(
+    () => new Map(pending.map(profile => [profile.user_id, profile])),
+    [pending],
+  );
+
+  const verificationLabel = (user) => {
+    if (!['caregiver', 'nurse'].includes(user.role)) return 'No aplica';
+    if (user.verification_status === 'approved') return 'Verificado';
+    if (user.verification_status === 'rejected') return 'Requiere corrección';
+    return user.verification_submitted_at ? 'Pendiente de revisión' : 'Borrador: sin documentos enviados';
+  };
+
+  const verificationBadge = (user) => {
+    if (user.verification_status === 'approved') return 'bg-green-100 text-green-800';
+    if (user.verification_status === 'rejected') return 'bg-red-100 text-red-700';
+    if (user.verification_submitted_at) return 'bg-amber-100 text-amber-800';
+    return 'bg-slate-100 text-slate-700';
+  };
+
   const releaseDocumentUrls = () => {
     objectUrls.current.forEach(URL.revokeObjectURL);
     objectUrls.current = [];
@@ -249,7 +268,7 @@ export default function AdminDashboard({ token }) {
         <table className="w-full text-[13px]">
           <thead className="bg-[#f3f3f6] text-[#424654]">
             <tr>
-              {[t('admin.colId'), t('admin.colName'), t('admin.colEmail'), t('admin.colRole'), t('admin.colActive'), t('admin.colAction')].map(h => (
+              {[t('admin.colId'), t('admin.colName'), t('admin.colEmail'), t('admin.colRole'), 'Verificación', 'Cuenta activa', t('admin.colAction')].map(h => (
                 <th key={h} className="px-4 py-3 text-left font-semibold">{h}</th>
               ))}
             </tr>
@@ -265,9 +284,23 @@ export default function AdminDashboard({ token }) {
                     {getRoleLabel(u.role, lang)}
                   </span>
                 </td>
+                <td className="px-4 py-3">
+                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${verificationBadge(u)}`}>
+                    {verificationLabel(u)}
+                  </span>
+                </td>
                 <td className="px-4 py-3">{u.is_active ? '✅' : '❌'}</td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-2">
+                    {pendingProfilesByUserId.has(u.id) && (
+                      <button
+                        type="button"
+                        onClick={() => openProfile(pendingProfilesByUserId.get(u.id))}
+                        className="px-3 py-1 border border-amber-500 text-amber-800 rounded-lg text-[12px] font-semibold hover:bg-amber-50 transition-all"
+                      >
+                        Ver documentos y autorizar
+                      </button>
+                    )}
                     <button
                       onClick={() => updateUserName(u)}
                       className="px-3 py-1 border border-[#0040a1] text-[#0040a1] rounded-lg text-[12px] font-semibold hover:bg-[#0040a1]/5 transition-all"
@@ -286,7 +319,7 @@ export default function AdminDashboard({ token }) {
             ))}
             {filteredUsers.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-[#737785]">
+                <td colSpan={7} className="px-4 py-10 text-center text-[#737785]">
                   <span className="material-symbols-outlined block text-[30px] mb-2">search_off</span>
                   No se encontraron usuarios con los filtros seleccionados.
                 </td>

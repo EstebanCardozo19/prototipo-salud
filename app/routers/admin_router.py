@@ -14,7 +14,14 @@ class ReviewRequest(BaseModel): status: str; reason: Optional[str] = None
 class DocumentResponse(BaseModel): id: int; document_type: str; document_name: Optional[str]; original_filename: str; download_url: str
 class PendingProfileResponse(BaseModel):
     id: int; user_id: int; full_name: str; email: str; role: str; location: str; status: str; experience_years: int; submitted_at: Optional[datetime]; documents: list[DocumentResponse]; profile_data: dict[str, Any]
-class AdminUserResponse(BaseModel): id: int; email: str; full_name: str; role: str; is_active: bool
+class AdminUserResponse(BaseModel):
+    id: int
+    email: str
+    full_name: str
+    role: str
+    is_active: bool
+    verification_status: Optional[str] = None
+    verification_submitted_at: Optional[datetime] = None
 class UpdateUserNameRequest(BaseModel): full_name: str
 def serialize(v, u, s):
     model=CaregiverProfile if v.role==UserRole.caregiver else NurseProfile; p=s.exec(select(model).where(model.user_id==u.id)).first(); docs=s.exec(select(VerificationDocument).where(VerificationDocument.verification_id==v.id)).all()
@@ -49,7 +56,28 @@ def review(verification_id:int,request:ReviewRequest,current_user:User=Depends(r
     session.add(v);session.commit();session.refresh(v);return serialize(v,session.get(User,v.user_id),session)
 @router.get('/users',response_model=list[AdminUserResponse])
 def users(skip:int=0,limit:int=50,current_user:User=Depends(require_role(UserRole.admin)),session:Session=Depends(get_session)):
-    return [AdminUserResponse(id=u.id,email=user_email(u),full_name=user_full_name(u),role=u.role.value,is_active=u.is_active) for u in session.exec(select(User).offset(skip).limit(limit)).all()]
+    all_users = session.exec(select(User).offset(skip).limit(limit)).all()
+    professional_ids = [u.id for u in all_users if u.role in (UserRole.caregiver, UserRole.nurse)]
+    verifications = {}
+    if professional_ids:
+        verifications = {
+            verification.user_id: verification
+            for verification in session.exec(
+                select(ProfessionalVerification).where(ProfessionalVerification.user_id.in_(professional_ids))
+            ).all()
+        }
+    return [
+        AdminUserResponse(
+            id=u.id,
+            email=user_email(u),
+            full_name=user_full_name(u),
+            role=u.role.value,
+            is_active=u.is_active,
+            verification_status=verifications[u.id].status.value if u.id in verifications else None,
+            verification_submitted_at=verifications[u.id].submitted_at if u.id in verifications else None,
+        )
+        for u in all_users
+    ]
 @router.put('/users/{user_id}/toggle-active')
 def toggle(user_id:int,current_user:User=Depends(require_role(UserRole.admin)),session:Session=Depends(get_session)):
     u=session.get(User,user_id)
@@ -67,4 +95,13 @@ def update_user_full_name(user_id: int, request: UpdateUserNameRequest, current_
         raise HTTPException(404, 'Usuario no encontrado')
     u.full_name = encrypt_text(full_name)
     session.add(u); session.commit(); session.refresh(u)
-    return AdminUserResponse(id=u.id, email=user_email(u), full_name=user_full_name(u), role=u.role.value, is_active=u.is_active)
+    verification = session.exec(select(ProfessionalVerification).where(ProfessionalVerification.user_id == u.id)).first()
+    return AdminUserResponse(
+        id=u.id,
+        email=user_email(u),
+        full_name=user_full_name(u),
+        role=u.role.value,
+        is_active=u.is_active,
+        verification_status=verification.status.value if verification else None,
+        verification_submitted_at=verification.submitted_at if verification else None,
+    )
