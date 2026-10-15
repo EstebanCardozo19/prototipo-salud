@@ -169,12 +169,18 @@ export default function ChatPanel({ user, token, onUnauthorized }) {
                             src={getAssetUrl(prof.photo_url)}
                             alt={prof.full_name}
                             className="w-12 h-12 rounded-xl object-cover shrink-0 border border-[#c3c6d6]/30"
+                            onError={event => {
+                              event.currentTarget.style.display = 'none';
+                              event.currentTarget.nextElementSibling.style.display = 'flex';
+                            }}
                           />
-                        ) : (
-                          <div className="w-12 h-12 rounded-xl bg-[#dae2ff] text-[#0040a1] flex items-center justify-center font-bold text-[15px] shrink-0">
+                        ) : null}
+                        <div
+                          className="w-12 h-12 rounded-xl bg-[#dae2ff] text-[#0040a1] items-center justify-center font-bold text-[15px] shrink-0"
+                          style={{ display: prof.photo_url ? 'none' : 'flex' }}
+                        >
                             {initials}
-                          </div>
-                        )}
+                        </div>
                         {/* Info */}
                         <div className="flex-1 min-w-0">
                           <p className="font-bold text-[14px] text-[#1a1c1e] truncate">

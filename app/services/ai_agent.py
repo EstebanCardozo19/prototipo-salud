@@ -12,6 +12,8 @@ Uso: python -m app.services.ai_agent
 """
 import os
 import json
+import re
+import unicodedata
 import requests
 
 from app.mcp_server import buscar_profesionales_similares, get_tool_definitions
@@ -28,6 +30,9 @@ SYSTEM_PROMPT = (
     "No repitas preguntas ni solicites datos que ya estén en el historial. "
     "Ve al grano: responde en un máximo de tres frases breves antes de mostrar resultados. "
     "Antes de buscar, identifica si la familia necesita un cuidador/a o un enfermero/a. "
+    "Las palabras enfermero, enfermera, enfermeros y enfermeras significan que solicita "
+    "enfermería; las palabras cuidador, cuidadora, cuidadores y cuidadoras significan "
+    "que solicita cuidado. Nunca preguntes por el tipo después de que se haya mencionado. "
     "Si el tipo no aparece ni se puede deducir de ningún mensaje del historial, pregunta "
     "una sola vez: '¿Buscas un cuidador/a o un enfermero/a?' y no uses la herramienta. "
     "Cuando la familia responda con uno de los tipos, conserva todas las necesidades que "
@@ -50,6 +55,38 @@ HEADERS = {
 TOOL_REGISTRY = {
     "buscar_profesionales_similares": buscar_profesionales_similares,
 }
+
+PREGUNTA_TIPO_PROFESIONAL = "¿Buscas un cuidador/a o un enfermero/a?"
+
+
+def _inferir_tipo_profesional(mensajes: list[str]) -> str | None:
+    """Obtiene el tipo solicitado, priorizando la mención más reciente.
+
+    No se delega esta decisión al LLM: una solicitud explícita de enfermería o
+    cuidado debe producir resultados en el mismo turno, incluso si el proveedor
+    conversacional está lento, responde vacío o no invoca una herramienta.
+    """
+    for mensaje in reversed(mensajes):
+        normalizado = unicodedata.normalize("NFD", mensaje.lower())
+        normalizado = "".join(
+            caracter for caracter in normalizado if unicodedata.category(caracter) != "Mn"
+        )
+        if re.search(r"\benfermer(?:o|a|os|as)?\b", normalizado):
+            return "nurse"
+        if re.search(r"\bcuidador(?:a|es|as)?\b", normalizado):
+            return "caregiver"
+    return None
+
+
+def _construir_descripcion_busqueda(mensaje_usuario: str, historial: list[dict[str, str]]) -> str:
+    """Conserva los datos aportados por la familia para la búsqueda vectorial."""
+    mensajes_familia = [
+        item["content"]
+        for item in historial
+        if item["role"] == "user" and item["content"]
+    ]
+    mensajes_familia.append(mensaje_usuario.strip())
+    return " ".join(mensajes_familia)[-4000:]
 
 
 def _normalizar_historial(historial: list[dict] | None) -> list[dict[str, str]]:
@@ -219,6 +256,27 @@ def conversar(mensaje_usuario: str, historial: list[dict] = None, familiares: li
 
     tools = get_tool_definitions()
     historial = _normalizar_historial(historial)
+    descripcion_busqueda = _construir_descripcion_busqueda(mensaje_usuario, historial)
+    tipo_profesional = _inferir_tipo_profesional([
+        item["content"] for item in historial if item["role"] == "user"
+    ] + [mensaje_usuario])
+
+    # Esta regla de negocio evita depender de que el modelo detecte una solicitud
+    # explícita o decida invocar la herramienta. Así no vuelve a preguntar por
+    # enfermería/cuidado ni deja a la familia sin una respuesta útil.
+    if tipo_profesional:
+        raw = buscar_profesionales_similares(
+            descripcion_paciente=descripcion_busqueda,
+            tipo_profesional=tipo_profesional,
+        )
+        try:
+            resultado = _json.loads(raw)
+        except _json.JSONDecodeError:
+            resultado = {"texto": raw, "profesionales": []}
+        return {
+            "texto": resultado.get("texto", ""),
+            "profesionales": resultado.get("profesionales", []),
+        }
 
     # Enriquecer el system prompt con el contexto de familiares si existe
     contexto_familiar = _construir_contexto_familiar(familiares or [])
@@ -234,7 +292,11 @@ def conversar(mensaje_usuario: str, historial: list[dict] = None, familiares: li
     tool_calls = assistant_message.get("tool_calls")
 
     if not tool_calls:
-        return {"texto": assistant_message.get("content", ""), "profesionales": []}
+        texto = (assistant_message.get("content") or "").strip()
+        return {
+            "texto": texto or "Cuéntame qué tipo de apoyo necesita tu familiar para orientarte.",
+            "profesionales": [],
+        }
 
     messages.append(assistant_message)
     profesionales_acumulados = []
@@ -260,7 +322,9 @@ def conversar(mensaje_usuario: str, historial: list[dict] = None, familiares: li
 
     # Segunda llamada: SAI genera la respuesta narrativa
     second_response = _llamar_sai(messages, tools)
-    final_text = second_response["choices"][0]["message"].get("content", "")
+    final_text = (second_response["choices"][0]["message"].get("content") or "").strip()
+    if not final_text:
+        final_text = "Encontré estas opciones que podrían ajustarse a las necesidades descritas."
 
     return {"texto": final_text, "profesionales": profesionales_acumulados}
 

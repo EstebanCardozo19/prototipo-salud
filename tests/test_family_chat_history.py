@@ -6,6 +6,52 @@ from app.services import ai_agent
 
 
 class FamilyChatHistoryTests(unittest.TestCase):
+    def test_explicit_nurse_request_searches_without_asking_again(self):
+        history = [
+            {"role": "user", "content": "Mi abuelo necesita ayuda nocturna por Alzheimer."},
+            {"role": "assistant", "content": "¿Buscas un cuidador/a o un enfermero/a?"},
+        ]
+        search_result = '{"texto": "Encontré enfermeros.", "profesionales": [{"user_id": 1}]}'
+
+        with patch(
+            "app.services.ai_agent.buscar_profesionales_similares", return_value=search_result
+        ) as search, patch("app.services.ai_agent._llamar_sai") as sai:
+            result = ai_agent.conversar("Necesito enfermeros, por favor.", historial=history)
+
+        self.assertEqual(result["texto"], "Encontré enfermeros.")
+        self.assertEqual(result["profesionales"], [{"user_id": 1}])
+        self.assertFalse(sai.called)
+        self.assertEqual(search.call_args.kwargs["tipo_profesional"], "nurse")
+        self.assertIn("Alzheimer", search.call_args.kwargs["descripcion_paciente"])
+
+    def test_prior_explicit_caregiver_type_is_reused(self):
+        history = [
+            {"role": "user", "content": "Necesito un cuidador para mi mamá con movilidad reducida."},
+            {"role": "assistant", "content": "¿En qué localidad?"},
+        ]
+
+        with patch(
+            "app.services.ai_agent.buscar_profesionales_similares",
+            return_value='{"texto": "Resultados.", "profesionales": []}',
+        ) as search:
+            result = ai_agent.conversar("En Suba.", historial=history)
+
+        self.assertEqual(result["texto"], "Resultados.")
+        self.assertEqual(search.call_args.kwargs["tipo_profesional"], "caregiver")
+
+    def test_empty_provider_content_has_a_useful_fallback_message(self):
+        response = {"choices": [{"message": {"content": "   "}}]}
+
+        with patch("app.services.ai_agent.get_tool_definitions", return_value=[]), patch(
+            "app.services.ai_agent._llamar_sai", return_value=response
+        ):
+            result = ai_agent.conversar("Hola")
+
+        self.assertEqual(
+            result["texto"],
+            "Cuéntame qué tipo de apoyo necesita tu familiar para orientarte.",
+        )
+
     def test_conversar_uses_prior_answers_without_repeating_them(self):
         history = [
             {"role": "user", "content": "Mi abuelo necesita ayuda nocturna por Alzheimer."},
