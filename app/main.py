@@ -62,6 +62,7 @@ async def lifespan(app: FastAPI):
         conn.execute(text("UPDATE clinical_records SET takes_medications = TRUE WHERE medications IS NOT NULL"))
         conn.execute(text("ALTER TABLE clinical_records ADD COLUMN IF NOT EXISTS allow_professional_document_access BOOLEAN NOT NULL DEFAULT FALSE"))
         conn.execute(text("ALTER TABLE clinical_record_documents ADD COLUMN IF NOT EXISTS extracted_text TEXT"))
+        conn.execute(text("ALTER TABLE nurse_profiles ADD COLUMN IF NOT EXISTS embedding vector(384)"))
         conn.execute(text("ALTER TABLE bookings ADD COLUMN IF NOT EXISTS clinical_record_id INTEGER REFERENCES clinical_records(id)"))
         conn.execute(text("ALTER TABLE bookings ADD COLUMN IF NOT EXISTS location_sharing_preference VARCHAR(30) NOT NULL DEFAULT 'locality_neighborhood'"))
         conn.execute(text("DO $$ BEGIN CREATE TYPE appointmentaccompanimentstatus AS ENUM ('none', 'pending', 'accepted', 'rejected', 'cancelled'); EXCEPTION WHEN duplicate_object THEN NULL; END $$"))
@@ -336,9 +337,9 @@ def chat_con_sai(
         # externo no responda o devuelva una respuesta no compatible.
         try:
             import json
-            from app.mcp_server import buscar_cuidadores_similares
+            from app.mcp_server import buscar_profesionales_similares
 
-            raw = buscar_cuidadores_similares(
+            raw = buscar_profesionales_similares(
                 descripcion_paciente=request.mensaje,
                 localidad=request.localidad,
             )
@@ -366,10 +367,10 @@ def chat_local(request: ChatRequest):
     Retorna: { respuesta: str, profesionales: list }
     """
     import json
-    from app.mcp_server import buscar_cuidadores_similares
+    from app.mcp_server import buscar_profesionales_similares
 
     try:
-        raw = buscar_cuidadores_similares(
+        raw = buscar_profesionales_similares(
             descripcion_paciente=request.mensaje,
             localidad=request.localidad,
         )

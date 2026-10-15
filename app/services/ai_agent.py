@@ -14,7 +14,7 @@ import os
 import json
 import requests
 
-from app.mcp_server import buscar_cuidadores_similares, get_tool_definitions
+from app.mcp_server import buscar_profesionales_similares, get_tool_definitions
 
 # Configuración de la API de SAI Applications
 API_URL = "https://sai-library.saiapplications.com/api/prompt/v1/chat/completions"
@@ -24,7 +24,10 @@ MODEL = "gpt-5.6-terra"
 SYSTEM_PROMPT = (
     "Eres un experto en atención geriátrica domiciliaria en Bogotá. "
     "Escucha a las familias, identifica la localidad y necesidades clínicas, "
-    "y usa la herramienta buscar_cuidadores_similares para encontrar profesionales. "
+    "Antes de buscar, identifica si la familia necesita un cuidador/a o un enfermero/a. "
+    "Si no lo indica claramente, pregunta: '¿Buscas un cuidador/a o un enfermero/a?' "
+    "y no uses la herramienta hasta recibir la respuesta. "
+    "Usa la herramienta buscar_profesionales_similares para encontrar profesionales. "
     "IMPORTANTE: cuando uses la herramienta, SIEMPRE incluye el campo 'descripcion_paciente' "
     "con la descripción completa de las necesidades del paciente extraída de la conversación. "
     "Responde siempre en español, de forma empática y profesional. "
@@ -40,7 +43,7 @@ HEADERS = {
 
 # Mapa de funciones disponibles (nombre -> callable)
 TOOL_REGISTRY = {
-    "buscar_cuidadores_similares": buscar_cuidadores_similares,
+    "buscar_profesionales_similares": buscar_profesionales_similares,
 }
 
 
@@ -113,7 +116,7 @@ def _ejecutar_tool_call(tool_call: dict) -> str:
         return f"Error: Herramienta '{function_name}' no encontrada."
 
     # Normalizar nombres de argumento alternativos que el modelo puede enviar
-    if function_name == "buscar_cuidadores_similares":
+    if function_name == "buscar_profesionales_similares":
         # El modelo a veces usa 'query', 'description', 'paciente' en lugar de 'descripcion_paciente'
         for alias in ("query", "description", "paciente", "descripcion", "texto"):
             if alias in arguments and "descripcion_paciente" not in arguments:

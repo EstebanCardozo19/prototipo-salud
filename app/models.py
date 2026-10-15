@@ -202,6 +202,12 @@ class NurseProfile(SQLModel, table=True):
     bio: Optional[str] = Field(default=None, max_length=500)
     location: str = Field(max_length=100)
     hourly_rate: float = Field(default=0.0)
+    # Permite recomendar enfermeros con la misma búsqueda semántica usada para
+    # cuidadores. Las instalaciones existentes se actualizan en el lifespan.
+    embedding: Optional[List[float]] = Field(
+        default=None,
+        sa_column=Column(Vector(384))
+    )
     status: ProfileStatus = Field(
         default=ProfileStatus.pending,
         sa_column=Column(SAEnum(ProfileStatus, name="profilestatus", create_type=False), nullable=False, server_default="pending")

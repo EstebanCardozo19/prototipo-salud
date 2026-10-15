@@ -164,7 +164,8 @@ def run():
         for e in enfermeros:
             u = User(email=e["email"], password_hash=hash_password("enfermero123"), full_name=e["full_name"], role=UserRole.nurse, is_active=True)
             session.add(u); session.commit(); session.refresh(u)
-            p = NurseProfile(user_id=u.id, specialty=e["specialty"], license_number=e["license_number"], institution=e["institution"], experience_years=e["experience_years"], bio=e["bio"], location=e["location"], hourly_rate=e["hourly_rate"], status=ProfileStatus.approved)
+            texto = f"{e['bio']} Especialidad: {e['specialty'].value}. Localidad: {e['location']}."
+            p = NurseProfile(user_id=u.id, specialty=e["specialty"], license_number=e["license_number"], institution=e["institution"], experience_years=e["experience_years"], bio=e["bio"], location=e["location"], hourly_rate=e["hourly_rate"], status=ProfileStatus.approved, embedding=generar_embedding(texto))
             session.add(p); session.commit()
             print(f"  ✅ {e['email']} / enfermero123")
 

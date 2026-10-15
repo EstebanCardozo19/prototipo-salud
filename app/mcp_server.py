@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from sqlmodel import Session
 from sqlalchemy import text
 
-from app.models import Booking, CaregiverProfile, ClinicalRecord, MedicationStatus, PatientMedication, ProfileStatus, ServiceCarePlan, User
+from app.models import Booking, CaregiverProfile, ClinicalRecord, MedicationStatus, NurseProfile, PatientMedication, ProfileStatus, ServiceCarePlan, User
 from app.services.embedding_service import generar_embedding
 from app.database import engine
 
@@ -18,40 +18,76 @@ load_dotenv()
 
 import json
 
-def buscar_cuidadores_similares(descripcion_paciente: str, localidad: str = None) -> str:
+def buscar_profesionales_similares(
+    descripcion_paciente: str,
+    tipo_profesional: str | None = None,
+    localidad: str | None = None,
+) -> str:
     """
-    Busca los 3 cuidadores más compatibles usando búsqueda vectorial.
+    Busca los 3 profesionales más compatibles del tipo indicado usando búsqueda
+    vectorial. El tipo debe ser ``caregiver`` o ``nurse``.
     Retorna un JSON serializado con texto narrativo + lista estructurada de profesionales.
     """
+    if tipo_profesional not in {"caregiver", "nurse"}:
+        return json.dumps({
+            "texto": "¿Buscas un cuidador/a o un enfermero/a?",
+            "profesionales": [],
+        }, ensure_ascii=False)
+
     query_embedding = generar_embedding(descripcion_paciente)
     embedding_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
 
     with Session(engine) as session:
+        # Los perfiles creados antes de incorporar embeddings a enfermería siguen
+        # siendo recomendables: se completan una sola vez al necesitarlos.
+        if tipo_profesional == "nurse":
+            nurses_without_embedding = session.query(NurseProfile).filter(
+                NurseProfile.embedding.is_(None),
+                NurseProfile.status == ProfileStatus.approved,
+            ).all()
+            for nurse in nurses_without_embedding:
+                nurse.embedding = generar_embedding(
+                    f"{nurse.bio or ''} Especialidad: {nurse.specialty.value}. "
+                    f"Localidad: {nurse.location}."
+                )
+                session.add(nurse)
+            if nurses_without_embedding:
+                session.commit()
+
+        if tipo_profesional == "caregiver":
+            profile_table = "caregiver_profiles"
+            specialty_column = "specialties"
+        else:
+            profile_table = "nurse_profiles"
+            specialty_column = "specialty"
+
         if localidad:
-            sql = text("""
+            sql = text(f"""
                 SELECT cp.id, u.id as user_id, u.full_name, u.photo_url,
-                       cp.specialties, cp.location, cp.experience_years,
+                       cp.{specialty_column} AS specialties, cp.location, cp.experience_years,
                        cp.hourly_rate, cp.bio,
                        1 - (cp.embedding <=> CAST(:embedding AS vector)) AS similitud
-                FROM caregiver_profiles cp
+                FROM {profile_table} cp
                 JOIN users u ON u.id = cp.user_id
                 WHERE LOWER(cp.location) = LOWER(:localidad)
                   AND u.is_active = true
                   AND cp.status = :approved_status
+                  AND cp.embedding IS NOT NULL
                 ORDER BY cp.embedding <=> CAST(:embedding AS vector)
                 LIMIT 3
             """)
             results = session.execute(sql, {"embedding": embedding_str, "localidad": localidad, "approved_status": ProfileStatus.approved.value}).fetchall()
         else:
-            sql = text("""
+            sql = text(f"""
                 SELECT cp.id, u.id as user_id, u.full_name, u.photo_url,
-                       cp.specialties, cp.location, cp.experience_years,
+                       cp.{specialty_column} AS specialties, cp.location, cp.experience_years,
                        cp.hourly_rate, cp.bio,
                        1 - (cp.embedding <=> CAST(:embedding AS vector)) AS similitud
-                FROM caregiver_profiles cp
+                FROM {profile_table} cp
                 JOIN users u ON u.id = cp.user_id
                 WHERE u.is_active = true
                   AND cp.status = :approved_status
+                  AND cp.embedding IS NOT NULL
                 ORDER BY cp.embedding <=> CAST(:embedding AS vector)
                 LIMIT 3
             """)
@@ -59,13 +95,14 @@ def buscar_cuidadores_similares(descripcion_paciente: str, localidad: str = None
 
     if not results:
         # Retornamos JSON vacío para que el frontend lo sepa
-        return json.dumps({"texto": "No se encontraron cuidadores disponibles con esos criterios.", "profesionales": []})
+        label = "cuidadores" if tipo_profesional == "caregiver" else "enfermeros"
+        return json.dumps({"texto": f"No se encontraron {label} disponibles con esos criterios.", "profesionales": []}, ensure_ascii=False)
 
     profesionales = []
     texto_lines = []
 
     for i, row in enumerate(results, 1):
-        specialties = row.specialties if isinstance(row.specialties, list) else []
+        specialties = row.specialties if isinstance(row.specialties, list) else [str(row.specialties)] if row.specialties else []
         specialties_str = ", ".join(specialties) if specialties else "Cuidado general"
 
         profesionales.append({
@@ -79,7 +116,7 @@ def buscar_cuidadores_similares(descripcion_paciente: str, localidad: str = None
             "hourly_rate": float(row.hourly_rate),
             "bio": row.bio or "",
             "similitud": float(row.similitud),
-            "role": "caregiver",
+            "role": tipo_profesional,
         })
 
         texto_lines.append(
@@ -89,6 +126,11 @@ def buscar_cuidadores_similares(descripcion_paciente: str, localidad: str = None
 
     texto = "Encontré estos profesionales para ti:\n" + "\n".join(texto_lines)
     return json.dumps({"texto": texto, "profesionales": profesionales}, ensure_ascii=False)
+
+
+# Alias temporal para consumidores externos que aún usen el nombre anterior.
+def buscar_cuidadores_similares(descripcion_paciente: str, localidad: str = None) -> str:
+    return buscar_profesionales_similares(descripcion_paciente, "caregiver", localidad)
 
 
 def obtener_contexto_paciente_asignado(
@@ -168,13 +210,13 @@ def get_tool_definitions() -> list[dict]:
     return [
         {
             "type": "function",
-            "name": "buscar_cuidadores_similares",
+            "name": "buscar_profesionales_similares",
             "function": {
-                "name": "buscar_cuidadores_similares",
+                "name": "buscar_profesionales_similares",
                 "description": (
-                    "Busca los 3 cuidadores más compatibles con las necesidades del paciente "
-                    "usando búsqueda vectorial por similitud coseno. Usa esta herramienta cuando "
-                    "la familia describe las necesidades de cuidado del adulto mayor."
+                    "Busca los 3 cuidadores o enfermeros más compatibles con las necesidades "
+                    "del paciente usando búsqueda vectorial por similitud coseno. Solo úsala "
+                    "cuando la familia haya indicado expresamente el tipo de profesional."
                 ),
                 "parameters": {
                     "type": "object",
@@ -193,8 +235,13 @@ def get_tool_definitions() -> list[dict]:
                                 "Ej: Usaquén, Chapinero, Suba, Kennedy, Engativá."
                             ),
                         },
+                        "tipo_profesional": {
+                            "type": "string",
+                            "enum": ["caregiver", "nurse"],
+                            "description": "Tipo solicitado: caregiver para cuidador/a o nurse para enfermero/a.",
+                        },
                     },
-                    "required": ["descripcion_paciente"],
+                    "required": ["descripcion_paciente", "tipo_profesional"],
                 },
             },
         }
@@ -203,5 +250,5 @@ def get_tool_definitions() -> list[dict]:
 
 if __name__ == "__main__":
     # Modo standalone: prueba rápida de la herramienta
-    result = buscar_cuidadores_similares("Paciente con Alzheimer que necesita acompañamiento nocturno", "Usaquén")
+    result = buscar_profesionales_similares("Paciente con Alzheimer que necesita acompañamiento nocturno", "caregiver", "Usaquén")
     print(result)
