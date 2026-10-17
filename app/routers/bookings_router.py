@@ -226,6 +226,10 @@ class BookingResponse(BaseModel):
     # Para saber si ya se calificó
     reviewed_by_family: bool = False
     reviewed_by_professional: bool = False
+    cancellation_reason: Optional[str] = None
+    cancelled_by_user_id: Optional[int] = None
+    cancelled_by_name: Optional[str] = None
+    cancelled_at: Optional[datetime] = None
     # Información pública del profesional para mostrarla en solicitudes familiares
     professional_photo_url: Optional[str] = None
     professional_experience_years: Optional[int] = None
@@ -257,6 +261,31 @@ class BookingResponse(BaseModel):
 class BookingDecision(BaseModel):
     status: str             # "approved" o "rejected"
     rejection_reason: Optional[str] = None
+
+
+class BookingCancellation(BaseModel):
+    reason: str
+
+    @field_validator("reason")
+    @classmethod
+    def validate_reason(cls, value: str) -> str:
+        reason = value.strip()
+        if not reason:
+            raise ValueError("El motivo de cancelación es obligatorio")
+        if len(reason) > 500:
+            raise ValueError("El motivo de cancelación no puede superar 500 caracteres")
+        return reason
+
+
+def _cancellation_metadata(booking: Booking, session: Session) -> dict:
+    """Serializa la auditoría de cancelación sin exponer datos de terceros."""
+    cancelled_by = session.get(User, booking.cancelled_by_user_id) if booking.cancelled_by_user_id else None
+    return {
+        "cancellation_reason": booking.cancellation_reason,
+        "cancelled_by_user_id": booking.cancelled_by_user_id,
+        "cancelled_by_name": user_full_name(cancelled_by) if cancelled_by else None,
+        "cancelled_at": booking.cancelled_at,
+    }
 
 
 class AvailabilityCreate(BaseModel):
@@ -463,9 +492,11 @@ def list_my_requests(
             notes=b.notes, status=b.status.value,
             location_sharing_preference=b.location_sharing_preference,
             rejection_reason=b.rejection_reason,
+            **_cancellation_metadata(b, session),
             family_name=user_full_name(current_user),
             professional_name=prof.full_name if prof else None,
             reviewed_by_family=b.id in reviewed_ids,
+            **_cancellation_metadata(b, session),
             professional_photo_url=prof.photo_url if prof else None,
             professional_experience_years=profile.experience_years if profile else None,
             professional_specialties=caregiver_profile.specialties if caregiver_profile else None,
@@ -506,6 +537,7 @@ def get_family_calendar(
             professional_user_id=b.professional_user_id, professional_role=b.professional_role,
             date=b.date, start_hour=b.start_hour, end_hour=b.end_hour, notes=b.notes,
             status=b.status.value, rejection_reason=b.rejection_reason,
+            **_cancellation_metadata(b, session),
             family_name=user_full_name(current_user),
             professional_name=professional.full_name if professional else None,
         ))
@@ -546,6 +578,7 @@ def list_incoming_requests(
             notes=b.notes, status=b.status.value,
             location_sharing_preference=b.location_sharing_preference,
             rejection_reason=b.rejection_reason,
+            **_cancellation_metadata(b, session),
             family_name=user_full_name(family) if family else None,
             family_photo_url=family.photo_url if family else None,
             professional_name=current_user.full_name,
@@ -613,8 +646,62 @@ def decide_booking(
         date=booking.date, start_hour=booking.start_hour, end_hour=booking.end_hour,
         notes=booking.notes, status=booking.status.value,
         rejection_reason=booking.rejection_reason,
+        **_cancellation_metadata(booking, session),
         family_name=user_full_name(family) if family else None,
         professional_name=current_user.full_name,
+    )
+
+
+@router.put("/{booking_id}/cancel", response_model=BookingResponse)
+def cancel_booking(
+    booking_id: int,
+    cancellation: BookingCancellation,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Cancela una reserva aprobada desde cualquiera de sus dos participantes."""
+    booking = session.get(Booking, booking_id)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+    if current_user.id not in (booking.family_user_id, booking.professional_user_id):
+        raise HTTPException(status_code=403, detail="No autorizado para cancelar este servicio")
+    if booking.status != BookingStatus.approved:
+        raise HTTPException(status_code=400, detail="Solo se pueden cancelar servicios aprobados")
+
+    booking.status = BookingStatus.cancelled
+    booking.cancellation_reason = cancellation.reason
+    booking.cancelled_by_user_id = current_user.id
+    booking.cancelled_at = datetime.now(BOOKING_TIMEZONE)
+    session.add(booking)
+
+    recipient_id = booking.professional_user_id if current_user.id == booking.family_user_id else booking.family_user_id
+    create_notification(
+        session,
+        recipient_id,
+        "booking_cancelled",
+        "Servicio cancelado",
+        f"{user_full_name(current_user)} canceló el servicio del {booking.date}. Motivo: {cancellation.reason}",
+        booking.id,
+    )
+    session.commit()
+    session.refresh(booking)
+
+    family = session.get(User, booking.family_user_id)
+    professional = session.get(User, booking.professional_user_id)
+    clinical_record = session.get(ClinicalRecord, booking.clinical_record_id) if booking.clinical_record_id else None
+    return BookingResponse(
+        id=booking.id, family_user_id=booking.family_user_id,
+        clinical_record_id=booking.clinical_record_id,
+        patient_name=clinical_record.patient_name if clinical_record else None,
+        professional_user_id=booking.professional_user_id,
+        professional_role=booking.professional_role,
+        date=booking.date, start_hour=booking.start_hour, end_hour=booking.end_hour,
+        notes=booking.notes, status=booking.status.value,
+        location_sharing_preference=booking.location_sharing_preference,
+        rejection_reason=booking.rejection_reason,
+        family_name=user_full_name(family) if family else None,
+        professional_name=user_full_name(professional) if professional else None,
+        **_cancellation_metadata(booking, session),
     )
 
 
@@ -682,6 +769,7 @@ def get_professional_calendar(
             professional_role=b.professional_role,
             date=b.date, start_hour=b.start_hour, end_hour=b.end_hour,
             notes=b.notes, status=b.status.value, rejection_reason=None,
+            **_cancellation_metadata(b, session),
             family_name=user_full_name(family) if family else None,
             professional_name=prof.full_name if prof else None,
         ))

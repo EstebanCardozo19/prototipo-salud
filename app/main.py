@@ -103,6 +103,11 @@ async def lifespan(app: FastAPI):
         """))
         conn.execute(text("ALTER TABLE bookings ADD COLUMN IF NOT EXISTS clinical_record_id INTEGER REFERENCES clinical_records(id)"))
         conn.execute(text("ALTER TABLE bookings ADD COLUMN IF NOT EXISTS location_sharing_preference VARCHAR(30) NOT NULL DEFAULT 'locality_neighborhood'"))
+        # HU-034: migración acumulativa y no destructiva de la auditoría de
+        # cancelación de servicios ya aceptados.
+        conn.execute(text("ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancellation_reason VARCHAR(500)"))
+        conn.execute(text("ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancelled_by_user_id INTEGER REFERENCES users(id)"))
+        conn.execute(text("ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP WITH TIME ZONE"))
         conn.execute(text("DO $$ BEGIN CREATE TYPE appointmentaccompanimentstatus AS ENUM ('none', 'pending', 'accepted', 'rejected', 'cancelled'); EXCEPTION WHEN duplicate_object THEN NULL; END $$"))
         # El cifrado Fernet ocupa más espacio que los tipos históricos y los JSON
         # deben pasar a texto antes de almacenar su representación cifrada.

@@ -6,6 +6,7 @@ import NurseCard from './NurseCard';
 import GoogleMap from '../common/GoogleMap';
 import BookingModal from '../bookings/BookingModal';
 import RateServiceModal from '../bookings/RateServiceModal';
+import CancelServiceModal from '../bookings/CancelServiceModal';
 import ServiceChatModal from '../bookings/ServiceChatModal';
 import ServiceCarePlanModal from '../bookings/ServiceCarePlanModal';
 import ProfessionalDetailModal from './ProfessionalDetailModal';
@@ -54,6 +55,7 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
   const [bookingModalProf, setBookingModalProf] = useState(null);
   const [chatBooking, setChatBooking] = useState(null);
   const [carePlanBooking, setCarePlanBooking] = useState(null);
+  const [cancellationBooking, setCancellationBooking] = useState(null);
 
   // ── Filtros adicionales ─────────────────────────────────────
   const [showFilters, setShowFilters] = useState(false);
@@ -904,6 +906,8 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
                           </div>
                         </div>
                       )}
+                      {b.status === 'approved' && <button onClick={() => setCancellationBooking(b)} className="h-[34px] px-4 bg-red-600 text-white rounded-xl text-[12px] font-semibold hover:bg-red-700 transition-all flex items-center gap-1.5"><span className="material-symbols-outlined text-[15px]">event_busy</span>Cancelar servicio</button>}
+                      {b.status === 'cancelled' && b.cancellation_reason && <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-[12px] text-[#424654]"><b>Cancelado por:</b> {b.cancelled_by_name || '—'}<br /><b>Motivo:</b> {b.cancellation_reason}</div>}
                       {b.status === 'completed' && (
                         <div className="pt-3 border-t border-[#c3c6d6]/30">
                           {b.reviewed_by_family ? (
@@ -1072,6 +1076,7 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
           }}
         />
       )}
+      {cancellationBooking && <CancelServiceModal booking={cancellationBooking} token={token} onClose={() => setCancellationBooking(null)} onSuccess={updated => { setMyRequests(current => current.map(item => item.id === updated.id ? { ...item, ...updated } : item)); setCancellationBooking(null); }} />}
       {chatBooking && <ServiceChatModal booking={chatBooking} user={user} token={token} onClose={() => setChatBooking(null)} />}
       {carePlanBooking && <ServiceCarePlanModal booking={carePlanBooking} user={user} token={token} onClose={() => setCarePlanBooking(null)} />}
       {detailProfessional && (

@@ -282,6 +282,14 @@ class Booking(SQLModel, table=True):
         sa_column=Column(SAEnum(BookingStatus, name="bookingstatus"), nullable=False, server_default="pending")
     )
     rejection_reason: Optional[str] = Field(default=None, max_length=300)
+    # Auditoría de la cancelación posterior a una aceptación. Se conserva en la
+    # misma reserva para que ambas partes vean el motivo y quién realizó la acción.
+    cancellation_reason: Optional[str] = Field(default=None, max_length=500)
+    cancelled_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    cancelled_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+    )
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime(timezone=True), server_default=func.now())

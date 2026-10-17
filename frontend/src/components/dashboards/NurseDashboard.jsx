@@ -3,6 +3,7 @@ import { useLang } from '../../contexts/LangContext';
 import Spinner from '../common/Spinner';
 import StarRating from '../common/StarRating';
 import RateServiceModal from '../bookings/RateServiceModal';
+import CancelServiceModal from '../bookings/CancelServiceModal';
 import BookingFamilyInfo from '../bookings/BookingFamilyInfo';
 import BookingDescription from '../bookings/BookingDescription';
 import ServiceChatModal from '../bookings/ServiceChatModal';
@@ -37,6 +38,7 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [completing, setCompleting] = useState(null);
   const [ratingModal, setRatingModal] = useState(null);
+  const [cancellationModal, setCancellationModal] = useState(null);
   const [chatBooking, setChatBooking] = useState(null);
   const [carePlanBooking, setCarePlanBooking] = useState(null);
   const [assistantBooking, setAssistantBooking] = useState(null);
@@ -384,6 +386,7 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
                           <button onClick={() => handleComplete(b.id)} disabled={completing === b.id} className="h-[34px] px-4 bg-green-600 text-white rounded-xl text-[12px] font-semibold hover:bg-green-700 transition-all flex items-center gap-1.5 disabled:opacity-60">
                             {completing === b.id ? <Spinner sm /> : <><span className="material-symbols-outlined text-[15px]">task_alt</span>Marcar completado</>}
                           </button>
+                          <button onClick={() => setCancellationModal(b)} className="h-[34px] px-4 bg-red-600 text-white rounded-xl text-[12px] font-semibold hover:bg-red-700 transition-all flex items-center gap-1.5"><span className="material-symbols-outlined text-[15px]">event_busy</span>Cancelar servicio</button>
                         </>
                       )}
                       {b.status === 'completed' && !b.reviewed_by_professional && (
@@ -417,6 +420,7 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
           }}
         />
       )}
+      {cancellationModal && <CancelServiceModal booking={cancellationModal} token={token} onClose={() => setCancellationModal(null)} onSuccess={updated => { setBookings(current => current.map(item => item.id === updated.id ? { ...item, ...updated } : item)); setCancellationModal(null); }} />}
       {chatBooking && <ServiceChatModal booking={chatBooking} user={user} token={token} onClose={() => setChatBooking(null)} />}
       {carePlanBooking && <ServiceCarePlanModal booking={carePlanBooking} user={user} token={token} onClose={() => setCarePlanBooking(null)} />}
       {assistantBooking && <ProfessionalPatientAssistantModal booking={assistantBooking} token={token} onClose={() => setAssistantBooking(null)} />}
