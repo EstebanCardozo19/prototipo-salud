@@ -4,7 +4,7 @@ import unittest
 from fastapi import HTTPException
 
 from app.models import Booking, BookingStatus, User, UserRole
-from app.routers.bookings_router import BookingCancellation, cancel_booking
+from app.routers.bookings_router import BookingCancellation, cancel_booking, list_my_requests
 
 
 class FakeSession:
@@ -29,6 +29,29 @@ class FakeSession:
 
     def refresh(self, _item):
         pass
+
+
+class FakeQueryResult:
+    def __init__(self, items):
+        self.items = items
+
+    def all(self):
+        return self.items
+
+    def first(self):
+        return self.items[0] if self.items else None
+
+
+class RequestsSession(FakeSession):
+    """Sesión mínima para comprobar la serialización del listado familiar."""
+    def __init__(self, booking, users):
+        super().__init__(booking, users)
+        self.exec_calls = 0
+
+    def exec(self, _statement):
+        self.exec_calls += 1
+        # El endpoint consulta: bookings, reseñas y perfil profesional.
+        return FakeQueryResult([self.booking] if self.exec_calls == 1 else [])
 
 
 class BookingCancellationTests(unittest.TestCase):
@@ -78,6 +101,17 @@ class BookingCancellationTests(unittest.TestCase):
                     cancel_booking(10, BookingCancellation(reason="Motivo válido"), self.family, session)
                 self.assertEqual(raised.exception.status_code, 400)
                 self.assertEqual(session.booking.status, status)
+
+    def test_family_requests_list_includes_an_approved_booking(self):
+        booking = self.booking()
+        session = RequestsSession(booking, {1: self.family, 2: self.professional})
+
+        response = list_my_requests(self.family, session)
+
+        self.assertEqual(len(response), 1)
+        self.assertEqual(response[0].id, booking.id)
+        self.assertEqual(response[0].status, BookingStatus.approved.value)
+        self.assertEqual(response[0].professional_name, "Profesional")
 
 
 if __name__ == "__main__":

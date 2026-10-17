@@ -496,7 +496,6 @@ def list_my_requests(
             family_name=user_full_name(current_user),
             professional_name=prof.full_name if prof else None,
             reviewed_by_family=b.id in reviewed_ids,
-            **_cancellation_metadata(b, session),
             professional_photo_url=prof.photo_url if prof else None,
             professional_experience_years=profile.experience_years if profile else None,
             professional_specialties=caregiver_profile.specialties if caregiver_profile else None,
