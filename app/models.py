@@ -554,3 +554,46 @@ class FamilyReview(SQLModel, table=True):
         default=None,
         sa_column=Column(DateTime(timezone=True), server_default=func.now())
     )
+
+
+# ============================================================
+# Comentarios de servicios cancelados (sin calificación)
+# ============================================================
+
+class CancelledServiceComment(SQLModel, table=True):
+    """Experiencia textual de una de las partes de un servicio cancelado.
+
+    No contiene estrellas y no participa en los acumulados de reseñas. La
+    restricción única garantiza un comentario por autor y reserva.
+    """
+    __tablename__ = "cancelled_service_comments"
+    __table_args__ = (
+        UniqueConstraint("booking_id", "author_user_id", name="uq_cancelled_comment_booking_author"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    booking_id: int = Field(foreign_key="bookings.id", nullable=False, index=True)
+    author_user_id: int = Field(foreign_key="users.id", nullable=False, index=True)
+    comment: str = Field(sa_column=Column(Text, nullable=False))
+    is_hidden: bool = Field(default=False, nullable=False)
+    created_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), server_default=func.now())
+    )
+
+
+class CancelledServiceCommentReport(SQLModel, table=True):
+    """Reporte de un comentario cancelado; conserva trazabilidad de moderación."""
+    __tablename__ = "cancelled_service_comment_reports"
+    __table_args__ = (
+        UniqueConstraint("comment_id", "reporter_user_id", name="uq_cancelled_comment_reporter"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    comment_id: int = Field(foreign_key="cancelled_service_comments.id", nullable=False, index=True)
+    reporter_user_id: int = Field(foreign_key="users.id", nullable=False, index=True)
+    reason: str = Field(max_length=300, nullable=False)
+    created_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), server_default=func.now())
+    )

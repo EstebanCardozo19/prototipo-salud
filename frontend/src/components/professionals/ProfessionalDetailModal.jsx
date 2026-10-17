@@ -134,6 +134,8 @@ export default function ProfessionalDetailModal({ professional, token, reviews =
   const { t, lang } = useLang();
   const [showBooking, setShowBooking] = useState(false);
   const [activeTab, setActiveTab]     = useState('info'); // 'info' | 'map' | 'reviews'
+  const [trust, setTrust] = useState(null);
+  const [trustError, setTrustError] = useState('');
 
   const initials = (professional.full_name || '?')
     .split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
@@ -145,6 +147,33 @@ export default function ProfessionalDetailModal({ professional, token, reviews =
     professional.rating_count != null ? professional.rating_avg : fallbackAverage,
     professional.rating_count != null ? professional.rating_count : fallbackCount,
   );
+
+  useEffect(() => {
+    let active = true;
+    fetch(`/api/bookings/professionals/${professional.user_id}/trust`)
+      .then(async response => {
+        if (!response.ok) throw new Error('No fue posible consultar la trayectoria.');
+        return response.json();
+      })
+      .then(data => { if (active) setTrust(data); })
+      .catch(error => { if (active) setTrustError(error.message); });
+    return () => { active = false; };
+  }, [professional.user_id]);
+
+  const reportComment = async commentId => {
+    const reason = window.prompt('Indica el motivo del reporte (sin datos personales):');
+    if (!reason?.trim()) return;
+    try {
+      const response = await fetch(`/api/bookings/cancelled-comments/${commentId}/report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.detail || 'No fue posible enviar el reporte.');
+      window.alert('Reporte recibido para revisión.');
+    } catch (error) { window.alert(error.message); }
+  };
   return (
     <>
       {/* Overlay a pantalla completa, centrado con padding que respeta la TopBar */}
@@ -207,10 +236,11 @@ export default function ProfessionalDetailModal({ professional, token, reviews =
             </div>
           </div>
 
-          {/* ── Tabs: Info / Ubicación / Reseñas ── */}
+          {/* ── Tabs: perfil, trayectoria, ubicación y reseñas ── */}
           <div className="flex border-b border-[#c3c6d6]/40 bg-[#f9f9fc] shrink-0">
             {[
               { id: 'info',    icon: 'person',      label: 'Perfil'    },
+              { id: 'trust',   icon: 'verified_user', label: 'Confianza' },
               { id: 'map',     icon: 'location_on', label: 'Ubicación' },
               { id: 'reviews', icon: 'star',        label: `Reseñas${reviews.length > 0 ? ` (${reviews.length})` : ''}` },
             ].map(tab => (
@@ -309,6 +339,30 @@ export default function ProfessionalDetailModal({ professional, token, reviews =
                 <p className="text-[11px] text-[#737785] text-center">
                   La ubicación corresponde a la zona donde opera el profesional, no a una dirección exacta.
                 </p>
+              </div>
+            )}
+
+            {activeTab === 'trust' && (
+              <div className="p-5 flex flex-col gap-4">
+                <div>
+                  <h3 className="text-[16px] font-bold text-[#1a1c1e]">Confianza y trayectoria</h3>
+                  <p className="mt-1 text-[12px] text-[#737785]">Datos registrados en Atención Domiciliaria. No se calculan porcentajes artificiales.</p>
+                </div>
+                {trustError && <p className="rounded-xl border border-red-100 bg-red-50 p-3 text-[13px] text-red-700">{trustError}</p>}
+                {!trust && !trustError && <p className="text-[13px] text-[#737785]">Cargando información verificable…</p>}
+                {trust && <>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className="rounded-xl border border-green-100 bg-green-50 p-3"><p className="text-[11px] font-bold uppercase text-green-700">Verificación</p><p className="mt-1 text-[13px] font-semibold text-[#1a1c1e]">{trust.verification_status === 'approved' ? 'Verificado por la plataforma' : 'En revisión'}</p></div>
+                    <div className="rounded-xl border border-[#c3c6d6]/40 bg-[#f9f9fc] p-3"><p className="text-[11px] font-bold uppercase text-[#737785]">Experiencia</p><p className="mt-1 text-[13px] font-semibold text-[#1a1c1e]">{trust.experience_years} años</p></div>
+                    <div className="rounded-xl border border-[#c3c6d6]/40 bg-[#f9f9fc] p-3"><p className="text-[11px] font-bold uppercase text-[#737785]">Servicios completados</p><p className="mt-1 text-[13px] font-semibold text-[#1a1c1e]">{trust.completed_services}</p></div>
+                    <div className="rounded-xl border border-amber-100 bg-amber-50 p-3"><p className="text-[11px] font-bold uppercase text-amber-700">Calificación</p><p className="mt-1 text-[13px] font-semibold text-[#1a1c1e]">{trust.rating_count > 0 ? `${Number(trust.rating_avg).toFixed(1)} · ${trust.rating_count} reseñas` : 'Sin valoraciones'}</p></div>
+                  </div>
+                  <section className="border-t border-[#c3c6d6]/30 pt-4">
+                    <h4 className="text-[14px] font-bold text-[#1a1c1e]">Comentarios de servicios cancelados</h4>
+                    <p className="mt-1 text-[11px] text-[#737785]">No tienen estrellas ni afectan la calificación. Solo se muestra quién canceló, no el motivo privado.</p>
+                    {trust.cancelled_comments.length === 0 ? <p className="py-4 text-[13px] text-[#737785]">No hay comentarios públicos de servicios cancelados.</p> : <div className="mt-3 flex flex-col gap-2.5">{trust.cancelled_comments.map(item => <article key={item.id} className="rounded-xl border border-[#c3c6d6]/30 bg-[#f9f9fc] p-3"><div className="flex items-start justify-between gap-3"><p className="text-[12px] font-bold text-[#1a1c1e]">{item.author_role === 'family' ? 'Familia' : 'Profesional'} · Canceló: {item.cancelled_by_role === 'family' ? 'familia' : 'profesional'}</p>{token && <button onClick={() => reportComment(item.id)} className="text-[11px] font-semibold text-red-600 hover:underline">Reportar</button>}</div><p className="mt-1.5 text-[13px] leading-relaxed text-[#424654]">{item.comment}</p></article>)}</div>}
+                  </section>
+                </>}
               </div>
             )}
 

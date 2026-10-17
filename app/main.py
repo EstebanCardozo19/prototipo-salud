@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from contextlib import asynccontextmanager
 
-from app.models import User, CaregiverProfile, ClinicalRecord, ClinicalRecordDocument, NurseProfile, Booking, Availability, Review, ProfessionalVerification, VerificationDocument, ServiceChatMessage, ServiceCarePlan, ProfessionalAssistantAuditLog, Notification, PushSubscription, MedicationReminderDelivery, MedicalAppointment, PatientMedication  # noqa: F401
+from app.models import User, CaregiverProfile, ClinicalRecord, ClinicalRecordDocument, NurseProfile, Booking, Availability, Review, ProfessionalVerification, VerificationDocument, ServiceChatMessage, ServiceCarePlan, ProfessionalAssistantAuditLog, Notification, PushSubscription, MedicationReminderDelivery, MedicalAppointment, PatientMedication, CancelledServiceComment, CancelledServiceCommentReport  # noqa: F401
 from app.database import engine
 from app.database import get_session
 from sqlmodel import Session
@@ -108,6 +108,32 @@ async def lifespan(app: FastAPI):
         conn.execute(text("ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancellation_reason VARCHAR(500)"))
         conn.execute(text("ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancelled_by_user_id INTEGER REFERENCES users(id)"))
         conn.execute(text("ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP WITH TIME ZONE"))
+        # HU-021: tablas creadas por ``create_all`` en instalaciones nuevas; estas
+        # sentencias son acumulativas para las bases existentes y no modifican datos.
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS cancelled_service_comments (
+                id SERIAL PRIMARY KEY,
+                booking_id INTEGER NOT NULL REFERENCES bookings(id),
+                author_user_id INTEGER NOT NULL REFERENCES users(id),
+                comment TEXT NOT NULL,
+                is_hidden BOOLEAN NOT NULL DEFAULT FALSE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                CONSTRAINT uq_cancelled_comment_booking_author UNIQUE (booking_id, author_user_id)
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_cancelled_service_comments_booking_id ON cancelled_service_comments (booking_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_cancelled_service_comments_author_user_id ON cancelled_service_comments (author_user_id)"))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS cancelled_service_comment_reports (
+                id SERIAL PRIMARY KEY,
+                comment_id INTEGER NOT NULL REFERENCES cancelled_service_comments(id),
+                reporter_user_id INTEGER NOT NULL REFERENCES users(id),
+                reason VARCHAR(300) NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                CONSTRAINT uq_cancelled_comment_reporter UNIQUE (comment_id, reporter_user_id)
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_cancelled_service_comment_reports_comment_id ON cancelled_service_comment_reports (comment_id)"))
         conn.execute(text("DO $$ BEGIN CREATE TYPE appointmentaccompanimentstatus AS ENUM ('none', 'pending', 'accepted', 'rejected', 'cancelled'); EXCEPTION WHEN duplicate_object THEN NULL; END $$"))
         # El cifrado Fernet ocupa más espacio que los tipos históricos y los JSON
         # deben pasar a texto antes de almacenar su representación cifrada.

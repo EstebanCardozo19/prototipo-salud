@@ -4,6 +4,7 @@ import Spinner from '../common/Spinner';
 import StarRating from '../common/StarRating';
 import RateServiceModal from '../bookings/RateServiceModal';
 import CancelServiceModal from '../bookings/CancelServiceModal';
+import CancelledServiceCommentModal from '../bookings/CancelledServiceCommentModal';
 import BookingFamilyInfo from '../bookings/BookingFamilyInfo';
 import BookingDescription from '../bookings/BookingDescription';
 import ServiceChatModal from '../bookings/ServiceChatModal';
@@ -38,6 +39,7 @@ export default function CaregiverDashboard({ user, token, initialTab = 'profile'
   const [completing, setCompleting] = useState(null); // booking id being completed
   const [ratingModal, setRatingModal] = useState(null); // booking to rate
   const [cancellationModal, setCancellationModal] = useState(null);
+  const [cancelledCommentModal, setCancelledCommentModal] = useState(null);
   const [chatBooking, setChatBooking] = useState(null);
   const [carePlanBooking, setCarePlanBooking] = useState(null);
   const [assistantBooking, setAssistantBooking] = useState(null);
@@ -335,6 +337,7 @@ export default function CaregiverDashboard({ user, token, initialTab = 'profile'
                     </div>
                     <BookingFamilyInfo booking={b} />
                     <BookingDescription description={b.notes} />
+                    {b.status === 'cancelled' && b.cancelled_comments?.length > 0 && <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-[12px] text-[#424654]"><b>Comentarios de servicios cancelados</b>{b.cancelled_comments.map(comment => <p key={comment.id} className="mt-1.5"><span className="font-semibold">{comment.author_role === 'family' ? 'Familia' : 'Profesional'}:</span> {comment.comment}</p>)}</div>}
                     <div className="flex flex-wrap gap-2">
                       {/* Aprobar / Rechazar si pending */}
                       {b.status === 'pending' && (
@@ -384,6 +387,8 @@ export default function CaregiverDashboard({ user, token, initialTab = 'profile'
                           <span className="material-symbols-outlined text-[15px]">check_circle</span>Familiar calificado
                         </span>
                       )}
+                      {b.status === 'cancelled' && !b.cancelled_comment_by_current_user && <button onClick={() => setCancelledCommentModal(b)} className="h-[34px] px-4 bg-[#0040a1] text-white rounded-xl text-[12px] font-semibold hover:bg-[#003080] transition-all flex items-center gap-1.5"><span className="material-symbols-outlined text-[15px]">forum</span>Comentar experiencia</button>}
+                      {b.status === 'cancelled' && b.cancelled_comment_by_current_user && <span className="h-[34px] px-3 flex items-center gap-1.5 text-[12px] text-green-700 font-semibold bg-green-50 rounded-xl border border-green-200"><span className="material-symbols-outlined text-[15px]">check_circle</span>Comentario registrado</span>}
                     </div>
                   </div>
                 ))}
@@ -407,6 +412,7 @@ export default function CaregiverDashboard({ user, token, initialTab = 'profile'
         />
       )}
       {cancellationModal && <CancelServiceModal booking={cancellationModal} token={token} onClose={() => setCancellationModal(null)} onSuccess={updated => { setBookings(current => current.map(item => item.id === updated.id ? { ...item, ...updated } : item)); setCancellationModal(null); }} />}
+      {cancelledCommentModal && <CancelledServiceCommentModal booking={cancelledCommentModal} token={token} onClose={() => setCancelledCommentModal(null)} onSuccess={() => { setBookings(current => current.map(item => item.id === cancelledCommentModal.id ? { ...item, cancelled_comment_by_current_user: true } : item)); setCancelledCommentModal(null); }} />}
       {chatBooking && <ServiceChatModal booking={chatBooking} user={user} token={token} onClose={() => setChatBooking(null)} />}
       {carePlanBooking && <ServiceCarePlanModal booking={carePlanBooking} user={user} token={token} onClose={() => setCarePlanBooking(null)} />}
       {assistantBooking && <ProfessionalPatientAssistantModal booking={assistantBooking} token={token} onClose={() => setAssistantBooking(null)} />}

@@ -4,6 +4,7 @@ import Spinner from '../common/Spinner';
 import StarRating from '../common/StarRating';
 import RateServiceModal from '../bookings/RateServiceModal';
 import CancelServiceModal from '../bookings/CancelServiceModal';
+import CancelledServiceCommentModal from '../bookings/CancelledServiceCommentModal';
 import PatientCard from './PatientCard';
 import PatientFormModal from './PatientFormModal';
 import { EMPTY_PATIENT } from '../../constants';
@@ -36,6 +37,7 @@ export default function FamilyPatientPanel({ token }) {
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [ratingModal, setRatingModal] = useState(null);
   const [cancellationModal, setCancellationModal] = useState(null);
+  const [cancelledCommentModal, setCancelledCommentModal] = useState(null);
 
   useEffect(() => { loadRecords(); }, []);
   useEffect(() => { if (activeTab === 'bookings') loadBookings(); }, [activeTab]);
@@ -196,6 +198,9 @@ export default function FamilyPatientPanel({ token }) {
                   )}
                   {b.status === 'approved' && <button onClick={() => setCancellationModal(b)} className="mt-1 h-[34px] px-4 bg-red-600 text-white rounded-xl text-[12px] font-semibold hover:bg-red-700 transition-all flex items-center gap-1.5"><span className="material-symbols-outlined text-[15px]">event_busy</span>Cancelar servicio</button>}
                   {b.status === 'cancelled' && <p className="mt-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-[12px] text-[#424654]"><b>Cancelado por:</b> {b.cancelled_by_name || '—'}{b.cancellation_reason && <><br /><b>Motivo:</b> {b.cancellation_reason}</>}</p>}
+                  {b.status === 'cancelled' && b.cancelled_comments?.length > 0 && <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-[12px] text-[#424654]"><b>Comentarios de servicios cancelados</b>{b.cancelled_comments.map(comment => <p key={comment.id} className="mt-1.5"><span className="font-semibold">{comment.author_role === 'family' ? 'Familia' : 'Profesional'}:</span> {comment.comment}</p>)}</div>}
+                  {b.status === 'cancelled' && !b.cancelled_comment_by_current_user && <button onClick={() => setCancelledCommentModal(b)} className="mt-2 h-[34px] px-4 bg-[#0040a1] text-white rounded-xl text-[12px] font-semibold hover:bg-[#003080] transition-all flex items-center gap-1.5"><span className="material-symbols-outlined text-[15px]">forum</span>Comentar experiencia</button>}
+                  {b.status === 'cancelled' && b.cancelled_comment_by_current_user && <p className="mt-2 text-[12px] font-semibold text-green-700">Ya registraste tu comentario de experiencia.</p>}
                   {b.status === 'completed' && !b.reviewed_by_family && (
                     <button onClick={() => setRatingModal(b)}
                       className="mt-1 h-[34px] px-4 bg-amber-500 text-white rounded-xl text-[12px] font-semibold hover:bg-amber-600 transition-all flex items-center gap-1.5">
@@ -270,6 +275,7 @@ export default function FamilyPatientPanel({ token }) {
         />
       )}
       {cancellationModal && <CancelServiceModal booking={cancellationModal} token={token} onClose={() => setCancellationModal(null)} onSuccess={updated => { setBookings(current => current.map(item => item.id === updated.id ? { ...item, ...updated } : item)); setCancellationModal(null); }} />}
+      {cancelledCommentModal && <CancelledServiceCommentModal booking={cancelledCommentModal} token={token} onClose={() => setCancelledCommentModal(null)} onSuccess={() => { setBookings(current => current.map(item => item.id === cancelledCommentModal.id ? { ...item, cancelled_comment_by_current_user: true } : item)); setCancelledCommentModal(null); }} />}
     </div>
   );
 }

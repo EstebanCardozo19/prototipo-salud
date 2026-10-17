@@ -5,6 +5,7 @@ Sistema de rating bidireccional: familiar → profesional y profesional → fami
 from fastapi import APIRouter, Depends, HTTPException, status
 from datetime import date as calendar_date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
+import re
 
 from pydantic import BaseModel, field_validator, model_validator
 from sqlmodel import Session, select
@@ -15,7 +16,8 @@ from app.models import (
     User, UserRole, Booking, BookingStatus,
     Availability, DayOfWeek, Review, FamilyReview,
     CaregiverProfile, NurseProfile,
-    ClinicalRecord,
+    ClinicalRecord, ProfessionalVerification, ProfileStatus,
+    CancelledServiceComment, CancelledServiceCommentReport,
 )
 from app.auth import get_current_user, require_role
 from app.routers.notifications_router import create_notification
@@ -226,6 +228,8 @@ class BookingResponse(BaseModel):
     # Para saber si ya se calificó
     reviewed_by_family: bool = False
     reviewed_by_professional: bool = False
+    cancelled_comment_by_current_user: bool = False
+    cancelled_comments: List["CancelledCommentResponse"] = []
     cancellation_reason: Optional[str] = None
     cancelled_by_user_id: Optional[int] = None
     cancelled_by_name: Optional[str] = None
@@ -277,6 +281,83 @@ class BookingCancellation(BaseModel):
         return reason
 
 
+class CancelledCommentCreate(BaseModel):
+    comment: str
+
+
+class CancelledCommentReportCreate(BaseModel):
+    reason: str
+
+
+class CancelledCommentResponse(BaseModel):
+    id: int
+    booking_id: int
+    author_role: str
+    author_name: Optional[str] = None
+    comment: str
+    cancelled_by_role: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
+class ProfessionalTrustResponse(BaseModel):
+    professional_user_id: int
+    verification_status: str
+    experience_years: int
+    rating_avg: Optional[float] = None
+    rating_count: int = 0
+    completed_services: int = 0
+    reviews: List["ReviewResponse"] = []
+    cancelled_comments: List[CancelledCommentResponse] = []
+
+
+_SENSITIVE_COMMENT_PATTERNS = (
+    (r"\b(?:\+?57\s*)?3\d{2}[\s.-]?\d{3}[\s.-]?\d{4}\b", "teléfonos"),
+    (r"\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b", "correos electrónicos"),
+    (r"\b(?:calle|carrera|cra\.?|cl\.?|avenida|av\.?|diagonal|transversal)\s*\d+", "direcciones"),
+    (r"\b(?:diagnóstico|diagnostico|historia clínica|historia clinica|medicamento|eps|enfermedad|paciente)\b", "información clínica"),
+)
+_OFFENSIVE_COMMENT_PATTERN = re.compile(r"\b(?:idiota|imb[eé]cil|est[úu]pido|est[uú]pida|malparid[oa]|hij[oa]\s+de\s+puta)\b", re.IGNORECASE)
+
+
+def validate_cancelled_comment_content(value: str) -> str:
+    """Impide publicar datos sensibles o insultos en comentarios públicos."""
+    comment = (value or "").strip()
+    if len(comment) < 3:
+        raise ValueError("El comentario debe tener al menos 3 caracteres")
+    if len(comment) > 500:
+        raise ValueError("El comentario no puede superar 500 caracteres")
+    if _OFFENSIVE_COMMENT_PATTERN.search(comment):
+        raise ValueError("El comentario contiene lenguaje ofensivo")
+    for pattern, label in _SENSITIVE_COMMENT_PATTERNS:
+        if re.search(pattern, comment, flags=re.IGNORECASE):
+            raise ValueError(f"No publiques {label} ni datos personales o clínicos")
+    return comment
+
+
+def _cancelled_comment_response(comment: CancelledServiceComment, booking: Booking, session: Session) -> CancelledCommentResponse:
+    author = session.get(User, comment.author_user_id)
+    cancelled_by = session.get(User, booking.cancelled_by_user_id) if booking.cancelled_by_user_id else None
+    return CancelledCommentResponse(
+        id=comment.id,
+        booking_id=comment.booking_id,
+        author_role=author.role.value if author else "unknown",
+        # El rol aporta el contexto requerido sin publicar la identidad de la
+        # familia en la consulta pública del perfil profesional.
+        author_name=None,
+        comment=comment.comment,
+        # Solo se publica el rol que realizó la acción, nunca el motivo privado.
+        cancelled_by_role=cancelled_by.role.value if cancelled_by else None,
+        created_at=comment.created_at,
+    )
+
+
+def _assert_cancelled_booking_participant(booking: Booking, current_user: User) -> None:
+    if booking.status != BookingStatus.cancelled:
+        raise HTTPException(status_code=400, detail="Los comentarios de experiencia solo están disponibles para servicios cancelados")
+    if current_user.id not in (booking.family_user_id, booking.professional_user_id):
+        raise HTTPException(status_code=403, detail="Solo las partes involucradas pueden comentar este servicio")
+
+
 def _cancellation_metadata(booking: Booking, session: Session) -> dict:
     """Serializa la auditoría de cancelación sin exponer datos de terceros."""
     cancelled_by = session.get(User, booking.cancelled_by_user_id) if booking.cancelled_by_user_id else None
@@ -286,6 +367,27 @@ def _cancellation_metadata(booking: Booking, session: Session) -> dict:
         "cancelled_by_name": user_full_name(cancelled_by) if cancelled_by else None,
         "cancelled_at": booking.cancelled_at,
     }
+
+
+def _cancelled_comment_exists_for_user(booking_id: int, user_id: int, session: Session) -> bool:
+    return session.exec(
+        select(CancelledServiceComment).where(
+            CancelledServiceComment.booking_id == booking_id,
+            CancelledServiceComment.author_user_id == user_id,
+        )
+    ).first() is not None
+
+
+def _cancelled_comments_for_booking(booking: Booking, session: Session) -> List["CancelledCommentResponse"]:
+    if booking.status != BookingStatus.cancelled:
+        return []
+    comments = session.exec(
+        select(CancelledServiceComment)
+        .where(CancelledServiceComment.booking_id == booking.id)
+        .where(CancelledServiceComment.is_hidden == False)
+        .order_by(CancelledServiceComment.created_at.asc())
+    ).all()
+    return [_cancelled_comment_response(item, booking, session) for item in comments]
 
 
 class AvailabilityCreate(BaseModel):
@@ -506,6 +608,8 @@ def list_my_requests(
             professional_bio=profile.bio if profile else None,
             professional_rating_avg=profile.rating_avg if profile else None,
             professional_rating_count=profile.rating_count if profile else None,
+            cancelled_comment_by_current_user=_cancelled_comment_exists_for_user(b.id, current_user.id, session),
+            cancelled_comments=_cancelled_comments_for_booking(b, session),
         ))
     return results
 
@@ -539,6 +643,8 @@ def get_family_calendar(
             **_cancellation_metadata(b, session),
             family_name=user_full_name(current_user),
             professional_name=professional.full_name if professional else None,
+            cancelled_comment_by_current_user=_cancelled_comment_exists_for_user(b.id, current_user.id, session),
+            cancelled_comments=_cancelled_comments_for_booking(b, session),
         ))
     return results
 
@@ -582,6 +688,8 @@ def list_incoming_requests(
             family_photo_url=family.photo_url if family else None,
             professional_name=current_user.full_name,
             reviewed_by_professional=b.id in prof_reviewed_ids,
+            cancelled_comment_by_current_user=_cancelled_comment_exists_for_user(b.id, current_user.id, session),
+            cancelled_comments=_cancelled_comments_for_booking(b, session),
             patient_age=clinical_record.patient_age if clinical_record else None,
             patient_mobility_level=clinical_record.mobility_level if clinical_record else None,
             patient_sector=clinical_record.sector if clinical_record else None,
@@ -939,6 +1047,111 @@ def get_professional_reviews(
             created_at=r.created_at.isoformat() if r.created_at else None,
         ))
     return results
+
+
+# ============================================================
+# HU-021: Confianza y trayectoria / comentarios de cancelaciones
+# ============================================================
+
+@router.get("/professionals/{professional_user_id}/trust", response_model=ProfessionalTrustResponse)
+def get_professional_trust(professional_user_id: int, session: Session = Depends(get_session)):
+    """Información pública y verificable de trayectoria, sin motivos privados."""
+    professional = session.get(User, professional_user_id)
+    if not professional or professional.role not in (UserRole.caregiver, UserRole.nurse) or not professional.is_active:
+        raise HTTPException(status_code=404, detail="Profesional no encontrado")
+
+    profile_model = CaregiverProfile if professional.role == UserRole.caregiver else NurseProfile
+    profile = session.exec(select(profile_model).where(profile_model.user_id == professional.id)).first()
+    if not profile or profile.status != ProfileStatus.approved:
+        raise HTTPException(status_code=404, detail="Profesional no encontrado")
+
+    verification = session.exec(
+        select(ProfessionalVerification).where(ProfessionalVerification.user_id == professional.id)
+    ).first()
+    reviews = get_professional_reviews(professional.id, session)
+    completed_count = len(session.exec(
+        select(Booking).where(
+            Booking.professional_user_id == professional.id,
+            Booking.status == BookingStatus.completed,
+        )
+    ).all())
+    cancelled_comments = session.exec(
+        select(CancelledServiceComment)
+        .join(Booking, Booking.id == CancelledServiceComment.booking_id)
+        .where(Booking.professional_user_id == professional.id)
+        .where(CancelledServiceComment.is_hidden == False)
+        .order_by(CancelledServiceComment.created_at.desc())
+    ).all()
+    return ProfessionalTrustResponse(
+        professional_user_id=professional.id,
+        verification_status=(verification.status.value if verification else profile.status.value),
+        experience_years=profile.experience_years,
+        rating_avg=profile.rating_avg,
+        rating_count=profile.rating_count,
+        completed_services=completed_count,
+        reviews=reviews,
+        cancelled_comments=[_cancelled_comment_response(item, session.get(Booking, item.booking_id), session) for item in cancelled_comments],
+    )
+
+
+@router.post("/{booking_id}/cancelled-comments", response_model=CancelledCommentResponse, status_code=status.HTTP_201_CREATED)
+def create_cancelled_comment(
+    booking_id: int,
+    request: CancelledCommentCreate,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    booking = session.get(Booking, booking_id)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+    _assert_cancelled_booking_participant(booking, current_user)
+    try:
+        comment_text = validate_cancelled_comment_content(request.comment)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    existing = session.exec(
+        select(CancelledServiceComment).where(
+            CancelledServiceComment.booking_id == booking.id,
+            CancelledServiceComment.author_user_id == current_user.id,
+        )
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Ya registraste un comentario para este servicio cancelado")
+    item = CancelledServiceComment(booking_id=booking.id, author_user_id=current_user.id, comment=comment_text)
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+    return _cancelled_comment_response(item, booking, session)
+
+
+@router.post("/cancelled-comments/{comment_id}/report", status_code=status.HTTP_201_CREATED)
+def report_cancelled_comment(
+    comment_id: int,
+    request: CancelledCommentReportCreate,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    comment = session.get(CancelledServiceComment, comment_id)
+    if not comment:
+        raise HTTPException(status_code=404, detail="Comentario no encontrado")
+    booking = session.get(Booking, comment.booking_id)
+    _assert_cancelled_booking_participant(booking, current_user)
+    if comment.author_user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="No puedes reportar tu propio comentario")
+    reason = (request.reason or "").strip()
+    if len(reason) < 3 or len(reason) > 300:
+        raise HTTPException(status_code=400, detail="Indica un motivo de reporte entre 3 y 300 caracteres")
+    existing = session.exec(
+        select(CancelledServiceCommentReport).where(
+            CancelledServiceCommentReport.comment_id == comment.id,
+            CancelledServiceCommentReport.reporter_user_id == current_user.id,
+        )
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Ya reportaste este comentario")
+    session.add(CancelledServiceCommentReport(comment_id=comment.id, reporter_user_id=current_user.id, reason=reason))
+    session.commit()
+    return {"detail": "Reporte recibido para revisión"}
 
 
 # ============================================================
