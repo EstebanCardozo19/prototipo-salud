@@ -260,6 +260,7 @@ class BookingResponse(BaseModel):
     family_rating_avg: Optional[float] = None
     family_rating_count: Optional[int] = None
     family_recent_reviews: List["FamilyReviewResponse"] = []
+    family_recent_cancelled_comments: List["CancelledCommentResponse"] = []
 
 
 class BookingDecision(BaseModel):
@@ -466,6 +467,14 @@ def _family_review_summary(family_user_id: int, session: Session):
         .order_by(FamilyReview.created_at.desc())
     ).all()
     count = len(reviews)
+    cancelled_comments = session.exec(
+        select(CancelledServiceComment)
+        .join(Booking, Booking.id == CancelledServiceComment.booking_id)
+        .where(Booking.family_user_id == family_user_id)
+        .where(CancelledServiceComment.author_user_id == Booking.professional_user_id)
+        .where(CancelledServiceComment.is_hidden == False)
+        .order_by(CancelledServiceComment.created_at.desc())
+    ).all()
     return {
         "family_rating_avg": round(sum(review.rating for review in reviews) / count, 2) if count else None,
         "family_rating_count": count,
@@ -481,6 +490,12 @@ def _family_review_summary(family_user_id: int, session: Session):
                 created_at=review.created_at.isoformat() if review.created_at else None,
             )
             for review in reviews[:3]
+        ],
+        # Los comentarios del profesional sobre una cancelación pertenecen a
+        # la reputación de la familia; nunca se suman al perfil del profesional.
+        "family_recent_cancelled_comments": [
+            _cancelled_comment_response(comment, session.get(Booking, comment.booking_id), session)
+            for comment in cancelled_comments[:3]
         ],
     }
 
@@ -1079,6 +1094,10 @@ def get_professional_trust(professional_user_id: int, session: Session = Depends
         select(CancelledServiceComment)
         .join(Booking, Booking.id == CancelledServiceComment.booking_id)
         .where(Booking.professional_user_id == professional.id)
+        # La reputación pública profesional solo incorpora experiencias de la
+        # familia hacia el profesional. La contraparte se muestra en la
+        # reputación de la familia, no se le atribuye al profesional.
+        .where(CancelledServiceComment.author_user_id == Booking.family_user_id)
         .where(CancelledServiceComment.is_hidden == False)
         .order_by(CancelledServiceComment.created_at.desc())
     ).all()

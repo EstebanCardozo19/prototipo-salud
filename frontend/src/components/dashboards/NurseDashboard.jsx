@@ -426,7 +426,7 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
         />
       )}
       {cancellationModal && <CancelServiceModal booking={cancellationModal} token={token} onClose={() => setCancellationModal(null)} onSuccess={updated => { setBookings(current => current.map(item => item.id === updated.id ? { ...item, ...updated } : item)); setCancellationModal(null); }} />}
-      {cancelledCommentModal && <CancelledServiceCommentModal booking={cancelledCommentModal} token={token} onClose={() => setCancelledCommentModal(null)} onSuccess={() => { setBookings(current => current.map(item => item.id === cancelledCommentModal.id ? { ...item, cancelled_comment_by_current_user: true } : item)); setCancelledCommentModal(null); }} />}
+      {cancelledCommentModal && <CancelledServiceCommentModal booking={cancelledCommentModal} token={token} onClose={() => setCancelledCommentModal(null)} onSuccess={async () => { setCancelledCommentModal(null); await loadBookings(); }} />}
       {chatBooking && <ServiceChatModal booking={chatBooking} user={user} token={token} onClose={() => setChatBooking(null)} />}
       {carePlanBooking && <ServiceCarePlanModal booking={carePlanBooking} user={user} token={token} onClose={() => setCarePlanBooking(null)} />}
       {assistantBooking && <ProfessionalPatientAssistantModal booking={assistantBooking} token={token} onClose={() => setAssistantBooking(null)} />}

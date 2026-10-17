@@ -1,6 +1,14 @@
 import { useState } from 'react';
 import Spinner from '../common/Spinner';
 
+const SENSITIVE_CONTENT = [
+  /\b(?:\+?57\s*)?3\d{2}[\s.-]?\d{3}[\s.-]?\d{4}\b/i,
+  /\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b/i,
+  /\b(?:calle|carrera|cra\.?|cl\.?|avenida|av\.?|diagonal|transversal)\s*\d+/i,
+  /\b(?:diagnóstico|diagnostico|historia clínica|historia clinica|medicamento|eps|enfermedad|paciente)\b/i,
+];
+const OFFENSIVE_CONTENT = /\b(?:idiota|imb[eé]cil|est[úu]pido|est[uú]pida|malparid[oa]|hij[oa]\s+de\s+puta)\b/i;
+
 /** Comentario sin estrellas para las dos partes de un servicio cancelado. */
 export default function CancelledServiceCommentModal({ booking, token, onClose, onSuccess }) {
   const [comment, setComment] = useState('');
@@ -11,6 +19,10 @@ export default function CancelledServiceCommentModal({ booking, token, onClose, 
     event.preventDefault();
     const text = comment.trim();
     if (text.length < 3) { setError('Escribe al menos 3 caracteres.'); return; }
+    if (SENSITIVE_CONTENT.some(pattern => pattern.test(text))) {
+      setError('No publiques datos médicos, direcciones ni datos de contacto.'); return;
+    }
+    if (OFFENSIVE_CONTENT.test(text)) { setError('El comentario debe mantener un lenguaje respetuoso.'); return; }
     setSaving(true); setError('');
     try {
       const response = await fetch(`/api/bookings/${booking.id}/cancelled-comments`, {

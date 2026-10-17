@@ -143,6 +143,8 @@ export default function ProfessionalDetailModal({ professional, token, reviews =
   const fallbackAverage = fallbackCount
     ? reviews.reduce((sum, review) => sum + review.rating, 0) / fallbackCount
     : null;
+  const displayedReviews = trust ? trust.reviews : reviews;
+  const cancelledComments = trust?.cancelled_comments || [];
   const { average: avgRating, count: ratingCount } = getRatingSummary(
     professional.rating_count != null ? professional.rating_avg : fallbackAverage,
     professional.rating_count != null ? professional.rating_count : fallbackCount,
@@ -236,13 +238,12 @@ export default function ProfessionalDetailModal({ professional, token, reviews =
             </div>
           </div>
 
-          {/* ── Tabs: perfil, trayectoria, ubicación y reseñas ── */}
+          {/* ── Tabs: perfil, ubicación y reseñas ── */}
           <div className="flex border-b border-[#c3c6d6]/40 bg-[#f9f9fc] shrink-0">
             {[
               { id: 'info',    icon: 'person',      label: 'Perfil'    },
-              { id: 'trust',   icon: 'verified_user', label: 'Confianza' },
               { id: 'map',     icon: 'location_on', label: 'Ubicación' },
-              { id: 'reviews', icon: 'star',        label: `Reseñas${reviews.length > 0 ? ` (${reviews.length})` : ''}` },
+              { id: 'reviews', icon: 'star',        label: `Reseñas${displayedReviews.length > 0 ? ` (${displayedReviews.length})` : ''}` },
             ].map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-[12px] font-semibold border-b-2 transition-all ${
@@ -342,30 +343,6 @@ export default function ProfessionalDetailModal({ professional, token, reviews =
               </div>
             )}
 
-            {activeTab === 'trust' && (
-              <div className="p-5 flex flex-col gap-4">
-                <div>
-                  <h3 className="text-[16px] font-bold text-[#1a1c1e]">Confianza y trayectoria</h3>
-                  <p className="mt-1 text-[12px] text-[#737785]">Datos registrados en Atención Domiciliaria. No se calculan porcentajes artificiales.</p>
-                </div>
-                {trustError && <p className="rounded-xl border border-red-100 bg-red-50 p-3 text-[13px] text-red-700">{trustError}</p>}
-                {!trust && !trustError && <p className="text-[13px] text-[#737785]">Cargando información verificable…</p>}
-                {trust && <>
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <div className="rounded-xl border border-green-100 bg-green-50 p-3"><p className="text-[11px] font-bold uppercase text-green-700">Verificación</p><p className="mt-1 text-[13px] font-semibold text-[#1a1c1e]">{trust.verification_status === 'approved' ? 'Verificado por la plataforma' : 'En revisión'}</p></div>
-                    <div className="rounded-xl border border-[#c3c6d6]/40 bg-[#f9f9fc] p-3"><p className="text-[11px] font-bold uppercase text-[#737785]">Experiencia</p><p className="mt-1 text-[13px] font-semibold text-[#1a1c1e]">{trust.experience_years} años</p></div>
-                    <div className="rounded-xl border border-[#c3c6d6]/40 bg-[#f9f9fc] p-3"><p className="text-[11px] font-bold uppercase text-[#737785]">Servicios completados</p><p className="mt-1 text-[13px] font-semibold text-[#1a1c1e]">{trust.completed_services}</p></div>
-                    <div className="rounded-xl border border-amber-100 bg-amber-50 p-3"><p className="text-[11px] font-bold uppercase text-amber-700">Calificación</p><p className="mt-1 text-[13px] font-semibold text-[#1a1c1e]">{trust.rating_count > 0 ? `${Number(trust.rating_avg).toFixed(1)} · ${trust.rating_count} reseñas` : 'Sin valoraciones'}</p></div>
-                  </div>
-                  <section className="border-t border-[#c3c6d6]/30 pt-4">
-                    <h4 className="text-[14px] font-bold text-[#1a1c1e]">Comentarios de servicios cancelados</h4>
-                    <p className="mt-1 text-[11px] text-[#737785]">No tienen estrellas ni afectan la calificación. Solo se muestra quién canceló, no el motivo privado.</p>
-                    {trust.cancelled_comments.length === 0 ? <p className="py-4 text-[13px] text-[#737785]">No hay comentarios públicos de servicios cancelados.</p> : <div className="mt-3 flex flex-col gap-2.5">{trust.cancelled_comments.map(item => <article key={item.id} className="rounded-xl border border-[#c3c6d6]/30 bg-[#f9f9fc] p-3"><div className="flex items-start justify-between gap-3"><p className="text-[12px] font-bold text-[#1a1c1e]">{item.author_role === 'family' ? 'Familia' : 'Profesional'} · Canceló: {item.cancelled_by_role === 'family' ? 'familia' : 'profesional'}</p>{token && <button onClick={() => reportComment(item.id)} className="text-[11px] font-semibold text-red-600 hover:underline">Reportar</button>}</div><p className="mt-1.5 text-[13px] leading-relaxed text-[#424654]">{item.comment}</p></article>)}</div>}
-                  </section>
-                </>}
-              </div>
-            )}
-
             {/* ── TAB: RESEÑAS ── */}
             {activeTab === 'reviews' && (
               <div className="p-5 flex flex-col gap-3">
@@ -374,7 +351,8 @@ export default function ProfessionalDetailModal({ professional, token, reviews =
                   {ratingCount > 0 ? <><div className="text-[42px] font-black text-amber-500 leading-none">{avgRating.toFixed(1)}</div><div><StarRating value={avgRating} readOnly size="md" /><p className="text-[11px] text-[#737785] mt-0.5">{ratingCount} {ratingCount === 1 ? 'calificación' : 'calificaciones'}</p></div></> : <p className="text-[15px] font-semibold text-[#737785]">Sin valoraciones</p>}
                 </div>
 
-                {reviews.length === 0 ? (
+                {trustError && <p className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-[12px] text-amber-800">No fue posible actualizar todas las reseñas; se muestran los datos disponibles.</p>}
+                {displayedReviews.length === 0 ? (
                   <div className="flex flex-col items-center py-10 text-center">
                     <span className="material-symbols-outlined text-[40px] text-[#c3c6d6] mb-2"
                       style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
@@ -383,7 +361,7 @@ export default function ProfessionalDetailModal({ professional, token, reviews =
                   </div>
                 ) : (
                   <div className="flex flex-col gap-2.5">
-                    {reviews.map((r, i) => (
+                    {displayedReviews.map((r, i) => (
                       <div key={i} className="bg-[#f9f9fc] rounded-xl p-3.5 border border-[#c3c6d6]/30">
                         <div className="flex items-center justify-between mb-1.5">
                           <span className="text-[13px] font-semibold text-[#1a1c1e]">
@@ -403,6 +381,32 @@ export default function ProfessionalDetailModal({ professional, token, reviews =
                     ))}
                   </div>
                 )}
+
+                <section className="mt-2 border-t border-[#c3c6d6]/30 pt-4">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <h4 className="text-[14px] font-bold text-[#1a1c1e]">Comentarios de servicios cancelados</h4>
+                    <span className="text-[11px] text-[#737785]">No afectan la calificación</span>
+                  </div>
+                  {cancelledComments.length === 0 ? (
+                    <p className="py-4 text-[13px] text-[#737785]">No hay comentarios públicos de servicios cancelados.</p>
+                  ) : (
+                    <div className="mt-3 flex flex-col gap-2.5">
+                      {cancelledComments.map(item => (
+                        <article key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <span className="inline-flex rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-700">Servicio cancelado</span>
+                              <p className="mt-1.5 text-[13px] font-semibold text-[#1a1c1e]">Escrito por: {item.author_role === 'family' ? 'Familiar' : 'Profesional'}</p>
+                            </div>
+                            {token && <button onClick={() => reportComment(item.id)} className="text-[11px] font-semibold text-red-600 hover:underline">Reportar</button>}
+                          </div>
+                          <p className="mt-2 text-[13px] leading-relaxed text-[#424654]">{item.comment}</p>
+                          {item.created_at && <p className="mt-2 text-[10px] text-[#737785]">{new Date(item.created_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}</p>}
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </section>
               </div>
             )}
           </div>

@@ -53,6 +53,23 @@ export default function BookingFamilyInfo({ booking }) {
           </div>
         </div>
       )}
+
+      {booking.family_recent_cancelled_comments?.length > 0 && (
+        <div className="border-t border-[#c3c6d6]/30 pt-2">
+          <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-[#737785]">Comentarios de cancelaciones</p>
+          <div className="space-y-1.5">
+            {booking.family_recent_cancelled_comments.map(comment => (
+              <div key={comment.id} className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-[12px] text-[#424654]">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold">Profesional</span>
+                  <span className="rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-700">Servicio cancelado</span>
+                </div>
+                <p className="mt-1">{comment.comment}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
