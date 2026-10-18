@@ -313,6 +313,12 @@ class AppointmentAccompanimentStatus(str, enum.Enum):
     cancelled = "cancelled"
 
 
+class AppointmentStatus(str, enum.Enum):
+    scheduled = "scheduled"
+    completed = "completed"
+    cancelled = "cancelled"
+
+
 class MedicalAppointment(SQLModel, table=True):
     """Cita médica registrada por una familia para uno de sus pacientes."""
     __tablename__ = "medical_appointments"
@@ -326,6 +332,16 @@ class MedicalAppointment(SQLModel, table=True):
     location: Optional[str] = Field(default=None, max_length=250)
     treating_professional: Optional[str] = Field(default=None, max_length=150)
     notes: Optional[str] = Field(default=None, max_length=1000)
+    document_ids: List[int] = Field(default_factory=list, sa_column=Column(JSON, nullable=False, server_default="[]"))
+    pending_documents: List[str] = Field(default_factory=list, sa_column=Column(JSON, nullable=False, server_default="[]"))
+    status: AppointmentStatus = Field(
+        default=AppointmentStatus.scheduled,
+        sa_column=Column(SAEnum(AppointmentStatus, name="appointmentstatus"), nullable=False, server_default="scheduled"),
+    )
+    outcome_notes: Optional[str] = Field(default=None, max_length=1500)
+    medical_recommendations: Optional[str] = Field(default=None, max_length=1500)
+    follow_up_pending: bool = Field(default=False, nullable=False)
+    follow_up_notes: Optional[str] = Field(default=None, max_length=1000)
     recurrence_frequency: Optional[str] = Field(default=None, max_length=20)  # weekly | monthly
     recurrence_group_id: Optional[str] = Field(default=None, max_length=36, index=True)
     accompaniment_required: bool = Field(default=False, nullable=False)
@@ -341,6 +357,20 @@ class MedicalAppointment(SQLModel, table=True):
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime(timezone=True), server_default=func.now())
+    )
+
+
+class AppointmentReminderDelivery(SQLModel, table=True):
+    """Evita repetir recordatorios internos de preparación y asistencia."""
+    __tablename__ = "appointment_reminder_deliveries"
+    __table_args__ = (UniqueConstraint("appointment_id", "reminder_type", name="uq_appointment_reminder_delivery"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    appointment_id: int = Field(foreign_key="medical_appointments.id", nullable=False, index=True)
+    reminder_type: str = Field(max_length=30)
+    delivered_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), server_default=func.now()),
     )
 
 

@@ -11,8 +11,8 @@ from sqlmodel import Session, select
 from app.auth import require_role
 from app.database import get_session
 from app.models import (
-    AppointmentAccompanimentStatus, Booking, BookingStatus, ClinicalRecord,
-    MedicalAppointment, User, UserRole,
+    AppointmentAccompanimentStatus, AppointmentStatus, Booking, BookingStatus,
+    ClinicalRecord, ClinicalRecordDocument, MedicalAppointment, User, UserRole,
 )
 from app.routers.notifications_router import create_notification
 
@@ -28,6 +28,8 @@ class AppointmentCreate(BaseModel):
     location: Optional[str] = None
     treating_professional: Optional[str] = None
     notes: Optional[str] = None
+    document_ids: List[int] = []
+    pending_documents: List[str] = []
     recurrence_frequency: Optional[str] = None
     recurrence_until: Optional[str] = None
     accompaniment_professional_user_id: Optional[int] = None
@@ -65,6 +67,34 @@ class AppointmentCreate(BaseModel):
             raise ValueError("La recurrencia debe ser semanal o mensual")
         return value
 
+    @field_validator("pending_documents")
+    @classmethod
+    def validate_pending_documents(cls, value: List[str]) -> List[str]:
+        return [item.strip() for item in value if item.strip()][:20]
+
+
+class AppointmentUpdate(BaseModel):
+    appointment_type: str
+    date: str
+    time: str
+    location: Optional[str] = None
+    treating_professional: Optional[str] = None
+    notes: Optional[str] = None
+    document_ids: List[int] = []
+    pending_documents: List[str] = []
+
+    _validate_type = field_validator("appointment_type")(AppointmentCreate.validate_type)
+    _validate_date = field_validator("date")(AppointmentCreate.validate_date)
+    _validate_time = field_validator("time")(AppointmentCreate.validate_time)
+    _validate_pending_documents = field_validator("pending_documents")(AppointmentCreate.validate_pending_documents)
+
+
+class AppointmentOutcome(BaseModel):
+    outcome_notes: Optional[str] = None
+    medical_recommendations: Optional[str] = None
+    follow_up_pending: bool = False
+    follow_up_notes: Optional[str] = None
+
 
 class AppointmentDecision(BaseModel):
     accepted: bool
@@ -80,6 +110,13 @@ class AppointmentResponse(BaseModel):
     location: Optional[str]
     treating_professional: Optional[str]
     notes: Optional[str]
+    document_ids: List[int]
+    pending_documents: List[str]
+    status: str
+    outcome_notes: Optional[str]
+    medical_recommendations: Optional[str]
+    follow_up_pending: bool
+    follow_up_notes: Optional[str]
     recurrence_frequency: Optional[str]
     recurrence_group_id: Optional[str]
     accompaniment_required: bool
@@ -117,6 +154,9 @@ def _serialize(item: MedicalAppointment, record: ClinicalRecord, session: Sessio
         id=item.id, clinical_record_id=item.clinical_record_id, patient_name=record.patient_name,
         appointment_type=item.appointment_type, date=item.date, time=item.time, location=item.location,
         treating_professional=item.treating_professional, notes=item.notes,
+        document_ids=item.document_ids or [], pending_documents=item.pending_documents or [], status=item.status.value,
+        outcome_notes=item.outcome_notes, medical_recommendations=item.medical_recommendations,
+        follow_up_pending=item.follow_up_pending, follow_up_notes=item.follow_up_notes,
         recurrence_frequency=item.recurrence_frequency, recurrence_group_id=item.recurrence_group_id,
         accompaniment_required=item.accompaniment_required,
         accompaniment_professional_user_id=item.accompaniment_professional_user_id,
@@ -134,6 +174,25 @@ def _assigned_professional(session: Session, family_id: int, record_id: int, pro
     if not booking or not professional or professional.role not in (UserRole.caregiver, UserRole.nurse):
         raise HTTPException(status_code=422, detail="El profesional debe tener un servicio aprobado para este paciente")
     return professional
+
+
+def _validate_documents(session: Session, record_id: int, document_ids: List[int]) -> List[int]:
+    unique_ids = list(dict.fromkeys(document_ids))
+    if len(unique_ids) > 20:
+        raise HTTPException(status_code=422, detail="Puedes adjuntar máximo 20 documentos")
+    for document_id in unique_ids:
+        document = session.get(ClinicalRecordDocument, document_id)
+        if not document or document.clinical_record_id != record_id:
+            raise HTTPException(status_code=422, detail="Uno de los documentos no pertenece a este paciente")
+    return unique_ids
+
+
+def _owned_appointment(appointment_id: int, current_user: User, session: Session) -> tuple[MedicalAppointment, ClinicalRecord]:
+    item = session.get(MedicalAppointment, appointment_id)
+    if not item or item.family_user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Cita no encontrada")
+    record = session.get(ClinicalRecord, item.clinical_record_id)
+    return item, record
 
 
 @router.get("/eligible-professionals")
@@ -160,6 +219,7 @@ def create_appointment(request: AppointmentCreate, current_user: User = Depends(
         raise HTTPException(status_code=404, detail="Paciente no encontrado")
     professional = _assigned_professional(session, current_user.id, record.id, request.accompaniment_professional_user_id) if request.accompaniment_professional_user_id else None
     dates = _recurrence_dates(date.fromisoformat(request.date), request.recurrence_frequency, request.recurrence_until)
+    document_ids = _validate_documents(session, record.id, request.document_ids)
     group_id = str(uuid4()) if request.recurrence_frequency else None
     appointments = []
     for occurrence in dates:
@@ -167,6 +227,7 @@ def create_appointment(request: AppointmentCreate, current_user: User = Depends(
             family_user_id=current_user.id, clinical_record_id=record.id, appointment_type=request.appointment_type,
             date=occurrence.isoformat(), time=request.time, location=request.location,
             treating_professional=request.treating_professional, notes=request.notes,
+            document_ids=document_ids, pending_documents=request.pending_documents,
             recurrence_frequency=request.recurrence_frequency, recurrence_group_id=group_id,
             accompaniment_required=professional is not None,
             accompaniment_professional_user_id=professional.id if professional else None,
@@ -186,6 +247,54 @@ def create_appointment(request: AppointmentCreate, current_user: User = Depends(
 def list_family_appointments(current_user: User = Depends(require_role(UserRole.family)), session: Session = Depends(get_session)):
     items = session.exec(select(MedicalAppointment).where(MedicalAppointment.family_user_id == current_user.id).order_by(MedicalAppointment.date, MedicalAppointment.time)).all()
     return [_serialize(item, session.get(ClinicalRecord, item.clinical_record_id), session) for item in items]
+
+
+@router.put("/{appointment_id}/details", response_model=AppointmentResponse)
+def update_appointment(appointment_id: int, request: AppointmentUpdate, current_user: User = Depends(require_role(UserRole.family)), session: Session = Depends(get_session)):
+    item, record = _owned_appointment(appointment_id, current_user, session)
+    if item.status != AppointmentStatus.scheduled:
+        raise HTTPException(status_code=400, detail="Solo puedes editar citas programadas")
+    item.appointment_type = request.appointment_type
+    item.date, item.time = request.date, request.time
+    item.location, item.treating_professional, item.notes = request.location, request.treating_professional, request.notes
+    item.document_ids = _validate_documents(session, record.id, request.document_ids)
+    item.pending_documents = request.pending_documents
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+    return _serialize(item, record, session)
+
+
+@router.put("/{appointment_id}/outcome", response_model=AppointmentResponse)
+def record_appointment_outcome(appointment_id: int, request: AppointmentOutcome, current_user: User = Depends(require_role(UserRole.family)), session: Session = Depends(get_session)):
+    item, record = _owned_appointment(appointment_id, current_user, session)
+    if item.status == AppointmentStatus.cancelled:
+        raise HTTPException(status_code=400, detail="No puedes registrar el resultado de una cita cancelada")
+    item.outcome_notes = request.outcome_notes
+    item.medical_recommendations = request.medical_recommendations
+    item.follow_up_pending = request.follow_up_pending
+    item.follow_up_notes = request.follow_up_notes
+    item.status = AppointmentStatus.completed
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+    return _serialize(item, record, session)
+
+
+@router.put("/{appointment_id}/cancel", response_model=AppointmentResponse)
+def cancel_appointment(appointment_id: int, current_user: User = Depends(require_role(UserRole.family)), session: Session = Depends(get_session)):
+    item, record = _owned_appointment(appointment_id, current_user, session)
+    if item.status != AppointmentStatus.scheduled:
+        raise HTTPException(status_code=400, detail="Solo puedes cancelar citas programadas")
+    item.status = AppointmentStatus.cancelled
+    if item.accompaniment_status == AppointmentAccompanimentStatus.pending:
+        item.accompaniment_status = AppointmentAccompanimentStatus.cancelled
+        if item.accompaniment_professional_user_id:
+            create_notification(session, item.accompaniment_professional_user_id, "appointment_accompaniment", "Cita cancelada", f"La cita de {record.patient_name} del {item.date} fue cancelada.")
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+    return _serialize(item, record, session)
 
 
 @router.get("/professional", response_model=List[AppointmentResponse])

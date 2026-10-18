@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from contextlib import asynccontextmanager
 
-from app.models import User, CaregiverProfile, ClinicalRecord, ClinicalRecordDocument, NurseProfile, Booking, Availability, Review, ProfessionalVerification, VerificationDocument, ServiceChatMessage, ServiceCarePlan, ProfessionalAssistantAuditLog, Notification, PushSubscription, MedicationReminderDelivery, MedicalAppointment, PatientMedication, CancelledServiceComment, CancelledServiceCommentReport  # noqa: F401
+from app.models import User, CaregiverProfile, ClinicalRecord, ClinicalRecordDocument, NurseProfile, Booking, Availability, Review, ProfessionalVerification, VerificationDocument, ServiceChatMessage, ServiceCarePlan, ProfessionalAssistantAuditLog, Notification, PushSubscription, MedicationReminderDelivery, MedicalAppointment, AppointmentReminderDelivery, PatientMedication, CancelledServiceComment, CancelledServiceCommentReport  # noqa: F401
 from app.database import engine
 from app.database import get_session
 from sqlmodel import Session
@@ -139,6 +139,23 @@ async def lifespan(app: FastAPI):
         """))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_cancelled_service_comment_reports_comment_id ON cancelled_service_comment_reports (comment_id)"))
         conn.execute(text("DO $$ BEGIN CREATE TYPE appointmentaccompanimentstatus AS ENUM ('none', 'pending', 'accepted', 'rejected', 'cancelled'); EXCEPTION WHEN duplicate_object THEN NULL; END $$"))
+        conn.execute(text("DO $$ BEGIN CREATE TYPE appointmentstatus AS ENUM ('scheduled', 'completed', 'cancelled'); EXCEPTION WHEN duplicate_object THEN NULL; END $$"))
+        conn.execute(text("ALTER TABLE medical_appointments ADD COLUMN IF NOT EXISTS document_ids JSON NOT NULL DEFAULT '[]'::json"))
+        conn.execute(text("ALTER TABLE medical_appointments ADD COLUMN IF NOT EXISTS pending_documents JSON NOT NULL DEFAULT '[]'::json"))
+        conn.execute(text("ALTER TABLE medical_appointments ADD COLUMN IF NOT EXISTS status appointmentstatus NOT NULL DEFAULT 'scheduled'"))
+        conn.execute(text("ALTER TABLE medical_appointments ADD COLUMN IF NOT EXISTS outcome_notes VARCHAR(1500)"))
+        conn.execute(text("ALTER TABLE medical_appointments ADD COLUMN IF NOT EXISTS medical_recommendations VARCHAR(1500)"))
+        conn.execute(text("ALTER TABLE medical_appointments ADD COLUMN IF NOT EXISTS follow_up_pending BOOLEAN NOT NULL DEFAULT FALSE"))
+        conn.execute(text("ALTER TABLE medical_appointments ADD COLUMN IF NOT EXISTS follow_up_notes VARCHAR(1000)"))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS appointment_reminder_deliveries (
+                id SERIAL PRIMARY KEY,
+                appointment_id INTEGER NOT NULL REFERENCES medical_appointments(id),
+                reminder_type VARCHAR(30) NOT NULL,
+                delivered_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                CONSTRAINT uq_appointment_reminder_delivery UNIQUE (appointment_id, reminder_type)
+            )
+        """))
         # El cifrado Fernet ocupa más espacio que los tipos históricos y los JSON
         # deben pasar a texto antes de almacenar su representación cifrada.
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_lookup VARCHAR(64)"))
@@ -222,6 +239,7 @@ async def lifespan(app: FastAPI):
     # idempotente, por lo que es seguro si hay más de una instancia de la API.
     from app.services.service_lifecycle import complete_expired_services
     from app.services.medication_reminders import dispatch_due_medication_reminders
+    from app.services.appointment_reminders import dispatch_due_appointment_reminders
 
     stop_service_lifecycle = threading.Event()
 
@@ -231,6 +249,7 @@ async def lifespan(app: FastAPI):
                 with Session(engine) as lifecycle_session:
                     complete_expired_services(lifecycle_session)
                     dispatch_due_medication_reminders(lifecycle_session)
+                    dispatch_due_appointment_reminders(lifecycle_session)
             except Exception:
                 # El ciclo se reintentará en el siguiente minuto sin afectar la API.
                 pass
