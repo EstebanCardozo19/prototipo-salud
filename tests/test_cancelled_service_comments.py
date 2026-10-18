@@ -53,8 +53,8 @@ class CancelledServiceCommentTests(unittest.TestCase):
         self.professional = User(id=2, email='pro@test', password_hash='x', full_name='Profesional', role=UserRole.caregiver)
         self.outsider = User(id=3, email='other@test', password_hash='x', full_name='Ajeno', role=UserRole.family)
 
-    def booking(self, state=BookingStatus.cancelled):
-        return Booking(id=10, family_user_id=1, professional_user_id=2, professional_role='caregiver', date='2099-10-10', start_hour=8, end_hour=12, status=state, cancelled_by_user_id=1)
+    def booking(self, state=BookingStatus.cancelled, cancelled_by_user_id=1):
+        return Booking(id=10, family_user_id=1, professional_user_id=2, professional_role='caregiver', date='2099-10-10', start_hour=8, end_hour=12, status=state, cancelled_by_user_id=cancelled_by_user_id)
 
     def test_both_parties_can_comment_without_stars(self):
         session = CommentSession(self.booking(), {1: self.family, 2: self.professional})
@@ -64,6 +64,20 @@ class CancelledServiceCommentTests(unittest.TestCase):
         self.assertFalse(hasattr(session.comments[0], 'rating'))
         self.assertEqual(family_comment.author_role, 'family')
         self.assertEqual(professional_comment.author_role, 'caregiver')
+
+    def test_family_can_comment_when_the_professional_cancelled(self):
+        session = CommentSession(self.booking(cancelled_by_user_id=self.professional.id), {1: self.family, 2: self.professional})
+
+        comment = create_cancelled_comment(
+            10,
+            CancelledCommentCreate(comment='El profesional avisó la cancelación del servicio.'),
+            self.family,
+            session,
+        )
+
+        self.assertEqual(comment.author_role, 'family')
+        self.assertEqual(len(session.comments), 1)
+        self.assertEqual(session.comments[0].author_user_id, self.family.id)
 
     def test_rejects_duplicate_and_outsider(self):
         session = CommentSession(self.booking(), {1: self.family, 2: self.professional, 3: self.outsider})

@@ -7,6 +7,7 @@ import GoogleMap from '../common/GoogleMap';
 import BookingModal from '../bookings/BookingModal';
 import RateServiceModal from '../bookings/RateServiceModal';
 import CancelServiceModal from '../bookings/CancelServiceModal';
+import CancelledServiceCommentModal from '../bookings/CancelledServiceCommentModal';
 import ServiceChatModal from '../bookings/ServiceChatModal';
 import ServiceCarePlanModal from '../bookings/ServiceCarePlanModal';
 import ProfessionalDetailModal from './ProfessionalDetailModal';
@@ -56,6 +57,7 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
   const [chatBooking, setChatBooking] = useState(null);
   const [carePlanBooking, setCarePlanBooking] = useState(null);
   const [cancellationBooking, setCancellationBooking] = useState(null);
+  const [cancelledCommentBooking, setCancelledCommentBooking] = useState(null);
 
   // ── Filtros adicionales ─────────────────────────────────────
   const [showFilters, setShowFilters] = useState(false);
@@ -907,7 +909,10 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
                         </div>
                       )}
                       {b.status === 'approved' && <button onClick={() => setCancellationBooking(b)} className="h-[34px] px-4 bg-red-600 text-white rounded-xl text-[12px] font-semibold hover:bg-red-700 transition-all flex items-center gap-1.5"><span className="material-symbols-outlined text-[15px]">event_busy</span>Cancelar servicio</button>}
-                      {b.status === 'cancelled' && b.cancellation_reason && <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-[12px] text-[#424654]"><b>Cancelado por:</b> {b.cancelled_by_name || '—'}<br /><b>Motivo:</b> {b.cancellation_reason}</div>}
+                      {b.status === 'cancelled' && <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-[12px] text-[#424654]"><b>Cancelado por:</b> {b.cancelled_by_name || '—'}{b.cancellation_reason && <><br /><b>Motivo:</b> {b.cancellation_reason}</>}</div>}
+                      {b.status === 'cancelled' && b.cancelled_comments?.length > 0 && <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] text-[#424654]"><b>Comentarios de servicios cancelados</b>{b.cancelled_comments.map(comment => <p key={comment.id} className="mt-1.5"><span className="font-semibold">{comment.author_role === 'family' ? 'Familia' : 'Profesional'}:</span> {comment.comment}</p>)}</div>}
+                      {b.status === 'cancelled' && !b.cancelled_comment_by_current_user && <button type="button" onClick={() => setCancelledCommentBooking(b)} className="h-[34px] px-4 bg-[#0040a1] text-white rounded-xl text-[12px] font-semibold hover:bg-[#003080] transition-all flex items-center gap-1.5"><span className="material-symbols-outlined text-[15px]">forum</span>Comentar experiencia</button>}
+                      {b.status === 'cancelled' && b.cancelled_comment_by_current_user && <div className="flex items-center gap-1.5 text-[12px] text-green-700 font-semibold"><span className="material-symbols-outlined text-[15px]">check_circle</span>Comentario registrado</div>}
                       {b.status === 'completed' && (
                         <div className="pt-3 border-t border-[#c3c6d6]/30">
                           {b.reviewed_by_family ? (
@@ -1077,6 +1082,7 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
         />
       )}
       {cancellationBooking && <CancelServiceModal booking={cancellationBooking} token={token} onClose={() => setCancellationBooking(null)} onSuccess={updated => { setMyRequests(current => current.map(item => item.id === updated.id ? { ...item, ...updated } : item)); setCancellationBooking(null); }} />}
+      {cancelledCommentBooking && <CancelledServiceCommentModal booking={cancelledCommentBooking} token={token} onClose={() => setCancelledCommentBooking(null)} onSuccess={async () => { setCancelledCommentBooking(null); await loadMyRequests(); }} />}
       {chatBooking && <ServiceChatModal booking={chatBooking} user={user} token={token} onClose={() => setChatBooking(null)} />}
       {carePlanBooking && <ServiceCarePlanModal booking={carePlanBooking} user={user} token={token} onClose={() => setCarePlanBooking(null)} />}
       {detailProfessional && (
