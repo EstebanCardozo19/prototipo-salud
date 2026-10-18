@@ -17,6 +17,7 @@ export default function TopBar({ user, token, activeNav, onNav, onLogout, onOpen
               { key: 'caregivers', label: t('nav.caregivers') },
               { key: 'nurses', label: t('nav.nurses') },
               { key: 'calendar', label: t('nav.calendar') },
+               { key: 'medical-appointments', label: 'Citas médicas' },
             ]
           : []),
         ...(['caregiver', 'nurse'].includes(user.role)

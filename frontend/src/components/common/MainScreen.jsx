@@ -6,6 +6,7 @@ import ChatPanel from '../chat/ChatPanel';
 import { CaregiverDashboard, NurseDashboard, AdminDashboard, ProfessionalPanel, ProfessionalCalendar, AvailabilityManager } from '../dashboards';
 import AccountPanel from '../account/AccountPanel';
 import FamilyCalendar from '../patients/FamilyCalendar';
+import MedicalAppointments from '../patients/MedicalAppointments';
 import ServiceChatsModal from '../bookings/ServiceChatsModal';
 import MedicationsScreen from '../medications/MedicationsScreen';
 
@@ -45,7 +46,10 @@ export default function MainScreen({ user, token, onLogout, onUnauthorized, onUs
   const renderMain = () => {
     if (user.role === 'family') {
       if (activeNav === 'calendar') {
-        return <FamilyCalendar token={token} />;
+        return <FamilyCalendar token={token} onOpenAppointments={() => setActiveNav('medical-appointments')} />;
+      }
+      if (activeNav === 'medical-appointments') {
+        return <MedicalAppointments token={token} />;
       }
       if (activeNav === 'medications') {
         return <MedicationsScreen user={user} token={token} />;

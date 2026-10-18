@@ -3,7 +3,10 @@ import { useLang } from '../../contexts/LangContext';
 
 const DAYS = { es: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'], en: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] };
 const keyFor = date => [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
-const hour = value => `${String(value).padStart(2, '0')}:00`;
+const hour = value => {
+  const text = String(value ?? '');
+  return text.includes(':') ? text.slice(0, 5) : `${text.padStart(2, '0')}:00`;
+};
 const monday = date => { const value = new Date(date); value.setHours(0, 0, 0, 0); value.setDate(value.getDate() - ((value.getDay() + 6) % 7)); return value; };
 
 export default function CalendarSchedule({ bookings, statusClasses, renderLabel, onSelect }) {

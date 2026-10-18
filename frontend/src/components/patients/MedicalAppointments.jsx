@@ -18,7 +18,8 @@ const initialForm = recordId => ({
   recurrence_frequency: '', recurrence_until: '', accompaniment_professional_user_id: '', document_ids: [], pending_documents: [],
 });
 
-export default function MedicalAppointments({ token, records }) {
+export default function MedicalAppointments({ token }) {
+  const [records, setRecords] = useState([]);
   const [appointments, setAppointments] = useState([]);
   const [professionals, setProfessionals] = useState([]);
   const [documents, setDocuments] = useState([]);
@@ -39,7 +40,18 @@ export default function MedicalAppointments({ token, records }) {
       setAppointments(response.ok ? await response.json() : []);
     } finally { setLoading(false); }
   };
-  useEffect(() => { loadAppointments(); }, [token]);
+  useEffect(() => {
+    const loadRecords = async () => {
+      try {
+        const response = await fetch('/api/clinical-records/', { headers });
+        const data = response.ok ? await response.json() : [];
+        setRecords(data);
+        setForm(current => current.clinical_record_id || !data[0] ? current : { ...current, clinical_record_id: data[0].id });
+      } catch { setRecords([]); }
+    };
+    loadRecords();
+    loadAppointments();
+  }, [token]);
 
   useEffect(() => {
     if (!form.clinical_record_id) { setProfessionals([]); return; }

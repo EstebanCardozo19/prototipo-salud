@@ -299,7 +299,9 @@ def cancel_appointment(appointment_id: int, current_user: User = Depends(require
 
 @router.get("/professional", response_model=List[AppointmentResponse])
 def list_professional_appointments(current_user: User = Depends(require_role(UserRole.caregiver, UserRole.nurse)), session: Session = Depends(get_session)):
-    items = session.exec(select(MedicalAppointment).where(MedicalAppointment.accompaniment_professional_user_id == current_user.id).order_by(MedicalAppointment.date, MedicalAppointment.time)).all()
+    items = session.exec(select(MedicalAppointment).where(
+        MedicalAppointment.accompaniment_professional_user_id == current_user.id,
+    ).order_by(MedicalAppointment.date, MedicalAppointment.time)).all()
     return [_serialize(item, session.get(ClinicalRecord, item.clinical_record_id), session) for item in items]
 
 
