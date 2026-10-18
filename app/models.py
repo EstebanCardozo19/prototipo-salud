@@ -572,6 +572,34 @@ class Review(SQLModel, table=True):
 
 
 # ============================================================
+# Reconocimientos profesionales
+# ============================================================
+
+class RecognitionType(str, enum.Enum):
+    first_service = "first_service"
+    excellent_care = "excellent_care"
+    featured_professional = "featured_professional"
+
+
+class ProfessionalRecognition(SQLModel, table=True):
+    """Insignia obtenida automáticamente a partir de actividad verificable."""
+    __tablename__ = "professional_recognitions"
+    __table_args__ = (
+        UniqueConstraint("professional_user_id", "recognition_type", name="uq_professional_recognition"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    professional_user_id: int = Field(foreign_key="users.id", nullable=False, index=True)
+    recognition_type: RecognitionType = Field(
+        sa_column=Column(SAEnum(RecognitionType, name="recognitiontype"), nullable=False)
+    )
+    awarded_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), server_default=func.now())
+    )
+
+
+# ============================================================
 # Reseñas de profesional → familiar (bidireccional)
 # ============================================================
 

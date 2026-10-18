@@ -23,6 +23,7 @@ from app.auth import get_current_user, require_role
 from app.routers.notifications_router import create_notification
 from app.security.encryption import user_full_name
 from app.services.ratings import calculate_rating_summary
+from app.services.recognitions import recognition_summary, sync_recognitions
 
 router = APIRouter(prefix="/api/bookings", tags=["Solicitudes y Calendario"])
 
@@ -309,6 +310,7 @@ class ProfessionalTrustResponse(BaseModel):
     completed_services: int = 0
     reviews: List["ReviewResponse"] = []
     cancelled_comments: List[CancelledCommentResponse] = []
+    recognitions: List[dict] = []
 
 
 _SENSITIVE_COMMENT_PATTERNS = (
@@ -844,6 +846,7 @@ def complete_booking(
 
     booking.status = BookingStatus.completed
     session.add(booking)
+    sync_recognitions(current_user.id, session)
     create_notification(
         session,
         booking.family_user_id,
@@ -1027,6 +1030,8 @@ def create_review(
 
     # Recalcular rating del profesional
     _recalc_professional_rating(request.professional_user_id, session)
+    sync_recognitions(request.professional_user_id, session)
+    session.commit()
 
     return ReviewResponse(
         id=review.id, family_user_id=review.family_user_id,
@@ -1101,6 +1106,8 @@ def get_professional_trust(professional_user_id: int, session: Session = Depends
         .where(CancelledServiceComment.is_hidden == False)
         .order_by(CancelledServiceComment.created_at.desc())
     ).all()
+    recognitions = recognition_summary(professional.id, session)["recognitions"]
+    session.commit()
     return ProfessionalTrustResponse(
         professional_user_id=professional.id,
         verification_status=(verification.status.value if verification else profile.status.value),
@@ -1110,6 +1117,7 @@ def get_professional_trust(professional_user_id: int, session: Session = Depends
         completed_services=completed_count,
         reviews=reviews,
         cancelled_comments=[_cancelled_comment_response(item, session.get(Booking, item.booking_id), session) for item in cancelled_comments],
+        recognitions=recognitions,
     )
 
 

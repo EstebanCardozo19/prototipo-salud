@@ -66,6 +66,8 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
   const [prefLocality, setPrefLocality] = useState(savedPrefs.prefLocality || '');
   const [prefMsg, setPrefMsg] = useState(null);
   const [familyRecords, setFamilyRecords] = useState([]);
+  const [recognitions, setRecognitions] = useState(null);
+  const [recognitionsError, setRecognitionsError] = useState('');
 
   const availableLocalidades = useMemo(
     () => getLocalidadesForCity(BOGOTA_CITY),
@@ -93,6 +95,19 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
       })
       .catch(() => setSecurityQuestionsConfigured(false));
   }, [token]);
+
+  useEffect(() => {
+    if (!['caregiver', 'nurse'].includes(user.role) || !token) return;
+    let active = true;
+    fetch('/api/recognitions/me', { headers: { Authorization: `Bearer ${token}` } })
+      .then(async response => {
+        if (!response.ok) throw new Error('No fue posible cargar los reconocimientos.');
+        return response.json();
+      })
+      .then(data => { if (active) setRecognitions(data); })
+      .catch(error => { if (active) setRecognitionsError(error.message); });
+    return () => { active = false; };
+  }, [user.role, token]);
 
   const handlePhotoChange = async (e) => {
     const file = e.target.files?.[0];
@@ -280,6 +295,7 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
   const sideNavItems = [
     { key: 'profile',     icon: 'person',            label: t('account.profile')     },
     ...(['caregiver', 'nurse'].includes(user.role) ? [{ key: 'professional-profile', icon: 'badge', label: 'Mi perfil profesional' }] : []),
+    ...(['caregiver', 'nurse'].includes(user.role) ? [{ key: 'recognitions', icon: 'workspace_premium', label: 'Mis reconocimientos' }] : []),
     { key: 'security',    icon: 'lock',              label: t('account.security')    },
     { key: 'preferences', icon: 'tune',              label: t('account.preferences') },
     ...(user.role === 'family' ? [{ key: 'family', icon: 'group', label: t('account.myFamily') }] : []),
@@ -471,6 +487,45 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
         )}
         {activeTab === 'professional-profile' && user.role === 'nurse' && (
           <NurseDashboard user={user} token={token} showTabs={false} />
+        )}
+
+        {activeTab === 'recognitions' && ['caregiver', 'nurse'].includes(user.role) && (
+          <div className="max-w-3xl">
+            <div className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm p-6">
+              <div className="flex items-start gap-3 mb-6">
+                <div className="w-10 h-10 rounded-xl bg-[#dae2ff] text-[#0040a1] flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined">workspace_premium</span>
+                </div>
+                <div>
+                  <h3 className="font-bold text-[18px] text-[#1a1c1e]">Mis reconocimientos</h3>
+                  <p className="text-[13px] text-[#737785] mt-1">Se asignan automáticamente con servicios completados y valoraciones verificadas.</p>
+                </div>
+              </div>
+              {recognitionsError && <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-[13px] text-red-700">{recognitionsError}</p>}
+              {!recognitions && !recognitionsError && <div className="py-8 flex justify-center"><Spinner /></div>}
+              {recognitions && (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+                    <div className="rounded-xl bg-[#f3f3f6] p-3"><p className="text-[11px] text-[#737785]">Servicios completados</p><p className="text-[22px] font-bold text-[#0040a1]">{recognitions.metrics.completed_services}</p></div>
+                    <div className="rounded-xl bg-[#f3f3f6] p-3"><p className="text-[11px] text-[#737785]">Valoraciones de 4 o 5</p><p className="text-[22px] font-bold text-[#0040a1]">{recognitions.metrics.verified_excellent_reviews}</p></div>
+                    <div className="rounded-xl bg-[#f3f3f6] p-3"><p className="text-[11px] text-[#737785]">Promedio actual</p><p className="text-[22px] font-bold text-[#0040a1]">{recognitions.metrics.rating_average?.toFixed(1) || '—'}</p></div>
+                  </div>
+                  <div className="space-y-3">
+                    {recognitions.recognitions.map(recognition => (
+                      <article key={recognition.code} className={`rounded-2xl border p-4 flex gap-3 ${recognition.awarded ? 'border-[#0040a1]/25 bg-[#f0f4fd]' : 'border-[#c3c6d6]/40 bg-white'}`}>
+                        <div className={`w-10 h-10 rounded-full shrink-0 flex items-center justify-center ${recognition.awarded ? 'bg-[#0040a1] text-white' : 'bg-[#f3f3f6] text-[#737785]'}`}><span className="material-symbols-outlined">{recognition.icon}</span></div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap justify-between gap-2"><h4 className="font-bold text-[14px] text-[#1a1c1e]">{recognition.name}</h4><span className={`text-[11px] font-bold ${recognition.awarded ? 'text-[#0040a1]' : 'text-[#737785]'}`}>{recognition.awarded ? 'Obtenido' : `${recognition.progress}/${recognition.target}`}</span></div>
+                          <p className="mt-1 text-[12px] text-[#424654]">{recognition.awarded ? recognition.description : recognition.requirement}</p>
+                          {!recognition.awarded && <div className="mt-2 h-1.5 bg-[#dae2ff] rounded-full overflow-hidden"><div className="h-full bg-[#0040a1] rounded-full" style={{ width: `${(recognition.progress / recognition.target) * 100}%` }} /></div>}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         )}
 
         {/* ─ Security ─ */}

@@ -145,6 +145,7 @@ export default function ProfessionalDetailModal({ professional, token, reviews =
     : null;
   const displayedReviews = trust ? trust.reviews : reviews;
   const cancelledComments = trust?.cancelled_comments || [];
+  const recognitions = trust?.recognitions?.filter(recognition => recognition.awarded) || [];
   const { average: avgRating, count: ratingCount } = getRatingSummary(
     professional.rating_count != null ? professional.rating_avg : fallbackAverage,
     professional.rating_count != null ? professional.rating_count : fallbackCount,
@@ -275,6 +276,20 @@ export default function ProfessionalDetailModal({ professional, token, reviews =
                     <p className="text-[15px] font-semibold text-[#1a1c1e]">{professional.experience_years} {t('professional.years')}</p>
                   </div>
                 </div>
+
+                {recognitions.length > 0 && (
+                  <section>
+                    <p className="text-[10px] font-bold text-[#737785] uppercase tracking-wide mb-2">Reconocimientos</p>
+                    <div className="flex flex-wrap gap-2">
+                      {recognitions.map(recognition => (
+                        <div key={recognition.code} title={recognition.description} className="inline-flex items-center gap-1.5 rounded-full border border-[#0040a1]/20 bg-[#dae2ff]/60 px-3 py-1.5 text-[11px] font-bold text-[#0040a1]">
+                          <span className="material-symbols-outlined text-[16px]">{recognition.icon}</span>
+                          {recognition.name}
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
 
                 {/* Institución */}
                 {professional.institution && (

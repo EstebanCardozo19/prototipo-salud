@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from contextlib import asynccontextmanager
 
-from app.models import User, CaregiverProfile, ClinicalRecord, ClinicalRecordDocument, NurseProfile, Booking, Availability, Review, ProfessionalVerification, VerificationDocument, ServiceChatMessage, ServiceCarePlan, ProfessionalAssistantAuditLog, Notification, PushSubscription, MedicationReminderDelivery, MedicalAppointment, AppointmentReminderDelivery, PatientMedication, CancelledServiceComment, CancelledServiceCommentReport  # noqa: F401
+from app.models import User, CaregiverProfile, ClinicalRecord, ClinicalRecordDocument, NurseProfile, Booking, Availability, Review, ProfessionalRecognition, ProfessionalVerification, VerificationDocument, ServiceChatMessage, ServiceCarePlan, ProfessionalAssistantAuditLog, Notification, PushSubscription, MedicationReminderDelivery, MedicalAppointment, AppointmentReminderDelivery, PatientMedication, CancelledServiceComment, CancelledServiceCommentReport  # noqa: F401
 from app.database import engine
 from app.database import get_session
 from sqlmodel import Session
@@ -20,7 +20,7 @@ from app.security.encryption import (
     encrypt_bytes, encrypt_text, is_encrypted, user_email_lookup,
     validate_encryption_configuration,
 )
-from app.routers import auth_router, caregivers_router, clinical_router, admin_router, nurses_router, bookings_router
+from app.routers import auth_router, caregivers_router, clinical_router, admin_router, nurses_router, bookings_router, recognitions_router
 from app.routers import upload_router, verification_router, service_chat_router, notifications_router, care_plan_router, professional_assistant_router, appointments_router, medications_router
 
 load_dotenv()
@@ -112,6 +112,15 @@ async def lifespan(app: FastAPI):
         conn.execute(text("ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancellation_reason VARCHAR(500)"))
         conn.execute(text("ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancelled_by_user_id INTEGER REFERENCES users(id)"))
         conn.execute(text("ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP WITH TIME ZONE"))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS professional_recognitions (
+                id SERIAL PRIMARY KEY,
+                professional_user_id INTEGER NOT NULL REFERENCES users(id),
+                recognition_type recognitiontype NOT NULL,
+                awarded_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+                CONSTRAINT uq_professional_recognition UNIQUE (professional_user_id, recognition_type)
+            )
+        """))
         # HU-021: tablas creadas por ``create_all`` en instalaciones nuevas; estas
         # sentencias son acumulativas para las bases existentes y no modifican datos.
         conn.execute(text("""
@@ -345,6 +354,7 @@ app.include_router(auth_router.router)
 app.include_router(caregivers_router.router)
 app.include_router(nurses_router.router)
 app.include_router(bookings_router.router)
+app.include_router(recognitions_router.router)
 app.include_router(clinical_router.router)
 app.include_router(admin_router.router)
 app.include_router(upload_router.router)
