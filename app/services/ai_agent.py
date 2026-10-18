@@ -16,7 +16,8 @@ import re
 import unicodedata
 import requests
 
-from app.mcp_server import buscar_profesionales_similares, get_tool_definitions
+from app.mcp_server import buscar_profesional_por_nombre, buscar_profesionales_similares, get_tool_definitions
+from app.services.bogota_locations import BOGOTA_LOCALITIES, normalize_location
 
 # Configuración de la API de SAI Applications
 API_URL = "https://sai-library.saiapplications.com/api/prompt/v1/chat/completions"
@@ -279,7 +280,85 @@ def _construir_contexto_familiar(familiares: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def conversar(mensaje_usuario: str, historial: list[dict] = None, familiares: list[dict] = None) -> dict:
+def _es_saludo(message: str) -> bool:
+    return bool(re.fullmatch(r"\s*(hola|buenos dias|buenas tardes|buenas noches|hey|que tal)[!.¡¿?\s]*", _normalizar_texto(message)))
+
+
+def _extraer_nombre_consultado(message: str) -> str | None:
+    """Obtiene nombres propios tras expresiones de consulta, sin inferir identidades."""
+    match = re.search(
+        r"(?:de|sobre|por|con|entre)\s+([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'-]+(?:\s+[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ'-]+){1,4})",
+        message,
+    )
+    return match.group(1).strip(" .,?!") if match else None
+
+
+def _formatear_perfil(profile: dict) -> str:
+    specialty = profile.get("specialty_display") or ", ".join(profile.get("specialties") or []) or "sin especialidad registrada"
+    text = (
+        f"{profile['full_name']} es {('enfermero/a' if profile['role'] == 'nurse' else 'cuidador/a')} registrado/a. "
+        f"Tarifa: ${profile['hourly_rate']:,.0f}/h; localidad: {profile['location']}; "
+        f"experiencia: {profile['experience_years']} años; especialidades: {specialty}."
+    )
+    if profile.get("rating_count"):
+        text += f" Valoración registrada: {profile['rating_avg']:.1f}/5 ({profile['rating_count']} reseñas)."
+    return text
+
+
+def _inferir_localidad(messages: list[str], explicit_locality: str | None = None) -> str | None:
+    """Obtiene la localidad explícita más reciente sin pedirle esta decisión al LLM."""
+    if explicit_locality:
+        return explicit_locality
+    for message in reversed(messages):
+        normalized = _normalizar_texto(message)
+        for locality in BOGOTA_LOCALITIES:
+            if re.search(rf"\b{re.escape(locality)}\b", normalized):
+                return locality.title()
+    return None
+
+
+def _respuesta_catalogo_local(message: str, history: list[dict[str, str]], locality: str | None = None) -> dict | None:
+    """Gestiona intenciones de catálogo sin depender del LLM ni repetir resultados."""
+    normalized = _normalizar_texto(message)
+    if _es_saludo(message):
+        return {"texto": "¡Hola! Puedo ayudarte a buscar, comparar o consultar datos registrados de cuidadores y enfermeros. ¿Qué necesitas?", "profesionales": []}
+
+    requested_name = _extraer_nombre_consultado(message)
+    if requested_name and any(word in normalized for word in ("tarifa", "informacion", "información", "perfil", "experiencia", "especial", "localidad", "sobre", "de ")):
+        profiles = buscar_profesional_por_nombre(requested_name)
+        if len(profiles) == 1:
+            return {"texto": _formatear_perfil(profiles[0]), "profesionales": profiles}
+        if len(profiles) > 1:
+            return {"texto": f"Encontré {len(profiles)} perfiles con el nombre {requested_name}. Indícame el rol o la localidad para identificarlo.", "profesionales": profiles}
+        return {"texto": f"No encontré un perfil público aprobado con el nombre {requested_name}.", "profesionales": []}
+
+    wants_next = bool(re.search(r"\b(siguientes?|mas|más|otros|continuar)\b", normalized))
+    user_turns = [item["content"] for item in history if item["role"] == "user"]
+    professional_type = _inferir_tipo_profesional(user_turns + [message])
+    if not professional_type:
+        return None
+    # Una pregunta de seguimiento que no pide catálogo se resuelve antes de buscar.
+    if not wants_next and requested_name:
+        profiles = buscar_profesional_por_nombre(requested_name, professional_type)
+        return {"texto": _formatear_perfil(profiles[0]) if len(profiles) == 1 else f"No encontré un perfil único para {requested_name}.", "profesionales": profiles}
+    page = 1
+    if wants_next:
+        page = 1 + sum("Página " in item["content"] for item in history if item["role"] == "assistant")
+    description = _construir_descripcion_busqueda(message, history)
+    requested_locality = _inferir_localidad(user_turns + [message], locality)
+    raw = buscar_profesionales_similares(
+        descripcion_paciente=description,
+        tipo_profesional=professional_type,
+        localidad=requested_locality,
+        page=page,
+    )
+    result = json.loads(raw)
+    if result.get("profesionales") and "page" in result:
+        result["texto"] += f" Página {result.get('page', page)}. La compatibilidad usa necesidades/especialidad, experiencia, ubicación, disponibilidad publicada y valoraciones verificadas."
+    return {"texto": result["texto"], "profesionales": result.get("profesionales", [])}
+
+
+def conversar(mensaje_usuario: str, historial: list[dict] = None, familiares: list[dict] = None, localidad: str | None = None) -> dict:
     """
     Procesa un mensaje del usuario y retorna { texto, profesionales }.
 
@@ -297,8 +376,12 @@ def conversar(mensaje_usuario: str, historial: list[dict] = None, familiares: li
     if respuesta_segura:
         return {"texto": respuesta_segura, "profesionales": []}
 
-    tools = get_tool_definitions()
     historial = _normalizar_historial(historial)
+    respuesta_catalogo = _respuesta_catalogo_local(mensaje_usuario, historial, localidad)
+    if respuesta_catalogo:
+        return respuesta_catalogo
+
+    tools = get_tool_definitions()
     descripcion_busqueda = _construir_descripcion_busqueda(mensaje_usuario, historial)
     tipo_profesional = _inferir_tipo_profesional([
         item["content"] for item in historial if item["role"] == "user"

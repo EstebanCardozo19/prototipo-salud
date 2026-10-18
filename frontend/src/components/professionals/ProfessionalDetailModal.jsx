@@ -230,9 +230,9 @@ export default function ProfessionalDetailModal({ professional, token, reviews =
                 <div className="flex items-center gap-1 bg-amber-400/20 border border-amber-300/30 rounded-lg px-2 py-0.5">
                   {ratingCount > 0 ? <><StarRating value={avgRating} readOnly size="sm" /><span className="text-amber-200 font-bold text-[12px] ml-0.5">{avgRating.toFixed(1)}</span><span className="text-amber-300/70 text-[10px]">({ratingCount})</span></> : <span className="text-amber-200 text-[11px]">Sin valoraciones</span>}
                 </div>
-                {professional.similitud && (
+                {Number.isInteger(professional.compatibility) && (
                   <span className="text-[10px] bg-[#8df1e3]/20 text-[#8df1e3] border border-[#8df1e3]/30 px-2 py-0.5 rounded-lg font-semibold">
-                    {Math.round(professional.similitud * 100)}{t('professional.compatibility')}
+                    {professional.compatibility}{t('professional.compatibility')}
                   </span>
                 )}
               </div>

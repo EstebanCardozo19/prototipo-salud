@@ -73,7 +73,7 @@ class FamilyChatHistoryTests(unittest.TestCase):
         self.assertEqual(result["texto"], "Resultados.")
         self.assertEqual(search.call_args.kwargs["tipo_profesional"], "caregiver")
 
-    def test_empty_provider_content_has_a_useful_fallback_message(self):
+    def test_greeting_is_answered_locally_without_provider(self):
         response = {"choices": [{"message": {"content": "   "}}]}
 
         with patch("app.services.ai_agent.get_tool_definitions", return_value=[]), patch(
@@ -81,10 +81,7 @@ class FamilyChatHistoryTests(unittest.TestCase):
         ):
             result = ai_agent.conversar("Hola")
 
-        self.assertEqual(
-            result["texto"],
-            "Cuéntame qué tipo de apoyo necesita tu familiar para orientarte.",
-        )
+        self.assertIn("¡Hola!", result["texto"])
 
     def test_conversar_uses_prior_answers_without_repeating_them(self):
         history = [

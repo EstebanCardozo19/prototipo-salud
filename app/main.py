@@ -412,22 +412,9 @@ def chat_con_sai(
             {
                 "patient_name":     r.patient_name,
                 "patient_age":      r.patient_age,
-                "blood_type":       r.blood_type,
-                "diagnoses":        r.diagnoses or [],
-                "medications":      r.medications or [],
-                "allergies":        r.allergies or [],
                 "mobility_level":   r.mobility_level,
                 "special_needs":    r.special_needs,
-                "emergency_contact":r.emergency_contact,
-                "eps":              r.eps,
-                "prepaid_medicine": r.prepaid_medicine,
-                "preferred_hospital": r.preferred_hospital,
-                "address":          r.address,
                 "neighborhood":     r.neighborhood,
-                "city":             r.city,
-                "floor_number":     r.floor_number,
-                "is_apartment":     r.is_apartment,
-                "has_elevator":     r.has_elevator,
             }
             for r in records
         ]
@@ -437,6 +424,7 @@ def chat_con_sai(
             request.mensaje,
             historial=request.historial,
             familiares=familiares,
+            localidad=request.localidad,
         )
         return {"respuesta": result["texto"], "profesionales": result["profesionales"]}
     except Exception as e:

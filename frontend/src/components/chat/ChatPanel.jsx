@@ -209,9 +209,9 @@ export default function ChatPanel({ user, token, onUnauthorized }) {
                               </span>
                               <span className="truncate">{prof.location}</span>
                             </span>
-                            {prof.similitud && (
+                            {Number.isInteger(prof.compatibility) && (
                               <span className="w-fit shrink-0 whitespace-nowrap rounded-lg border border-green-200 bg-green-50 px-1.5 py-0.5 text-[10px] font-semibold text-green-700">
-                                {Math.round(prof.similitud * 100)}{t('professional.compatibShort')}
+                                {prof.compatibility}{t('professional.compatibShort')}
                               </span>
                             )}
                           </div>
