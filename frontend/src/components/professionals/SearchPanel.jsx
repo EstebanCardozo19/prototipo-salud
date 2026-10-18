@@ -27,6 +27,21 @@ const INITIAL_FILTERS = {
   minRating: '',
   sortBy: 'rating',
 };
+
+const normalizeLocality = value => String(value || '')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .trim()
+  .toLowerCase();
+
+// Debe replicar la regla del backend: la ubicación primaria sirve para el
+// mapa; coverage_localities amplía el catálogo y Toda Bogotá cubre las 20.
+const coversLocality = (professional, locality) => {
+  if (!locality || professional.covers_all_bogota) return true;
+  const requested = normalizeLocality(locality);
+  return [professional.location, ...(professional.coverage_localities || [])]
+    .some(coveredLocality => normalizeLocality(coveredLocality) === requested);
+};
 const PRICE_RANGES = [
   { id: 'under_50', min: 0, max: 50000, label: 'search.priceUnder50' },
   { id: '50_80', min: 50000, max: 80000, label: 'search.price50to80' },
@@ -119,20 +134,17 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
   const applyFilters = list => {
     let result = [...list];
 
-    // Solo perfiles registrados en una localidad válida de Bogotá.
-    const bogotaLocalities = availableLocalidades.map(locality => locality.toLowerCase());
+    // Solo perfiles con localidad primaria válida de Bogotá. La cobertura
+    // adicional no se usa para crear marcadores ni sustituye esa ubicación.
+    const bogotaLocalities = availableLocalidades.map(normalizeLocality);
     result = result.filter(p => {
-      const location = (p.location || '').toLowerCase();
-      return bogotaLocalities.some(locality => location.includes(locality));
+      const location = normalizeLocality(p.location);
+      return bogotaLocalities.includes(location);
     });
 
     // Filtro por Localidad / Comuna específica
     if (selectedLocalidad) {
-      const locTerm = selectedLocalidad.toLowerCase();
-      result = result.filter(p => {
-        const loc = (p.location || '').toLowerCase();
-        return loc.includes(locTerm) || locTerm.includes(loc);
-      });
+      result = result.filter(p => coversLocality(p, selectedLocalidad));
     }
 
     // Filtro por Género

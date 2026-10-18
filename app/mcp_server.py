@@ -23,6 +23,27 @@ def _normalize_locality_sql(expression: str) -> str:
     """Genera una expresión PostgreSQL para comparar localidades sin tildes."""
     return f"translate(lower({expression}), 'áéíóúüñ', 'aeiouun')"
 
+
+def _coverage_where_clause(profile_alias: str = "cp") -> str:
+    """Predicado SQL equivalente a ``profile_covers_locality`` sobre PostgreSQL.
+
+    ``location`` sigue siendo exclusivamente la localidad primaria/mapa. Las
+    localidades adicionales se consultan desde el JSON persistido, sin crear
+    marcadores adicionales.
+    """
+    requested = _normalize_locality_sql(":localidad")
+    primary = _normalize_locality_sql(f"{profile_alias}.location")
+    additional = _normalize_locality_sql("locality")
+    return f"""(
+        {profile_alias}.covers_all_bogota = true
+        OR {primary} = {requested}
+        OR EXISTS (
+            SELECT 1
+            FROM json_array_elements_text(COALESCE({profile_alias}.coverage_localities, '[]'::json)) AS locality
+            WHERE {additional} = {requested}
+        )
+    )"""
+
 def buscar_profesionales_similares(
     descripcion_paciente: str,
     tipo_profesional: str | None = None,
@@ -67,9 +88,7 @@ def buscar_profesionales_similares(
             specialty_column = "specialty"
 
         if localidad:
-            normalized_location = _normalize_locality_sql(":localidad")
-            profile_location = _normalize_locality_sql("cp.location")
-            coverage_location = _normalize_locality_sql("locality")
+            coverage_where = _coverage_where_clause()
             sql = text(f"""
                 SELECT cp.id, u.id as user_id, u.full_name, u.photo_url,
                        cp.{specialty_column} AS specialties, cp.location, cp.coverage_localities, cp.covers_all_bogota, cp.experience_years,
@@ -77,10 +96,7 @@ def buscar_profesionales_similares(
                        1 - (cp.embedding <=> CAST(:embedding AS vector)) AS similitud
                 FROM {profile_table} cp
                 JOIN users u ON u.id = cp.user_id
-                WHERE (cp.covers_all_bogota = true
-                       OR {profile_location} = {normalized_location}
-                       OR EXISTS (SELECT 1 FROM json_array_elements_text(cp.coverage_localities) locality
-                                   WHERE {coverage_location} = {normalized_location}))
+                WHERE {coverage_where}
                   AND u.is_active = true
                   AND cp.status = :approved_status
                   AND cp.embedding IS NOT NULL

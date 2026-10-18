@@ -9,6 +9,7 @@ BOGOTA_LOCALITIES = {
     "tunjuelito", "bosa", "kennedy", "fontibon", "engativa", "suba",
     "barrios unidos", "teusaquillo", "los martires", "antonio narino",
     "puente aranda", "la candelaria", "rafael uribe uribe", "ciudad bolivar",
+    "sumapaz",
 }
 
 

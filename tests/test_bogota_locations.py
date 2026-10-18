@@ -49,3 +49,26 @@ def test_profile_coverage_includes_primary_additional_and_all_bogota():
     assert not profile_covers_locality(profile, "Kennedy")
     profile.covers_all_bogota = True
     assert profile_covers_locality(profile, "Kennedy")
+
+
+def test_profile_coverage_matches_additional_localities_without_accents():
+    class Profile:
+        location = "Suba"
+        coverage_localities = ["Usaquén", "San Cristóbal", "Bosa", "Engativá"]
+        covers_all_bogota = False
+
+    profile = Profile()
+    assert profile_covers_locality(profile, "usaquen")
+    assert profile_covers_locality(profile, "san cristobal")
+    assert profile_covers_locality(profile, "Engativá")
+    assert not profile_covers_locality(profile, "Sumapaz")
+
+
+def test_all_bogota_covers_sumapaz_and_the_backend_accepts_it():
+    class Profile:
+        location = "Suba"
+        coverage_localities = []
+        covers_all_bogota = True
+
+    assert validate_bogota_professional_location("Sumapaz") == "Sumapaz"
+    assert profile_covers_locality(Profile(), "Sumapaz")
