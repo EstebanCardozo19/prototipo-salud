@@ -118,6 +118,25 @@ def _inferir_tipo_profesional(mensajes: list[str]) -> str | None:
     return None
 
 
+def _parece_solicitud_de_cuidado(message: str, history: list[dict[str, str]]) -> bool:
+    """Detecta consultas familiares que requieren definir el rol antes de buscar.
+
+    Esta decisión local evita depender del proveedor conversacional para el primer
+    paso del flujo de recomendación. No intenta diagnosticar ni clasificar una
+    necesidad clínica: solo identifica que la familia busca apoyo domiciliario.
+    """
+    text = _normalizar_texto(" ".join(
+        [item["content"] for item in history if item["role"] == "user"] + [message]
+    ))
+    terms = (
+        "ayuda", "apoyo", "cuidado", "atencion", "servicio", "domicilio",
+        "familiar", "abuelo", "abuela", "mama", "papa", "adulto mayor",
+        "paciente", "movilidad", "alzheimer", "demencia", "noche",
+        "acompanamiento", "acompañamiento",
+    )
+    return any(term in text for term in terms)
+
+
 def _construir_descripcion_busqueda(mensaje_usuario: str, historial: list[dict[str, str]]) -> str:
     """Conserva los datos aportados por la familia para la búsqueda vectorial."""
     mensajes_familia = [
@@ -336,6 +355,8 @@ def _respuesta_catalogo_local(message: str, history: list[dict[str, str]], local
     user_turns = [item["content"] for item in history if item["role"] == "user"]
     professional_type = _inferir_tipo_profesional(user_turns + [message])
     if not professional_type:
+        if not history and _parece_solicitud_de_cuidado(message, history):
+            return {"texto": PREGUNTA_TIPO_PROFESIONAL, "profesionales": []}
         return None
     # Una pregunta de seguimiento que no pide catálogo se resuelve antes de buscar.
     if not wants_next and requested_name:

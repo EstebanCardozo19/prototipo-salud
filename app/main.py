@@ -430,6 +430,7 @@ def chat_con_sai(
     except Exception as e:
         # La recomendación local sigue disponible aunque el proveedor conversacional
         # externo no responda o devuelva una respuesta no compatible.
+        logger.warning("Fallo del asistente conversacional; se aplicará la contingencia local: %s", e)
         try:
             import json
             from app.mcp_server import buscar_profesionales_similares
@@ -440,10 +441,7 @@ def chat_con_sai(
             )
             parsed = json.loads(raw)
             return {
-                "respuesta": (
-                    "No fue posible consultar el asistente conversacional en este momento. "
-                    + parsed.get("texto", "Encontré estas recomendaciones locales.")
-                ),
+                "respuesta": parsed.get("texto", "Encontré estas recomendaciones locales."),
                 "profesionales": parsed.get("profesionales", []),
             }
         except Exception as fallback_error:

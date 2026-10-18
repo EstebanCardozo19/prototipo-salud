@@ -58,6 +58,16 @@ class FamilyChatHistoryTests(unittest.TestCase):
         self.assertEqual(search.call_args.kwargs["tipo_profesional"], "nurse")
         self.assertIn("Alzheimer", search.call_args.kwargs["descripcion_paciente"])
 
+    def test_care_request_without_role_is_answered_locally(self):
+        with patch("app.services.ai_agent._llamar_sai") as sai, patch(
+            "app.services.ai_agent.buscar_profesionales_similares"
+        ) as search:
+            result = ai_agent.conversar("Mi abuelo necesita ayuda nocturna por Alzheimer.")
+
+        self.assertEqual(result, {"texto": ai_agent.PREGUNTA_TIPO_PROFESIONAL, "profesionales": []})
+        sai.assert_not_called()
+        search.assert_not_called()
+
     def test_prior_explicit_caregiver_type_is_reused(self):
         history = [
             {"role": "user", "content": "Necesito un cuidador para mi mamá con movilidad reducida."},
