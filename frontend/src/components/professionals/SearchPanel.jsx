@@ -134,13 +134,10 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
   const applyFilters = list => {
     let result = [...list];
 
-    // Solo perfiles con localidad primaria válida de Bogotá. La cobertura
-    // adicional no se usa para crear marcadores ni sustituye esa ubicación.
-    const bogotaLocalities = availableLocalidades.map(normalizeLocality);
-    result = result.filter(p => {
-      const location = normalizeLocality(p.location);
-      return bogotaLocalities.includes(location);
-    });
+    // No se descartan perfiles existentes solo porque su localidad primaria
+    // tenga un formato legado (por ejemplo, "Suba, Bogotá D.C."). El backend
+    // ya entrega únicamente perfiles activos y aprobados. La ubicación primaria
+    // continúa siendo la única que usa el mapa para su marcador.
 
     // Filtro por Localidad / Comuna específica
     if (selectedLocalidad) {
