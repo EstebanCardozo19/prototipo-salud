@@ -20,6 +20,8 @@ export default function ProfessionalCard({
   priceUnit = '/h',
   institution,
   location,
+  coverageLocalities = [],
+  coversAllBogota = false,
   experienceYears,
   bio,
   reviews = [],
@@ -41,6 +43,7 @@ export default function ProfessionalCard({
   const [showBooking, setShowBooking]     = useState(false);
   const [showDetail, setShowDetail]       = useState(false);
   const { success } = useToast();
+  const totalCoverageLocalities = new Set([location, ...coverageLocalities].filter(Boolean)).size;
 
   const handleSuccess = (count = 1) => {
     setShowBooking(false);
@@ -59,6 +62,8 @@ export default function ProfessionalCard({
         role:       professionalData.role        || professionalRole,
         hourly_rate: professionalData.hourly_rate ?? price,
         location:   professionalData.location    || location,
+        coverage_localities: professionalData.coverage_localities ?? coverageLocalities,
+        covers_all_bogota: professionalData.covers_all_bogota ?? coversAllBogota,
         user_id:    professionalData.user_id     || professionalUserId,
       }
     : {
@@ -66,6 +71,8 @@ export default function ProfessionalCard({
         role:           professionalRole,
         hourly_rate:    price,
         location,
+        coverage_localities: coverageLocalities,
+        covers_all_bogota: coversAllBogota,
         bio,
         experience_years: experienceYears,
         specialties:    specialty ? [specialty] : [],
@@ -150,6 +157,12 @@ export default function ProfessionalCard({
             <span className="flex items-center gap-2">
               <span className="material-symbols-outlined text-[16px] text-[#0040a1]/60">location_on</span>
               {location}
+            </span>
+          )}
+          {(coversAllBogota || coverageLocalities.length > 0) && (
+            <span className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[16px] text-[#0040a1]/60">map</span>
+              {coversAllBogota ? 'Cobertura: toda Bogotá' : `Cobertura: ${totalCoverageLocalities} localidad${totalCoverageLocalities === 1 ? '' : 'es'}`}
             </span>
           )}
           {experienceYears != null && (

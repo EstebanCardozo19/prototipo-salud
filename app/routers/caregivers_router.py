@@ -10,7 +10,11 @@ from app.database import get_session
 from app.models import User, UserRole, CaregiverProfile, ProfileStatus
 from app.auth import get_current_user, require_role
 from app.services.embedding_service import generar_embedding
-from app.services.bogota_locations import validate_bogota_professional_location
+from app.services.bogota_locations import (
+    profile_covers_locality,
+    validate_bogota_coverage_localities,
+    validate_bogota_professional_location,
+)
 
 router = APIRouter(prefix="/api/caregivers", tags=["Cuidadores"])
 
@@ -22,12 +26,19 @@ class CaregiverUpdateRequest(BaseModel):
     specialties: Optional[List[str]] = None
     hourly_rate: Optional[float] = None
     location: Optional[str] = None
+    coverage_localities: Optional[List[str]] = None
+    covers_all_bogota: Optional[bool] = None
     bio: Optional[str] = None
 
     @field_validator("location")
     @classmethod
     def location_must_be_bogota(cls, value: Optional[str]) -> Optional[str]:
         return validate_bogota_professional_location(value)
+
+    @field_validator("coverage_localities")
+    @classmethod
+    def coverage_must_be_bogota(cls, value: Optional[List[str]]) -> Optional[List[str]]:
+        return validate_bogota_coverage_localities(value)
 
 
 class CaregiverResponse(BaseModel):
@@ -40,6 +51,8 @@ class CaregiverResponse(BaseModel):
     specialties: Optional[List[str]]
     hourly_rate: float
     location: str
+    coverage_localities: List[str] = []
+    covers_all_bogota: bool = False
     bio: Optional[str]
     status: str
     rating_avg: Optional[float] = None
@@ -63,11 +76,10 @@ def list_caregivers(
         .where(CaregiverProfile.status == ProfileStatus.approved)
         .where(User.is_active == True)
     )
-    if location:
-        statement = statement.where(CaregiverProfile.location.ilike(f"%{location}%"))
-    statement = statement.offset(skip).limit(limit)
-
     results = session.exec(statement).all()
+    if location:
+        results = [(profile, user) for profile, user in results if profile_covers_locality(profile, location)]
+    results = results[skip:skip + limit]
 
     responses = [
         CaregiverResponse(
@@ -80,6 +92,8 @@ def list_caregivers(
             specialties=profile.specialties,
             hourly_rate=profile.hourly_rate,
             location=profile.location,
+            coverage_localities=profile.coverage_localities or [],
+            covers_all_bogota=profile.covers_all_bogota,
             bio=profile.bio,
             status=profile.status.value,
             rating_avg=profile.rating_avg,
@@ -105,7 +119,7 @@ def list_caregivers(
 def get_my_profile(current_user: User = Depends(require_role(UserRole.caregiver)), session: Session = Depends(get_session)):
     profile = session.exec(select(CaregiverProfile).where(CaregiverProfile.user_id == current_user.id)).first()
     if not profile: raise HTTPException(404, "Perfil de cuidador no encontrado")
-    return CaregiverResponse(id=profile.id, user_id=profile.user_id, full_name=current_user.full_name, email=current_user.email, photo_url=current_user.photo_url, experience_years=profile.experience_years, specialties=profile.specialties, hourly_rate=profile.hourly_rate, location=profile.location, bio=profile.bio, status=profile.status.value, rating_avg=profile.rating_avg, rating_count=profile.rating_count)
+    return CaregiverResponse(id=profile.id, user_id=profile.user_id, full_name=current_user.full_name, email=current_user.email, photo_url=current_user.photo_url, experience_years=profile.experience_years, specialties=profile.specialties, hourly_rate=profile.hourly_rate, location=profile.location, coverage_localities=profile.coverage_localities or [], covers_all_bogota=profile.covers_all_bogota, bio=profile.bio, status=profile.status.value, rating_avg=profile.rating_avg, rating_count=profile.rating_count)
 
 @router.get("/{profile_id}", response_model=CaregiverResponse)
 def get_caregiver(profile_id: int, session: Session = Depends(get_session)):
@@ -126,6 +140,8 @@ def get_caregiver(profile_id: int, session: Session = Depends(get_session)):
         specialties=profile.specialties,
         hourly_rate=profile.hourly_rate,
         location=profile.location,
+        coverage_localities=profile.coverage_localities or [],
+        covers_all_bogota=profile.covers_all_bogota,
         bio=profile.bio,
         status=profile.status.value,
         rating_avg=profile.rating_avg,
@@ -154,14 +170,15 @@ def update_my_profile(
 
     for key, value in update_data.items():
         setattr(profile, key, value)
-        if key in ("bio", "specialties", "location"):
+        if key in ("bio", "specialties", "location", "coverage_localities", "covers_all_bogota"):
             regenerate_embedding = True
 
     if regenerate_embedding and profile.bio:
         texto = (
             f"{profile.bio} "
             f"Especialidades: {', '.join(profile.specialties or [])}. "
-            f"Localidad: {profile.location}."
+            f"Localidad primaria: {profile.location}. "
+            f"Cobertura: {'Toda Bogotá' if profile.covers_all_bogota else ', '.join(profile.coverage_localities or [])}."
         )
         profile.embedding = generar_embedding(texto)
 
@@ -179,6 +196,8 @@ def update_my_profile(
         specialties=profile.specialties,
         hourly_rate=profile.hourly_rate,
         location=profile.location,
+        coverage_localities=profile.coverage_localities or [],
+        covers_all_bogota=profile.covers_all_bogota,
         bio=profile.bio,
         status=profile.status.value,
     )

@@ -63,6 +63,10 @@ async def lifespan(app: FastAPI):
         conn.execute(text("ALTER TABLE clinical_records ADD COLUMN IF NOT EXISTS allow_professional_document_access BOOLEAN NOT NULL DEFAULT FALSE"))
         conn.execute(text("ALTER TABLE clinical_record_documents ADD COLUMN IF NOT EXISTS extracted_text TEXT"))
         conn.execute(text("ALTER TABLE nurse_profiles ADD COLUMN IF NOT EXISTS embedding vector(384)"))
+        conn.execute(text("ALTER TABLE caregiver_profiles ADD COLUMN IF NOT EXISTS coverage_localities JSON NOT NULL DEFAULT '[]'::json"))
+        conn.execute(text("ALTER TABLE caregiver_profiles ADD COLUMN IF NOT EXISTS covers_all_bogota BOOLEAN NOT NULL DEFAULT FALSE"))
+        conn.execute(text("ALTER TABLE nurse_profiles ADD COLUMN IF NOT EXISTS coverage_localities JSON NOT NULL DEFAULT '[]'::json"))
+        conn.execute(text("ALTER TABLE nurse_profiles ADD COLUMN IF NOT EXISTS covers_all_bogota BOOLEAN NOT NULL DEFAULT FALSE"))
         # BUG-001: 5.0 no representa una valoración real cuando el contador es
         # cero. Reconciliar los acumulados desde ``reviews`` conserva todas las
         # reseñas existentes y también corrige perfiles creados antes del fix.

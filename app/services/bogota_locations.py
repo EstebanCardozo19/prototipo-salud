@@ -1,5 +1,5 @@
 """Reglas compartidas para la cobertura exclusiva de Bogotá D.C."""
-from typing import Optional
+from typing import Iterable, Optional
 import unicodedata
 
 
@@ -43,3 +43,36 @@ def validate_bogota_professional_location(value: Optional[str]) -> Optional[str]
     if normalized not in BOGOTA_LOCALITIES:
         raise ValueError("Seleccione una localidad válida de Bogotá D.C.")
     return locality
+
+
+def validate_bogota_coverage_localities(value: Optional[Iterable[str]]) -> Optional[list[str]]:
+    """Valida y deduplica las localidades de cobertura de un profesional."""
+    if value is None:
+        return None
+    if isinstance(value, (str, bytes)):
+        raise ValueError("La cobertura debe ser una lista de localidades de Bogotá D.C.")
+
+    localities: list[str] = []
+    seen: set[str] = set()
+    for locality in value:
+        if not isinstance(locality, str):
+            raise ValueError("Cada localidad de cobertura debe ser texto")
+        validated = validate_bogota_professional_location(locality)
+        if not validated:
+            raise ValueError("Seleccione una localidad válida de Bogotá D.C.")
+        normalized = normalize_location(validated)
+        if normalized not in seen:
+            seen.add(normalized)
+            localities.append(validated)
+    return localities
+
+
+def profile_covers_locality(profile, locality: Optional[str]) -> bool:
+    """Evalúa cobertura sin utilizar las localidades adicionales como marcadores."""
+    if not locality:
+        return True
+    requested = normalize_location(locality)
+    if not requested or getattr(profile, "covers_all_bogota", False):
+        return True
+    locations = [getattr(profile, "location", ""), *(getattr(profile, "coverage_localities", None) or [])]
+    return any(normalize_location(item) == requested for item in locations if item)

@@ -14,6 +14,7 @@ import { INPUT_CLASS, LABEL_CLASS } from '../../constants';
 import { getSpecialtyLabel } from '../../utils/helpers';
 import { BOGOTA_CITY, getLocalidadesForCity } from '../../constants/colombiaGeo';
 import VerificationSection from './VerificationSection';
+import LocalityCoverageSelector from '../common/LocalityCoverageSelector';
 
 const STATUS_LABEL = { pending: 'Pendiente', approved: 'Aprobado', rejected: 'Rechazado', completed: 'Completado', cancelled: 'Cancelado' };
 const STATUS_COLOR = {
@@ -48,6 +49,7 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
 
   const [selectedCity, setSelectedCity] = useState(BOGOTA_CITY);
   const [selectedLocalidad, setSelectedLocalidad] = useState('');
+  const [coverage, setCoverage] = useState({ coverageLocalities: [], coversAllBogota: false });
   const availableLocalidades = useMemo(() => getLocalidadesForCity(BOGOTA_CITY), []);
 
   useEffect(() => { loadProfile(); }, []);
@@ -62,6 +64,7 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
         if (mine) {
           setProfile(mine);
           setForm(mine);
+          setCoverage({ coverageLocalities: mine.coverage_localities || [], coversAllBogota: mine.covers_all_bogota || false });
           if (mine.location) {
             const parts = mine.location.split(',').map(s => s.trim());
             if (parts.length > 1 && parts[1] === BOGOTA_CITY) { setSelectedLocalidad(parts[0]); setSelectedCity(BOGOTA_CITY); }
@@ -141,6 +144,8 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
         body: JSON.stringify({
           bio: form.bio,
           location: selectedLocalidad,
+          coverage_localities: coverage.coverageLocalities,
+          covers_all_bogota: coverage.coversAllBogota,
           ...(experienceYears !== null && { experience_years: experienceYears }),
           hourly_rate: hourlyRate,
           institution: form.institution,
@@ -301,6 +306,7 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
                     </select>
                   </div>
                 </div>
+                <LocalityCoverageSelector {...coverage} onChange={setCoverage} />
                 {[
                   [t('nurse_dash.yearsExp'), 'number', 'experience_years'],
                   [t('nurse_dash.ratePerHour'), 'number', 'hourly_rate'],

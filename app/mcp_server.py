@@ -18,6 +18,11 @@ load_dotenv()
 
 import json
 
+
+def _normalize_locality_sql(expression: str) -> str:
+    """Genera una expresión PostgreSQL para comparar localidades sin tildes."""
+    return f"translate(lower({expression}), 'áéíóúüñ', 'aeiouun')"
+
 def buscar_profesionales_similares(
     descripcion_paciente: str,
     tipo_profesional: str | None = None,
@@ -62,14 +67,20 @@ def buscar_profesionales_similares(
             specialty_column = "specialty"
 
         if localidad:
+            normalized_location = _normalize_locality_sql(":localidad")
+            profile_location = _normalize_locality_sql("cp.location")
+            coverage_location = _normalize_locality_sql("locality")
             sql = text(f"""
                 SELECT cp.id, u.id as user_id, u.full_name, u.photo_url,
-                       cp.{specialty_column} AS specialties, cp.location, cp.experience_years,
+                       cp.{specialty_column} AS specialties, cp.location, cp.coverage_localities, cp.covers_all_bogota, cp.experience_years,
                        cp.hourly_rate, cp.bio, cp.rating_avg, cp.rating_count,
                        1 - (cp.embedding <=> CAST(:embedding AS vector)) AS similitud
                 FROM {profile_table} cp
                 JOIN users u ON u.id = cp.user_id
-                WHERE LOWER(cp.location) = LOWER(:localidad)
+                WHERE (cp.covers_all_bogota = true
+                       OR {profile_location} = {normalized_location}
+                       OR EXISTS (SELECT 1 FROM json_array_elements_text(cp.coverage_localities) locality
+                                   WHERE {coverage_location} = {normalized_location}))
                   AND u.is_active = true
                   AND cp.status = :approved_status
                   AND cp.embedding IS NOT NULL
@@ -80,7 +91,7 @@ def buscar_profesionales_similares(
         else:
             sql = text(f"""
                 SELECT cp.id, u.id as user_id, u.full_name, u.photo_url,
-                       cp.{specialty_column} AS specialties, cp.location, cp.experience_years,
+                       cp.{specialty_column} AS specialties, cp.location, cp.coverage_localities, cp.covers_all_bogota, cp.experience_years,
                        cp.hourly_rate, cp.bio, cp.rating_avg, cp.rating_count,
                        1 - (cp.embedding <=> CAST(:embedding AS vector)) AS similitud
                 FROM {profile_table} cp
@@ -113,6 +124,8 @@ def buscar_profesionales_similares(
             "specialties": specialties,
             "specialty_display": specialties_str,
             "location": row.location,
+            "coverage_localities": row.coverage_localities or [],
+            "covers_all_bogota": row.covers_all_bogota,
             "experience_years": row.experience_years,
             "hourly_rate": float(row.hourly_rate),
             "bio": row.bio or "",

@@ -81,6 +81,9 @@ class CaregiverProfile(SQLModel, table=True):
     specialties: Optional[List[str]] = Field(default=None, sa_column=Column(JSON))
     hourly_rate: float = Field(default=0.0)
     location: str = Field(max_length=100)
+    # La localidad primaria se conserva para el mapa; la cobertura es independiente.
+    coverage_localities: List[str] = Field(default_factory=list, sa_column=Column(JSON, nullable=False, server_default="[]"))
+    covers_all_bogota: bool = Field(default=False, nullable=False)
     bio: Optional[str] = Field(default=None, max_length=500)
     status: ProfileStatus = Field(
         default=ProfileStatus.pending,
@@ -201,6 +204,8 @@ class NurseProfile(SQLModel, table=True):
     experience_years: int = Field(default=0)
     bio: Optional[str] = Field(default=None, max_length=500)
     location: str = Field(max_length=100)
+    coverage_localities: List[str] = Field(default_factory=list, sa_column=Column(JSON, nullable=False, server_default="[]"))
+    covers_all_bogota: bool = Field(default=False, nullable=False)
     hourly_rate: float = Field(default=0.0)
     # Permite recomendar enfermeros con la misma búsqueda semántica usada para
     # cuidadores. Las instalaciones existentes se actualizan en el lifespan.

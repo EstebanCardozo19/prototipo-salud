@@ -12,7 +12,11 @@ import math
 from app.database import engine, get_session
 from app.models import User, UserRole, NurseProfile, NurseSpecialty, ProfileStatus
 from app.auth import get_current_user, require_role
-from app.services.bogota_locations import validate_bogota_professional_location
+from app.services.bogota_locations import (
+    profile_covers_locality,
+    validate_bogota_coverage_localities,
+    validate_bogota_professional_location,
+)
 from app.services.embedding_service import generar_embedding
 
 router = APIRouter(prefix="/api/nurses", tags=["Enfermeros"])
@@ -48,7 +52,19 @@ class NurseUpdateRequest(BaseModel):
     experience_years: Optional[int] = None
     bio: Optional[str] = None
     location: Optional[str] = None
+    coverage_localities: Optional[List[str]] = None
+    covers_all_bogota: Optional[bool] = None
     hourly_rate: Optional[float] = None
+
+    @field_validator("location")
+    @classmethod
+    def location_must_be_bogota(cls, value: Optional[str]) -> Optional[str]:
+        return validate_bogota_professional_location(value)
+
+    @field_validator("coverage_localities")
+    @classmethod
+    def coverage_must_be_bogota(cls, value: Optional[List[str]]) -> Optional[List[str]]:
+        return validate_bogota_coverage_localities(value)
 
     @field_validator("experience_years", mode="before")
     @classmethod
@@ -84,11 +100,6 @@ class NurseUpdateRequest(BaseModel):
     def normalize_optional_institution(cls, value: Optional[str]) -> Optional[str]:
         return value.strip() or None if value is not None else None
 
-    @field_validator("location")
-    @classmethod
-    def location_must_be_bogota(cls, value: Optional[str]) -> Optional[str]:
-        return validate_bogota_professional_location(value)
-
 class NurseResponse(BaseModel):
     id: int
     user_id: int
@@ -101,6 +112,8 @@ class NurseResponse(BaseModel):
     experience_years: int
     bio: Optional[str]
     location: str
+    coverage_localities: List[str] = []
+    covers_all_bogota: bool = False
     hourly_rate: float
     status: str
     rating_avg: Optional[float] = None
@@ -122,16 +135,16 @@ def list_nurses(
     )
     if specialty:
         statement = statement.where(NurseProfile.specialty == NurseSpecialty(specialty))
+    results = session.exec(statement).all()
     if location:
-        statement = statement.where(NurseProfile.location.ilike(f"%{location}%"))
-
-    results = session.exec(statement.offset(skip).limit(limit)).all()
+        results = [(profile, user) for profile, user in results if profile_covers_locality(profile, location)]
+    results = results[skip:skip + limit]
     responses = [
         NurseResponse(
             id=p.id, user_id=p.user_id, full_name=u.full_name, email=u.email, photo_url=u.photo_url,
             specialty=p.specialty.value, license_number=p.license_number,
             institution=p.institution, experience_years=p.experience_years,
-            bio=p.bio, location=p.location, hourly_rate=p.hourly_rate,
+            bio=p.bio, location=p.location, coverage_localities=p.coverage_localities or [], covers_all_bogota=p.covers_all_bogota, hourly_rate=p.hourly_rate,
             status=p.status.value,
             rating_avg=p.rating_avg, rating_count=p.rating_count,
         )
@@ -159,7 +172,7 @@ def list_specialties():
 def get_my_profile(current_user: User = Depends(require_role(UserRole.nurse)), session: Session = Depends(get_session)):
     p = session.exec(select(NurseProfile).where(NurseProfile.user_id == current_user.id)).first()
     if not p: raise HTTPException(404, "Perfil no encontrado")
-    return NurseResponse(id=p.id, user_id=p.user_id, full_name=current_user.full_name, email=current_user.email, photo_url=current_user.photo_url, specialty=p.specialty.value, license_number=p.license_number, institution=p.institution, experience_years=p.experience_years, bio=p.bio, location=p.location, hourly_rate=p.hourly_rate, status=p.status.value, rating_avg=p.rating_avg, rating_count=p.rating_count)
+    return NurseResponse(id=p.id, user_id=p.user_id, full_name=current_user.full_name, email=current_user.email, photo_url=current_user.photo_url, specialty=p.specialty.value, license_number=p.license_number, institution=p.institution, experience_years=p.experience_years, bio=p.bio, location=p.location, coverage_localities=p.coverage_localities or [], covers_all_bogota=p.covers_all_bogota, hourly_rate=p.hourly_rate, status=p.status.value, rating_avg=p.rating_avg, rating_count=p.rating_count)
 
 @router.get("/{nurse_id}", response_model=NurseResponse)
 def get_nurse(nurse_id: int, session: Session = Depends(get_session)):
@@ -169,7 +182,7 @@ def get_nurse(nurse_id: int, session: Session = Depends(get_session)):
     u = session.get(User, p.user_id)
     if not u or not u.is_active:
         raise HTTPException(status_code=404, detail="Enfermero no encontrado")
-    return NurseResponse(id=p.id, user_id=p.user_id, full_name=u.full_name, email=u.email, photo_url=u.photo_url, specialty=p.specialty.value, license_number=p.license_number, institution=p.institution, experience_years=p.experience_years, bio=p.bio, location=p.location, hourly_rate=p.hourly_rate, status=p.status.value, rating_avg=p.rating_avg, rating_count=p.rating_count)
+    return NurseResponse(id=p.id, user_id=p.user_id, full_name=u.full_name, email=u.email, photo_url=u.photo_url, specialty=p.specialty.value, license_number=p.license_number, institution=p.institution, experience_years=p.experience_years, bio=p.bio, location=p.location, coverage_localities=p.coverage_localities or [], covers_all_bogota=p.covers_all_bogota, hourly_rate=p.hourly_rate, status=p.status.value, rating_avg=p.rating_avg, rating_count=p.rating_count)
 
 @router.put("/me", response_model=NurseResponse)
 def update_my_profile(
@@ -185,11 +198,11 @@ def update_my_profile(
         if k == "specialty" and v: setattr(p, k, NurseSpecialty(v))
         else: setattr(p, k, v)
     session.add(p); session.commit(); session.refresh(p)
-    if any(key in update_data for key in ("specialty", "bio", "location")) and p.bio:
-        embedding_text = f"{p.bio} Especialidad: {p.specialty.value}. Localidad: {p.location}."
+    if any(key in update_data for key in ("specialty", "bio", "location", "coverage_localities", "covers_all_bogota")) and p.bio:
+        embedding_text = f"{p.bio} Especialidad: {p.specialty.value}. Localidad primaria: {p.location}. Cobertura: {'Toda Bogotá' if p.covers_all_bogota else ', '.join(p.coverage_localities or [])}."
         if background_tasks:
             background_tasks.add_task(regenerate_nurse_embedding, p.id, embedding_text)
         else:
             # Mantiene la función utilizable directamente fuera de una petición FastAPI.
             regenerate_nurse_embedding(p.id, embedding_text)
-    return NurseResponse(id=p.id, user_id=p.user_id, full_name=current_user.full_name, email=current_user.email, photo_url=current_user.photo_url, specialty=p.specialty.value, license_number=p.license_number, institution=p.institution, experience_years=p.experience_years, bio=p.bio, location=p.location, hourly_rate=p.hourly_rate, status=p.status.value, rating_avg=p.rating_avg, rating_count=p.rating_count)
+    return NurseResponse(id=p.id, user_id=p.user_id, full_name=current_user.full_name, email=current_user.email, photo_url=current_user.photo_url, specialty=p.specialty.value, license_number=p.license_number, institution=p.institution, experience_years=p.experience_years, bio=p.bio, location=p.location, coverage_localities=p.coverage_localities or [], covers_all_bogota=p.covers_all_bogota, hourly_rate=p.hourly_rate, status=p.status.value, rating_avg=p.rating_avg, rating_count=p.rating_count)

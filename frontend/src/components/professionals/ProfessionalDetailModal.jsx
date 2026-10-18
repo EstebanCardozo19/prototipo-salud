@@ -302,6 +302,18 @@ export default function ProfessionalDetailModal({ professional, token, reviews =
                 )}
 
                 {/* Bio */}
+                {(professional.covers_all_bogota || (professional.coverage_localities || []).length > 0) && (
+                  <div className="bg-[#f3f3f6] rounded-xl px-4 py-3 border border-[#c3c6d6]/30">
+                    <p className="text-[10px] font-bold text-[#737785] uppercase tracking-wide">Cobertura de servicio</p>
+                    <p className="text-[13px] font-semibold text-[#1a1c1e] mt-1">
+                      {professional.covers_all_bogota
+                        ? 'Toda Bogotá D.C.'
+                        : [...new Set([professional.location, ...(professional.coverage_localities || [])].filter(Boolean))].join(', ')}
+                    </p>
+                  </div>
+                )}
+
+                {/* Bio */}
                 {professional.bio && (
                   <div>
                     <p className="text-[10px] font-bold text-[#737785] uppercase tracking-wide mb-2">{t('professional.aboutMe')}</p>
