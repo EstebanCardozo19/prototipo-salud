@@ -31,13 +31,13 @@ export default function CancelServiceModal({ booking, token, onClose, onSuccess 
     }
   };
 
-  return <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4" style={{ background: 'rgba(10,15,30,0.65)', backdropFilter: 'blur(8px)' }}>
-    <form onSubmit={submit} className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-4 sm:p-6 shadow-2xl">
+  return <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: 'rgba(10,15,30,0.65)', backdropFilter: 'blur(8px)' }}>
+    <form onSubmit={submit} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
       <div className="flex items-start gap-3">
         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-100">
           <span className="material-symbols-outlined text-[24px] text-red-600">event_busy</span>
         </div>
-        <div className="min-w-0">
+        <div>
           <h2 className="text-[18px] font-bold text-[#1a1c1e]">Cancelar servicio</h2>
           <p className="mt-1 text-[13px] text-[#424654]">Esta acción cancelará el servicio aprobado del {booking.date} y notificará a la otra parte.</p>
         </div>
@@ -50,7 +50,7 @@ export default function CancelServiceModal({ booking, token, onClose, onSuccess 
         <span>Confirmo que deseo cancelar este servicio.</span>
       </label>
       {error && <p className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-[12px] text-red-700">{error}</p>}
-      <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+      <div className="mt-5 flex gap-3">
         <button type="button" onClick={onClose} disabled={saving} className="h-[42px] flex-1 rounded-xl border border-[#c3c6d6] text-[14px] font-semibold text-[#424654] hover:bg-[#f3f3f6] disabled:opacity-60">Volver</button>
         <button type="submit" disabled={saving || !reason.trim() || !confirmed} className="flex h-[42px] flex-1 items-center justify-center gap-2 rounded-xl bg-red-600 text-[14px] font-bold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60">
           {saving ? <Spinner sm /> : 'Confirmar cancelación'}

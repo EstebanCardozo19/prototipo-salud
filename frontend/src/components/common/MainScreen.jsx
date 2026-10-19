@@ -35,7 +35,7 @@ export default function MainScreen({ user, token, onLogout, onUnauthorized, onUs
     return (
       <div className="h-screen flex flex-col bg-[#f3f3f6] font-sans overflow-hidden">
         <TopBar user={user} token={token} activeNav={activeNav} onNav={handleNav} onLogout={onLogout} onOpenMessages={handleOpenMessages} />
-        <main className="flex-1 min-h-0 overflow-hidden relative z-10">
+        <main className="flex-1 overflow-hidden relative z-10">
           <AccountPanel user={user} token={token} onUserUpdate={onUserUpdate} />
           {serviceChatsModal}
         </main>
@@ -55,12 +55,12 @@ export default function MainScreen({ user, token, onLogout, onUnauthorized, onUs
         return <MedicationsScreen user={user} token={token} />;
       }
       return (
-        <div className="flex h-full flex-col xl:flex-row">
-          <div className={`min-h-0 min-w-0 flex-1 overflow-hidden ${activeNav !== 'my-requests' ? 'border-b xl:border-b-0 xl:border-r border-[#c3c6d6]/30' : ''}`}>
+        <div className="flex h-full">
+          <div className={`flex-1 overflow-hidden ${activeNav !== 'my-requests' ? 'border-r border-[#c3c6d6]/30' : ''}`}>
             <SearchPanel user={user} token={token} activeTab={activeNav} onTabChange={setActiveNav} />
           </div>
           {activeNav !== 'my-requests' && (
-            <div className="h-[430px] shrink-0 border-t border-[#c3c6d6]/30 xl:h-auto xl:w-[300px] xl:border-t-0 xl:w-[340px]">
+            <div className="w-[300px] xl:w-[340px] shrink-0">
               <ChatPanel user={user} token={token} onUnauthorized={onUnauthorized} />
             </div>
           )}
@@ -72,12 +72,12 @@ export default function MainScreen({ user, token, onLogout, onUnauthorized, onUs
       if (activeNav === 'availability') return <AvailabilityManager token={token} />;
       if (activeNav === 'medications') return <MedicationsScreen user={user} token={token} />;
       return (
-        <div className="flex h-full flex-col xl:flex-row">
-          <div className={`min-h-0 min-w-0 flex-1 overflow-hidden ${activeNav !== 'my-requests' ? 'border-b xl:border-b-0 xl:border-r border-[#c3c6d6]/30' : ''}`}>
+        <div className="flex h-full">
+          <div className={`flex-1 overflow-hidden ${activeNav !== 'my-requests' ? 'border-r border-[#c3c6d6]/30' : ''}`}>
             <CaregiverDashboard user={user} token={token} initialTab="services" showTabs={false} />
           </div>
           {activeNav !== 'my-requests' && (
-            <div className="h-[430px] shrink-0 border-t border-[#c3c6d6]/30 xl:h-auto xl:w-[320px] xl:border-t-0">
+            <div className="w-[320px] shrink-0">
               <ProfessionalPanel user={user} token={token} />
             </div>
           )}
@@ -89,12 +89,12 @@ export default function MainScreen({ user, token, onLogout, onUnauthorized, onUs
       if (activeNav === 'availability') return <AvailabilityManager token={token} />;
       if (activeNav === 'medications') return <MedicationsScreen user={user} token={token} />;
       return (
-        <div className="flex h-full flex-col xl:flex-row">
-          <div className={`min-h-0 min-w-0 flex-1 overflow-hidden ${activeNav !== 'my-requests' ? 'border-b xl:border-b-0 xl:border-r border-[#c3c6d6]/30' : ''}`}>
+        <div className="flex h-full">
+          <div className={`flex-1 overflow-hidden ${activeNav !== 'my-requests' ? 'border-r border-[#c3c6d6]/30' : ''}`}>
             <NurseDashboard user={user} token={token} initialTab="services" showTabs={false} />
           </div>
           {activeNav !== 'my-requests' && (
-            <div className="h-[430px] shrink-0 border-t border-[#c3c6d6]/30 xl:h-auto xl:w-[320px] xl:border-t-0">
+            <div className="w-[320px] shrink-0">
               <ProfessionalPanel user={user} token={token} />
             </div>
           )}
@@ -129,7 +129,7 @@ export default function MainScreen({ user, token, onLogout, onUnauthorized, onUs
       <div className="bg-shape bg-[#8df1e3]/20 w-[600px] h-[600px] top-1/3 right-1/4" style={{ animationDelay: '-5s' }} />
       <div className="bg-shape bg-[#dae2ff]/20 w-[400px] h-[400px] -bottom-20 right-10" style={{ animationDelay: '-10s' }} />
       <TopBar user={user} token={token} activeNav={activeNav} onNav={handleNav} onLogout={onLogout} onOpenMessages={handleOpenMessages} />
-      <main className="flex-1 min-h-0 overflow-hidden relative z-10">
+      <main className="flex-1 overflow-hidden relative z-10">
         {renderMain()}
         {serviceChatsModal}
       </main>

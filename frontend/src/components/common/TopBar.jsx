@@ -32,15 +32,15 @@ export default function TopBar({ user, token, activeNav, onNav, onLogout, onOpen
       ];
 
   return (
-    <header className="bg-[#0040a1] text-white flex flex-wrap items-center justify-between gap-y-2 px-4 py-2 md:h-[64px] md:flex-nowrap md:px-8 md:py-0 shrink-0 shadow-md z-50">
-      <div className="flex min-w-0 items-center gap-2 font-bold text-[16px] sm:text-[20px]">
+    <header className="bg-[#0040a1] text-white flex items-center justify-between px-8 h-[64px] shrink-0 shadow-md z-50">
+      <div className="flex items-center gap-2 font-bold text-[20px]">
         <span className="material-symbols-outlined text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>
           favorite
         </span>
-        <span className="truncate">{t('nav.appName')}</span>
+        {t('nav.appName')}
       </div>
 
-      <nav className="order-3 -mx-1 flex w-full items-center gap-1 overflow-x-auto pb-1 md:order-none md:mx-0 md:w-auto md:pb-0">
+      <nav className="hidden md:flex items-center gap-1">
         {navItems.map(item => (
           <button
             key={item.key}
@@ -51,13 +51,13 @@ export default function TopBar({ user, token, activeNav, onNav, onLogout, onOpen
               borderBottom: activeNav === item.key ? '2px solid #8df1e3' : '2px solid transparent',
               paddingTop: '6px',
               paddingBottom: activeNav === item.key ? '2px' : '4px',
-              paddingLeft: '12px',
-              paddingRight: '12px',
+              paddingLeft: '16px',
+              paddingRight: '16px',
               background: 'none',
               fontWeight: 600,
               fontSize: 14,
               borderRadius: 8,
-              cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+              cursor: 'pointer',
               transition: 'all 0.15s',
             }}
             onMouseEnter={e => {
@@ -72,7 +72,7 @@ export default function TopBar({ user, token, activeNav, onNav, onLogout, onOpen
         ))}
       </nav>
 
-      <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
+      <div className="flex items-center gap-3">
         <NotificationCenter token={token} role={user.role} onNavigate={onNav} onOpenMessages={onOpenMessages} />
         <div className="flex items-center gap-2 text-[14px] font-semibold">
           <span className="material-symbols-outlined text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>

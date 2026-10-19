@@ -39,7 +39,7 @@ export default function InteractiveMap({
   professionals = [],
   patientLocation = null,
   onSelectProfessional,
-  className = 'h-[320px] w-full rounded-2xl overflow-hidden sm:h-[420px] lg:h-[520px]',
+  className = 'w-full h-[520px] rounded-2xl overflow-hidden',
 }) {
   const { t, lang } = useLang();
   const mapRef = useRef(null);

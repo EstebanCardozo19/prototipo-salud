@@ -181,7 +181,7 @@ export default function AuthScreen({ onLogin, initialTab = 'login', onBack }) {
   return (
     <div className="min-h-screen bg-[#f3f3f6] flex items-center justify-center p-4">
       <div className="w-full max-w-[420px] bg-white rounded-2xl shadow-lg overflow-hidden">
-        <div className="relative bg-[#0040a1] px-5 py-6 sm:px-8 sm:py-7 text-white text-center">
+        <div className="relative bg-[#0040a1] px-8 py-7 text-white text-center">
           {onBack && <button type="button" onClick={onBack} aria-label="Volver al inicio" className="absolute left-4 top-4 rounded-full p-1 hover:bg-white/10"><span className="material-symbols-outlined">arrow_back</span></button>}
           <span className="material-symbols-outlined text-[40px]" style={{ fontVariationSettings: "'FILL' 1" }}>
             favorite
@@ -190,7 +190,7 @@ export default function AuthScreen({ onLogin, initialTab = 'login', onBack }) {
           <p className="text-white/70 text-[13px] mt-1">{t('auth.subtitle')}</p>
         </div>
 
-        <div className="p-5 sm:p-8">
+        <div className="p-8">
           {/* Selector de idioma */}
           <div className="flex justify-end mb-4">
             <button

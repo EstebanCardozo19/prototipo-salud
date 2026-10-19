@@ -63,7 +63,7 @@ export default function AvailabilityManager({ token }) {
     } catch (requestError) { setError(requestError.message); }
   };
 
-  return <section className="h-full overflow-y-auto bg-[#f3f3f6]/50 p-4 sm:p-6 md:p-8">
+  return <section className="h-full overflow-y-auto bg-[#f3f3f6]/50 p-6 md:p-8">
     <div className="max-w-5xl mx-auto grid lg:grid-cols-[360px_1fr] gap-6">
       <div className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm p-5 h-fit">
         <p className="text-[12px] font-bold uppercase tracking-[.12em] text-[#006a61]">Perfil profesional</p>
@@ -78,7 +78,7 @@ export default function AvailabilityManager({ token }) {
           <label className="flex items-center gap-2 text-[13px] text-[#424654]"><input type="checkbox" checked={form.is_active} onChange={e => setForm({ ...form, is_active: e.target.checked })} />Franja activa</label>
           {Number(form.end_hour) < Number(form.start_hour) && <p className="text-[12px] text-[#006a61]">Turno nocturno: termina al día siguiente.</p>}
           {error && <p className="rounded-xl bg-red-50 border border-red-200 px-3 py-2 text-[12px] text-red-700">{error}</p>}
-           <div className="flex flex-col gap-2 sm:flex-row"><button disabled={saving} className="flex-1 h-10 bg-[#0040a1] text-white rounded-xl text-[13px] font-bold disabled:opacity-60">{saving ? 'Guardando…' : editingId ? 'Guardar cambios' : 'Agregar horario'}</button>{editingId && <button type="button" onClick={reset} className="h-10 px-3 border border-[#c3c6d6] rounded-xl text-[13px] font-semibold">Cancelar</button>}</div>
+          <div className="flex gap-2"><button disabled={saving} className="flex-1 h-10 bg-[#0040a1] text-white rounded-xl text-[13px] font-bold disabled:opacity-60">{saving ? 'Guardando…' : editingId ? 'Guardar cambios' : 'Agregar horario'}</button>{editingId && <button type="button" onClick={reset} className="px-3 border border-[#c3c6d6] rounded-xl text-[13px] font-semibold">Cancelar</button>}</div>
         </form>
       </div>
       <div className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm p-5">

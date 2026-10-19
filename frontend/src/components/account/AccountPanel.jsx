@@ -302,12 +302,12 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
   ];
 
   return (
-    <div className="flex h-full flex-col bg-[#f3f3f6] overflow-hidden md:flex-row">
+    <div className="flex h-full bg-[#f3f3f6] overflow-hidden">
 
       {/* ── Sidebar ─────────────────────────────────────────── */}
-      <div className="w-full shrink-0 bg-white border-b border-[#c3c6d6]/40 flex flex-col gap-3 p-3 md:w-[220px] md:border-b-0 md:border-r md:py-8 md:px-4 md:gap-6">
+      <div className="w-[220px] shrink-0 bg-white border-r border-[#c3c6d6]/40 flex flex-col py-8 px-4 gap-6">
         {/* Avatar y nombre */}
-        <div className="flex flex-row items-center gap-3 border-b border-[#c3c6d6]/40 pb-3 md:flex-col md:gap-2 md:pb-6">
+        <div className="flex flex-col items-center gap-2 pb-6 border-b border-[#c3c6d6]/40">
           <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
             {photoUrl ? (
               <img
@@ -333,24 +333,24 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
             className="hidden"
             onChange={handlePhotoChange}
           />
-          <div className="min-w-0 text-left md:text-center"><p className="truncate font-bold text-[15px] text-[#1a1c1e] leading-tight">{user.full_name}</p>
-          <p className="truncate text-[12px] text-[#737785]">{user.email}</p>
+          <p className="font-bold text-[15px] text-[#1a1c1e] text-center leading-tight">{user.full_name}</p>
+          <p className="text-[12px] text-[#737785]">{user.email}</p>
           {/* Chip de ciudad preferida en sidebar */}
           {user.role === 'family' && prefCity && (
             <div className="flex items-center gap-1 text-[11px] bg-[#dae2ff] text-[#0040a1] px-2.5 py-0.5 rounded-full font-semibold mt-0.5">
               <span className="material-symbols-outlined text-[12px]">location_on</span>
               {prefLocality ? `${prefLocality}, ${prefCity}` : prefCity}
             </div>
-          )}</div>
+          )}
         </div>
 
         {/* Nav items */}
-        <nav className="flex gap-1 overflow-x-auto pb-1 md:flex-col md:overflow-visible md:pb-0">
+        <nav className="flex flex-col gap-1">
           {sideNavItems.map(item => (
             <button
               key={item.key}
               onClick={() => setActiveTab(item.key)}
-              className={`flex shrink-0 items-center gap-3 px-4 h-[42px] rounded-xl text-[14px] font-semibold transition-all text-left ${
+              className={`flex items-center gap-3 px-4 h-[42px] rounded-xl text-[14px] font-semibold transition-all text-left ${
                 activeTab === item.key
                   ? 'bg-[#f3f3f6] text-[#0040a1]'
                   : 'text-[#424654] hover:bg-[#f3f3f6] hover:text-[#0040a1]'
@@ -365,7 +365,7 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
       </div>
 
       {/* ── Contenido principal ──────────────────────────────── */}
-      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4 sm:p-6 md:p-8">
+      <div className="flex-1 overflow-y-auto p-8">
         <h2 className="text-[26px] font-bold text-[#0040a1] mb-8 flex items-center gap-3">
           <span className="material-symbols-outlined text-[28px]">manage_accounts</span>
           {t('account.title')}
@@ -772,7 +772,7 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
                   ? 'Elige el idioma en que quieres ver la plataforma.'
                   : 'Choose the language you want to use in the platform.'}
               </p>
-              <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="flex gap-3">
                 {[
                   { code: 'es', flag: '🇨🇴', name: 'Español',  hint: 'Español (Colombia)' },
                   { code: 'en', flag: '🇺🇸', name: 'English',  hint: 'English (US)' },
@@ -804,7 +804,7 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
 
             {user.role === 'family' && (<>
             {/* Botón Guardar todo */}
-            <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-4">
               <button
                 type="button"
                 onClick={savePreferences}

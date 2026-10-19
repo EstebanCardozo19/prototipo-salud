@@ -102,18 +102,18 @@ export default function MedicationAgentChat({ record, token, user, onCreateMedic
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#071426]/60 p-2 sm:p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#071426]/60 p-4 backdrop-blur-sm">
       <div className="flex flex-col w-full max-w-lg max-h-[90vh] rounded-2xl bg-white shadow-2xl overflow-hidden">
 
         {/* Header */}
-        <header className="flex items-center justify-between gap-3 px-4 py-4 sm:px-5 border-b border-[#dce3eb] shrink-0 bg-gradient-to-r from-[#0040a1] to-[#1a5ccf]">
-          <div className="flex min-w-0 items-center gap-3">
+        <header className="flex items-center justify-between px-5 py-4 border-b border-[#dce3eb] shrink-0 bg-gradient-to-r from-[#0040a1] to-[#1a5ccf]">
+          <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
               <span className="material-symbols-outlined text-white text-[20px]">smart_toy</span>
             </div>
-            <div className="min-w-0">
+            <div>
               <p className="font-bold text-white text-[15px]">Asistente de medicamentos</p>
-              <p className="truncate text-white/70 text-[11px]">{record.patient_name}</p>
+              <p className="text-white/70 text-[11px]">{record.patient_name}</p>
             </div>
           </div>
           <button
@@ -192,7 +192,7 @@ export default function MedicationAgentChat({ record, token, user, onCreateMedic
         </div>
 
         {/* Input */}
-        <form onSubmit={send} className="flex gap-2 p-3 sm:p-4 border-t border-[#dce3eb] bg-white shrink-0">
+        <form onSubmit={send} className="flex gap-2 p-4 border-t border-[#dce3eb] bg-white shrink-0">
           <input
             value={input}
             onChange={e => setInput(e.target.value)}

@@ -176,7 +176,7 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Tabs */}
-      {showTabs && <div className="flex overflow-x-auto border-b border-[#c3c6d6]/40 bg-white shrink-0 px-4 pt-4 sm:px-6 sm:pt-6 gap-1">
+      {showTabs && <div className="flex border-b border-[#c3c6d6]/40 bg-white shrink-0 px-6 pt-6 gap-1">
         {[
           { id: 'profile',  icon: 'medical_services', label: 'Mi Perfil' },
           { id: 'services', icon: 'calendar_month',   label: 'Mis Servicios' },
@@ -188,7 +188,7 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
         ))}
       </div>}
 
-      <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 sm:p-8">
+      <div className="flex-1 overflow-y-auto p-6 sm:p-8">
 
         {/* ══ PERFIL ══ */}
         {activeTab === 'profile' && (
@@ -212,12 +212,12 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
                 )}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                   <div className="lg:col-span-4 flex flex-col gap-6">
-                  <div className="bg-white rounded-lg border border-[#E2E8F0] shadow-sm p-5 sm:p-8 flex flex-col h-full">
+                  <div className="bg-white rounded-lg border border-[#E2E8F0] shadow-sm p-8 flex flex-col h-full">
                     <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#F1F5F9] text-[#002b6c]">
                       <span className="material-symbols-outlined">badge</span>
                       <h2 className="text-[20px] leading-[28px] font-semibold">Mi Perfil de Enfermería</h2>
                     </div>
-                    <div className="flex flex-wrap justify-between items-start gap-3 mb-8 bg-[#F1F5F9] p-4 rounded-lg">
+                    <div className="flex justify-between items-start mb-8 bg-[#F1F5F9] p-4 rounded-lg">
                       <div>
                         <p className="text-[12px] text-[#434652] uppercase tracking-wider mb-1 font-medium">Calificación</p>
                         <div className="flex items-end gap-2">
@@ -272,7 +272,7 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
                       <div className="flex flex-col gap-2.5 max-h-[260px] overflow-y-auto pr-1">
                         {myReviews.map(r => (
                           <div key={r.id} className="bg-[#f9f9fc] rounded-xl p-3 border border-[#c3c6d6]/30">
-                    <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                            <div className="flex items-center justify-between mb-1">
                               <span className="text-[13px] font-semibold text-[#1a1c1e]">{r.family_name || 'Familiar'}</span>
                               <StarRating value={r.rating} readOnly size="sm" />
                             </div>

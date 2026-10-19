@@ -207,21 +207,21 @@ export default function BookingModal({ professional, token, onClose, onSuccess }
 
   return (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
       style={{ background: 'rgba(26,28,30,0.6)', backdropFilter: 'blur(6px)' }}
       onClick={e => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden animate-fade-in-up"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col animate-fade-in-up"
         style={{ maxHeight: 'min(90vh, 700px)' }}
       >
         {/* Header fijo */}
-        <div className="bg-[#0040a1] px-4 py-4 sm:px-6 flex items-center justify-between gap-3 rounded-t-2xl shrink-0">
-          <div className="min-w-0">
+        <div className="bg-[#0040a1] px-6 py-4 flex items-center justify-between rounded-t-2xl shrink-0">
+          <div>
             <h2 className="text-white font-bold text-[17px]">{t('booking.title')}</h2>
-            <p className="truncate text-white/70 text-[13px] mt-0.5">{professional.name}</p>
+            <p className="text-white/70 text-[13px] mt-0.5">{professional.name}</p>
           </div>
           <button
             onClick={onClose}
@@ -234,7 +234,7 @@ export default function BookingModal({ professional, token, onClose, onSuccess }
         {/* Cuerpo scrolleable */}
         <div className="overflow-y-auto flex-1 rounded-b-2xl">
           {/* Info profesional */}
-          <div className="px-4 py-3 sm:px-6 bg-[#f3f3f6] border-b border-[#c3c6d6]/30 flex items-center gap-3">
+          <div className="px-6 py-3 bg-[#f3f3f6] border-b border-[#c3c6d6]/30 flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-[#dae2ff] text-[#0040a1] flex items-center justify-center text-sm font-bold shrink-0">
               {professional.name
                 .split(' ')
@@ -242,7 +242,7 @@ export default function BookingModal({ professional, token, onClose, onSuccess }
                 .slice(0, 2)
                 .join('')}
             </div>
-            <div className="min-w-0">
+            <div>
               <p className="text-[13px] font-semibold text-[#1a1c1e]">{professional.specialty}</p>
               <p className="text-[12px] text-[#424654]">
                 ${Number(professional.price || 0).toLocaleString('es-CO')}
@@ -252,7 +252,7 @@ export default function BookingModal({ professional, token, onClose, onSuccess }
             </div>
           </div>
 
-            <form onSubmit={submit} className="p-4 sm:p-6 flex flex-col gap-5">
+          <form onSubmit={submit} className="p-6 flex flex-col gap-5">
             {/* ── Selector de familiar ── */}
             {familyRecords.length > 0 && (
               <div>
@@ -349,7 +349,7 @@ export default function BookingModal({ professional, token, onClose, onSuccess }
                         </button>
                       )}
                     </div>
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className={lCls}>{t('booking.startHour')}</label>
                         <select className={iCls} value={day.startHour} onChange={e => updateSchedule(i, 'startHour', e.target.value)}>

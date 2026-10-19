@@ -36,9 +36,9 @@ export default function ServiceChatsModal({ user, token, initialBookingId, onClo
   }
 
   return (
-    <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-[#10233d]/45 p-2 sm:p-4" role="dialog" aria-modal="true" aria-labelledby="service-chats-title">
+    <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-[#10233d]/45 p-4" role="dialog" aria-modal="true" aria-labelledby="service-chats-title">
       <section className="flex max-h-[min(650px,calc(100vh-2rem))] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <header className="flex items-center justify-between gap-3 border-b border-[#d9e5ef] bg-gradient-to-r from-[#eef6fc] to-[#f8fbfe] px-4 py-4 sm:px-5">
+        <header className="flex items-center justify-between border-b border-[#d9e5ef] bg-gradient-to-r from-[#eef6fc] to-[#f8fbfe] px-5 py-4">
           <div>
             <h2 id="service-chats-title" className="text-[17px] font-bold text-[#17324d]">Mensajes</h2>
           </div>
