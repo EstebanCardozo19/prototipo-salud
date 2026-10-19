@@ -181,7 +181,7 @@ export default function ProfessionalDetailModal({ professional, token, reviews =
     <>
       {/* Overlay a pantalla completa, centrado con padding que respeta la TopBar */}
       <div
-        className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+        className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4"
         style={{ background: 'rgba(10,15,30,0.70)', backdropFilter: 'blur(8px)' }}
         onClick={e => { if (e.target === e.currentTarget) onClose(); }}
       >
@@ -191,15 +191,15 @@ export default function ProfessionalDetailModal({ professional, token, reviews =
           el footer NUNCA se va de la pantalla.
         */}
         <div
-          className="bg-white rounded-2xl shadow-2xl w-full flex flex-col"
+          className="bg-white rounded-2xl shadow-2xl w-full flex flex-col overflow-hidden"
           style={{
             maxWidth: 560,
-            height: 'calc(100vh - 80px)',
+            height: 'calc(100vh - 16px)',
             maxHeight: 700,
           }}
         >
           {/* ── Hero — compacto para no comerse el espacio vertical ── */}
-          <div className="relative bg-gradient-to-br from-[#0040a1] to-[#0056d2] px-5 py-4 flex items-center gap-4 shrink-0">
+          <div className="relative bg-gradient-to-br from-[#0040a1] to-[#0056d2] px-4 py-4 sm:px-5 flex items-center gap-3 sm:gap-4 shrink-0">
             <button onClick={onClose}
               className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/15 flex items-center justify-center hover:bg-white/25 transition-all z-10">
               <span className="material-symbols-outlined text-white text-[19px]">close</span>
@@ -439,7 +439,7 @@ export default function ProfessionalDetailModal({ professional, token, reviews =
           </div>
 
           {/* ── Footer — siempre visible, nunca scrolleable ── */}
-          <div className="px-4 py-3 border-t border-[#c3c6d6]/30 bg-white rounded-b-2xl flex gap-3 shrink-0">
+          <div className="px-3 py-3 sm:px-4 border-t border-[#c3c6d6]/30 bg-white rounded-b-2xl flex gap-2 sm:gap-3 shrink-0">
             <button onClick={onClose}
               className="flex-1 h-[42px] border border-[#c3c6d6] text-[#424654] rounded-xl font-semibold text-[13px] hover:bg-[#f3f3f6] transition-all">
               {t('professional.close')}

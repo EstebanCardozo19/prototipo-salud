@@ -190,22 +190,22 @@ export default function PatientFormModal({ initial, onSave, onCancel, saving, er
       style={{ background: 'rgba(10,15,30,0.65)', backdropFilter: 'blur(8px)' }}
       onClick={e => { if (e.target === e.currentTarget) onCancel(); }}
     >
-      <div className="bg-white rounded-2xl shadow-2xl w-full flex flex-col"
+      <div className="bg-white rounded-2xl shadow-2xl w-full flex flex-col overflow-hidden"
         style={{ maxWidth: 680, maxHeight: '92vh' }}>
 
         {/* ── Header ── */}
-        <div className="bg-gradient-to-r from-[#0040a1] to-[#0056d2] px-6 py-5 rounded-t-2xl flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
+        <div className="bg-gradient-to-r from-[#0040a1] to-[#0056d2] px-4 py-4 sm:px-6 sm:py-5 rounded-t-2xl flex items-center justify-between gap-3 shrink-0">
+          <div className="flex min-w-0 items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
               <span className="material-symbols-outlined text-white text-[22px]">
                 {isEditing ? 'edit_note' : 'person_add'}
               </span>
             </div>
-            <div>
+            <div className="min-w-0">
               <h2 className="text-white font-bold text-[18px] leading-tight">
                 {isEditing ? t('patients.editTitle') : t('patients.newTitle')}
               </h2>
-              {isEditing && <p className="text-white/70 text-[13px]">{initial.patient_name}</p>}
+              {isEditing && <p className="truncate text-white/70 text-[13px]">{initial.patient_name}</p>}
             </div>
           </div>
           <button
@@ -236,7 +236,7 @@ export default function PatientFormModal({ initial, onSave, onCancel, saving, er
 
         {/* ── Cuerpo scrolleable ── */}
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
-          <div className="flex-1 overflow-y-auto px-6 py-5">
+          <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6">
 
             {/* ─ Datos básicos ─ */}
             {activeSection === 'basic' && (

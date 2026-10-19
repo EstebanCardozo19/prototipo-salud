@@ -166,7 +166,7 @@ export default function AdminDashboard({ token }) {
   }
 
   return (
-    <div className="p-8 overflow-y-auto h-full">
+    <div className="h-full overflow-y-auto p-4 sm:p-6 md:p-8">
       <h2 className="text-[22px] font-bold text-[#0040a1] mb-6 flex items-center gap-3">
         <span className="material-symbols-outlined text-[26px]">admin_panel_settings</span> {t('admin.title')}
       </h2>
@@ -175,7 +175,7 @@ export default function AdminDashboard({ token }) {
           <h3 className="font-bold text-[16px] text-amber-700 mb-3 flex items-center gap-2">
             <span className="material-symbols-outlined text-[20px]">pending</span> {t('admin.pendingProfiles')} ({pending.length})
           </h3>
-          <div className="bg-white rounded-2xl border border-amber-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto rounded-2xl border border-amber-200 bg-white shadow-sm">
             <table className="w-full text-[13px]">
               <thead className="bg-amber-50 text-amber-800">
                 <tr>
@@ -243,7 +243,7 @@ export default function AdminDashboard({ token }) {
               id="admin-role-filter"
               value={roleFilter}
               onChange={event => setRoleFilter(event.target.value)}
-              className="h-[42px] min-w-[150px] px-3 rounded-xl border border-[#c3c6d6] bg-white text-[#424654] text-[14px] focus:border-[#0040a1] focus:ring-2 focus:ring-[#0040a1]/15 focus:outline-none"
+            className="h-[42px] w-full sm:min-w-[150px] px-3 rounded-xl border border-[#c3c6d6] bg-white text-[#424654] text-[14px] focus:border-[#0040a1] focus:ring-2 focus:ring-[#0040a1]/15 focus:outline-none"
             >
               <option value="all">Todos los roles</option>
               {['family', 'caregiver', 'nurse', 'admin'].map(role => (
@@ -255,7 +255,7 @@ export default function AdminDashboard({ token }) {
               id="admin-status-filter"
               value={statusFilter}
               onChange={event => setStatusFilter(event.target.value)}
-              className="h-[42px] min-w-[150px] px-3 rounded-xl border border-[#c3c6d6] bg-white text-[#424654] text-[14px] focus:border-[#0040a1] focus:ring-2 focus:ring-[#0040a1]/15 focus:outline-none"
+            className="h-[42px] w-full sm:min-w-[150px] px-3 rounded-xl border border-[#c3c6d6] bg-white text-[#424654] text-[14px] focus:border-[#0040a1] focus:ring-2 focus:ring-[#0040a1]/15 focus:outline-none"
             >
               <option value="all">Todos los estados</option>
               <option value="active">Activos</option>
@@ -264,7 +264,7 @@ export default function AdminDashboard({ token }) {
           </div>
         </div>
       </div>
-      <div className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm overflow-hidden">
+      <div className="overflow-x-auto rounded-2xl border border-[#c3c6d6]/40 bg-white shadow-sm">
         <table className="w-full text-[13px]">
           <thead className="bg-[#f3f3f6] text-[#424654]">
             <tr>
@@ -329,8 +329,8 @@ export default function AdminDashboard({ token }) {
         </table>
       </div>
       {selectedProfile && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: 'rgba(10,15,30,0.65)', backdropFilter: 'blur(8px)' }}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4" style={{ background: 'rgba(10,15,30,0.65)', backdropFilter: 'blur(8px)' }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] overflow-y-auto p-4 sm:p-6">
             <div className="flex justify-between gap-4 border-b border-[#e2e8f0] pb-4 mb-5">
               <div><p className="text-[12px] font-bold text-[#0040a1] uppercase">Solicitud de verificación</p><h3 className="text-xl font-bold text-[#1a1c1e]">{selectedProfile.full_name}</h3><p className="text-sm text-[#424654]">{selectedProfile.email} · {selectedProfile.role === 'nurse' ? 'Enfermero/a' : 'Cuidador/a'}</p></div>
               <button onClick={() => { setSelectedProfile(null); releaseDocumentUrls(); }} className="text-[#424654] hover:text-[#1a1c1e]"><span className="material-symbols-outlined">close</span></button>
@@ -341,7 +341,7 @@ export default function AdminDashboard({ token }) {
             </div>
             <h4 className="font-bold text-[#1a1c1e] mt-6 mb-3">Documentos adjuntos ({selectedProfile.documents.length})</h4>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">{selectedProfile.documents.map(documentItem => <div key={documentItem.id} className="border border-[#e2e8f0] rounded-xl overflow-hidden bg-white"><div className="h-36 bg-[#f3f3f6] flex items-center justify-center">{documentUrls[documentItem.id] ? <img src={documentUrls[documentItem.id]} alt={documentItem.document_name || documentItem.document_type} className="w-full h-full object-contain" /> : <span className="material-symbols-outlined text-[40px] text-[#737785]">description</span>}</div><div className="p-3"><p className="font-semibold truncate">{documentItem.document_name || documentItem.document_type}</p><p className="text-[11px] text-[#737785] truncate mb-2">{documentItem.original_filename}</p><button onClick={() => downloadDocument(documentItem)} className="text-[12px] text-[#0040a1] font-semibold hover:underline">Descargar / abrir</button></div></div>)}</div>
-            <div className="flex gap-3 mt-6"><button onClick={() => approve(selectedProfile.id, 'approved')} className="px-4 py-2 bg-green-500 text-white rounded-lg text-[13px] font-semibold hover:bg-green-600">{t('admin.approve')}</button><button onClick={() => approve(selectedProfile.id, 'rejected')} className="px-4 py-2 bg-red-100 text-red-600 rounded-lg text-[13px] font-semibold hover:bg-red-200">{t('admin.reject')}</button></div>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row"><button onClick={() => approve(selectedProfile.id, 'approved')} className="px-4 py-2 bg-green-500 text-white rounded-lg text-[13px] font-semibold hover:bg-green-600">{t('admin.approve')}</button><button onClick={() => approve(selectedProfile.id, 'rejected')} className="px-4 py-2 bg-red-100 text-red-600 rounded-lg text-[13px] font-semibold hover:bg-red-200">{t('admin.reject')}</button></div>
           </div>
         </div>
       )}

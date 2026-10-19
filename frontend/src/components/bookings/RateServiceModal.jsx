@@ -64,20 +64,20 @@ export default function RateServiceModal({ booking, token, role, onClose, onSucc
 
   return (
     <div
-      className="fixed inset-0 z-[10000] flex items-center justify-center p-4"
+      className="fixed inset-0 z-[10000] flex items-center justify-center p-2 sm:p-4"
       style={{ background: 'rgba(10,15,30,0.70)', backdropFilter: 'blur(8px)' }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm animate-fade-in-up">
+      <div className="max-h-[92vh] w-full max-w-sm overflow-y-auto rounded-2xl bg-white shadow-2xl animate-fade-in-up">
 
         {/* Header */}
-        <div className="bg-gradient-to-r from-amber-500 to-amber-400 px-6 py-5 rounded-t-2xl flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="bg-gradient-to-r from-amber-500 to-amber-400 px-4 py-4 sm:px-6 sm:py-5 rounded-t-2xl flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
               <span className="material-symbols-outlined text-white text-[22px]"
                 style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
             </div>
-            <div>
+            <div className="min-w-0">
               <h2 className="text-white font-bold text-[17px] leading-tight">Calificar servicio</h2>
               <p className="text-white/75 text-[12px]">Califica {targetRole}</p>
             </div>
@@ -90,7 +90,7 @@ export default function RateServiceModal({ booking, token, role, onClose, onSucc
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-5">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 flex flex-col gap-5">
 
           {/* Info del servicio */}
           <div className="bg-[#f9f9fc] rounded-xl px-4 py-3 border border-[#c3c6d6]/40">
@@ -139,7 +139,7 @@ export default function RateServiceModal({ booking, token, role, onClose, onSucc
             </div>
           )}
 
-          <div className="flex gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row">
             <button
               type="button"
               onClick={onClose}

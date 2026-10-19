@@ -102,11 +102,11 @@ export default function MedicationFormModal({ initial, onSave, onCancel, saving,
   const canNext2 = form.first_dose_datetime;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#071426]/60 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#071426]/60 p-2 sm:p-4 backdrop-blur-sm">
       <div className="flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
 
         {/* Header */}
-        <header className="px-6 py-4 border-b border-[#dce3eb] shrink-0">
+        <header className="px-4 py-4 sm:px-6 border-b border-[#dce3eb] shrink-0">
           <div className="flex items-center justify-between mb-3">
             <h2 className="flex items-center gap-2 text-[17px] font-bold text-[#17324d]">
               <span className="material-symbols-outlined text-[#0040a1]">medication</span>
@@ -142,7 +142,7 @@ export default function MedicationFormModal({ initial, onSave, onCancel, saving,
         </header>
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
-          <div className="p-6 flex flex-col gap-4">
+          <div className="p-4 sm:p-6 flex flex-col gap-4">
 
             {isProposal && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] text-amber-800 flex items-start gap-2">

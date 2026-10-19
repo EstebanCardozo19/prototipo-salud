@@ -171,7 +171,7 @@ export default function CaregiverDashboard({ user, token, initialTab = 'profile'
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* ─── Tabs ── */}
-      {showTabs && <div className="flex border-b border-[#c3c6d6]/40 bg-white shrink-0 px-6 pt-6 gap-1">
+      {showTabs && <div className="flex overflow-x-auto border-b border-[#c3c6d6]/40 bg-white shrink-0 px-4 pt-4 sm:px-6 sm:pt-6 gap-1">
         {[
           { id: 'profile',  icon: 'account_circle', label: 'Mi Perfil' },
           { id: 'services', icon: 'calendar_month',  label: 'Mis Servicios' },
@@ -189,7 +189,7 @@ export default function CaregiverDashboard({ user, token, initialTab = 'profile'
         ))}
       </div>}
 
-      <div className="flex-1 overflow-y-auto p-6 sm:p-8">
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 sm:p-8">
 
         {/* ══ TAB: PERFIL ══ */}
         {activeTab === 'profile' && (
@@ -252,7 +252,7 @@ export default function CaregiverDashboard({ user, token, initialTab = 'profile'
                     <div className="flex flex-col gap-2.5 max-h-[260px] overflow-y-auto pr-1">
                       {myReviews.map(r => (
                         <div key={r.id} className="bg-[#f9f9fc] rounded-xl p-3 border border-[#c3c6d6]/30">
-                          <div className="flex items-center justify-between mb-1">
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
                             <span className="text-[13px] font-semibold text-[#1a1c1e]">{r.family_name || 'Familiar'}</span>
                             <StarRating value={r.rating} readOnly size="sm" />
                           </div>

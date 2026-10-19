@@ -362,7 +362,7 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
     <div className="flex flex-col h-full">
       {/* ── Cabecera sticky — solo en tabs de búsqueda ── */}
       {activeTab !== 'my-requests' && (
-        <div className="px-6 pt-4 pb-3 border-b border-[#c3c6d6]/30 bg-white sticky top-0 z-20 shadow-sm">
+        <div className="px-4 pt-4 pb-3 sm:px-6 border-b border-[#c3c6d6]/30 bg-white sticky top-0 z-20 shadow-sm">
 
           {/* Fila 0: Accesos rápidos según los familiares del usuario */}
           {familyLocations.length > 0 && (
@@ -423,9 +423,9 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
           </form>
 
           {/* Fila 2: Cobertura Bogotá + localidades + orden + filtros + vista */}
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center">
             {/* 1. Ciudad de cobertura fija */}
-            <div className="relative flex-1 min-w-[160px] max-w-[210px]">
+            <div className="relative w-full lg:flex-1 lg:min-w-[160px] lg:max-w-[210px]">
               <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[#0040a1] text-[17px] pointer-events-none">
                 location_city
               </span>
@@ -435,7 +435,7 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
             </div>
 
             {/* 2. Selector Dinámico de Localidad / Comuna (según la Ciudad seleccionada) */}
-            <div className="relative flex-1 min-w-[170px] max-w-[230px]">
+            <div className="relative w-full lg:flex-1 lg:min-w-[170px] lg:max-w-[230px]">
               <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[#0040a1]/70 text-[17px] pointer-events-none">
                 pin_drop
               </span>
@@ -462,7 +462,7 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
             </div>
 
             {/* 3. Ordenar por */}
-            <div className="relative min-w-[140px] max-w-[170px]">
+            <div className="relative w-full lg:min-w-[140px] lg:max-w-[170px]">
               <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[#0040a1]/60 text-[17px] pointer-events-none">
                 sort
               </span>
@@ -504,7 +504,7 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
             </button>
 
             {/* 5. Switcher Vista Lista vs Mapa */}
-            <div className="flex bg-[#f3f3f6] p-0.5 rounded-xl border border-[#c3c6d6]/60 shrink-0 ml-auto">
+            <div className="flex bg-[#f3f3f6] p-0.5 rounded-xl border border-[#c3c6d6]/60 shrink-0 lg:ml-auto">
               <button
                 type="button"
                 onClick={() => setViewMode('list')}
@@ -546,7 +546,7 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
                   {t('search.clearFilters')}
                 </button>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                 {/* Género */}
                 <div>
                   <label className="block text-[11px] font-bold text-[#424654] mb-1.5 uppercase tracking-wide">
@@ -725,7 +725,7 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
       )}
 
       {/* ── Contenido Principal (Lista / Mapa / Mis Solicitudes) ── */}
-      <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-[#f3f3f6]/50">
+       <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 md:p-8 bg-[#f3f3f6]/50">
         {loading && activeTab !== 'my-requests' && (
           <div className="flex flex-col items-center py-16 text-[#424654]">
             <Spinner />
