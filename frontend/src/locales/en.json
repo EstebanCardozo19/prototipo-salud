@@ -121,6 +121,8 @@
     "roleFamily": "Family (looking for care)",
     "roleCaregiver": "Caregiver (offering services)",
     "roleNurse": "Nurse (clinical care)",
+    "dataProcessingConsent": "I authorize the processing of my personal data to create and manage my account, and to access Home Care services.",
+    "dataProcessingConsentRequired": "You must authorize the processing of your personal data to create your account.",
     "createAccount": "Create Account",
     "registerSuccess": "Your account was created successfully. You can now sign in.",
     "registerSuccessTitle": "Registration successful!",

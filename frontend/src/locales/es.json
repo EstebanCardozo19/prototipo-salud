@@ -121,6 +121,8 @@
     "roleFamily": "Familia (busco atención)",
     "roleCaregiver": "Cuidador/a (ofrezco servicios)",
     "roleNurse": "Enfermero/a (atención clínica)",
+    "dataProcessingConsent": "Autorizo el tratamiento de mis datos personales para crear y administrar mi cuenta, y para acceder a los servicios de Atención Domiciliaria.",
+    "dataProcessingConsentRequired": "Debes autorizar el tratamiento de tus datos personales para crear tu cuenta.",
     "createAccount": "Crear Cuenta",
     "registerSuccess": "Tu cuenta fue creada correctamente. Ya puedes iniciar sesión.",
     "registerSuccessTitle": "¡Registro exitoso!",

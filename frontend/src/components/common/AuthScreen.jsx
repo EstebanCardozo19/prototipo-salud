@@ -36,6 +36,7 @@ export default function AuthScreen({ onLogin, initialTab = 'login', onBack }) {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState('family');
+  const [dataProcessingAccepted, setDataProcessingAccepted] = useState(false);
   const [securityForm, setSecurityForm] = useState({ question1: '', answer1: '', question2: '', answer2: '' });
   const [recoveryEmail, setRecoveryEmail] = useState('');
   const [recoveryQuestions, setRecoveryQuestions] = useState(null);
@@ -83,6 +84,10 @@ export default function AuthScreen({ onLogin, initialTab = 'login', onBack }) {
     setError('');
     if (!registrationPasswordValidation.isValid) {
       setError(t('auth.passwordRequirementsError'));
+      return;
+    }
+    if (!dataProcessingAccepted) {
+      setError(t('auth.dataProcessingConsentRequired'));
       return;
     }
     setLoading(true);
@@ -335,9 +340,19 @@ export default function AuthScreen({ onLogin, initialTab = 'login', onBack }) {
                   <option value="nurse">{t('auth.roleNurse')}</option>
                 </select>
               </div>
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#c3c6d6]/60 bg-[#f9f9fc] p-3 text-[12px] leading-5 text-[#4a4d57]">
+                <input
+                  type="checkbox"
+                  checked={dataProcessingAccepted}
+                  onChange={e => setDataProcessingAccepted(e.target.checked)}
+                  required
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-[#006a61]"
+                />
+                <span>{t('auth.dataProcessingConsent')}</span>
+              </label>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !dataProcessingAccepted}
                 className="mt-2 h-[48px] bg-[#006a61] text-white rounded-xl font-bold text-[15px] hover:bg-[#006a61]/90 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
               >
                 {loading ? <Spinner sm /> : t('auth.createAccount')}
