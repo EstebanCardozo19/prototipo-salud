@@ -148,11 +148,14 @@ def buscar_profesionales_similares(descripcion_paciente: str, tipo_profesional: 
     except Exception:
         # No se sustituyen resultados por ejemplos si el modelo local no está listo.
         query_embedding = None
+    with Session(engine) as session:
         candidates = _profiles(session, tipo_profesional)
-        ranked = []
         for profile, user in candidates:
             if localidad and not profile_covers_locality(profile, localidad):
                 continue
+            availability = session.exec(
+                select(Availability).where(Availability.professional_user_id == user.id)
+            ).all()
             bookings = session.exec(select(Booking).where(Booking.professional_user_id == user.id).where(Booking.status == BookingStatus.approved)).all() if schedule else []
             schedule_verified = _is_schedule_available(schedule, availability, bookings) if schedule else None
             if schedule and not schedule_verified:
@@ -202,4 +205,23 @@ def obtener_contexto_paciente_asignado(booking: Booking, clinical_record: Clinic
 
 
 def get_tool_definitions() -> list[dict]:
-    return [{"type": "function", "function": {"name": "buscar_profesionales_similares", "description": "Busca perfiles reales y devuelve compatibilidad determinista.", "parameters": {"type": "object", "properties": {"descripcion_paciente": {"type": "string"}, "tipo_profesional": {"type": "string", "enum": ["caregiver", "nurse"]}, "localidad": {"type": "string"}, "page": {"type": "integer"}}, "required": ["descripcion_paciente", "tipo_profesional"]}}}]
+    return [{
+        "type": "function",
+        # SAI valida el nombre de la herramienta en el objeto superior
+        # (tools[n].name), aunque conserva el objeto function de OpenAI.
+        "name": "buscar_profesionales_similares",
+        "function": {
+            "name": "buscar_profesionales_similares",
+            "description": "Busca perfiles reales y devuelve compatibilidad determinista.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "descripcion_paciente": {"type": "string"},
+                    "tipo_profesional": {"type": "string", "enum": ["caregiver", "nurse"]},
+                    "localidad": {"type": "string"},
+                    "page": {"type": "integer"},
+                },
+                "required": ["descripcion_paciente", "tipo_profesional"],
+            },
+        },
+    }]

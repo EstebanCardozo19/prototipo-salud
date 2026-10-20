@@ -3,9 +3,18 @@ import unittest
 from unittest.mock import Mock, patch
 
 from app.services import ai_agent
+from app.mcp_server import get_tool_definitions
 
 
 class FamilyChatHistoryTests(unittest.TestCase):
+    def test_sai_tool_definition_includes_a_top_level_string_name(self):
+        tool = get_tool_definitions()[0]
+
+        self.assertEqual(tool["type"], "function")
+        self.assertIsInstance(tool["name"], str)
+        self.assertEqual(tool["name"], "buscar_profesionales_similares")
+        self.assertEqual(tool["function"]["name"], tool["name"])
+
     def test_limitations_question_is_answered_locally_without_provider_or_search(self):
         question = (
             "¿Cuáles son tus limitaciones como agente de inteligencia artificial? "
@@ -92,6 +101,13 @@ class FamilyChatHistoryTests(unittest.TestCase):
             result = ai_agent.conversar("Hola")
 
         self.assertIn("¡Hola!", result["texto"])
+
+    def test_general_question_has_a_local_fallback_when_provider_fails(self):
+        with patch("app.services.ai_agent._llamar_sai", side_effect=ai_agent.requests.HTTPError("SAI unavailable")):
+            result = ai_agent.conversar("¿Cómo funciona la plataforma?")
+
+        self.assertIn("Puedo orientarte", result["texto"])
+        self.assertEqual(result["profesionales"], [])
 
     def test_conversar_uses_prior_answers_without_repeating_them(self):
         history = [
