@@ -49,22 +49,22 @@ class FamilyChatHistoryTests(unittest.TestCase):
 
         self.assertEqual(post.call_args.kwargs["timeout"], 150)
 
-    def test_explicit_nurse_request_is_handled_by_the_agent(self):
+    def test_explicit_nurse_request_searches_the_local_catalog(self):
         history = [
             {"role": "user", "content": "Mi abuelo necesita ayuda nocturna por Alzheimer."},
             {"role": "assistant", "content": "¿Buscas un cuidador/a o un enfermero/a?"},
         ]
-        response = {"choices": [{"message": {"content": "Buscaré enfermeros con experiencia en cuidado nocturno."}}]}
+        payload = '{"texto": "Encontré enfermeros.", "profesionales": [{"full_name": "Ana Enfermera", "compatibility_criteria": []}]}'
 
-        with patch("app.services.ai_agent.buscar_profesionales_similares") as search, patch(
-            "app.services.ai_agent._llamar_sai", return_value=response
+        with patch("app.services.ai_agent.buscar_profesionales_similares", return_value=payload) as search, patch(
+            "app.services.ai_agent._llamar_sai"
         ) as sai:
             result = ai_agent.conversar("Necesito enfermeros, por favor.", historial=history)
 
-        self.assertEqual(result["texto"], "Buscaré enfermeros con experiencia en cuidado nocturno.")
-        self.assertEqual(result["profesionales"], [])
-        sai.assert_called_once()
-        search.assert_not_called()
+        self.assertEqual(result["profesionales"][0]["full_name"], "Ana Enfermera")
+        self.assertEqual(search.call_args.kwargs["tipo_profesional"], "nurse")
+        self.assertIn("Alzheimer", search.call_args.kwargs["descripcion_paciente"])
+        sai.assert_not_called()
 
     def test_care_request_without_role_is_handled_by_the_agent(self):
         response = {"choices": [{"message": {"content": ai_agent.PREGUNTA_TIPO_PROFESIONAL}}]}
@@ -77,21 +77,22 @@ class FamilyChatHistoryTests(unittest.TestCase):
         sai.assert_called_once()
         search.assert_not_called()
 
-    def test_prior_explicit_caregiver_type_is_sent_to_the_agent(self):
+    def test_prior_explicit_caregiver_type_searches_the_local_catalog(self):
         history = [
             {"role": "user", "content": "Necesito un cuidador para mi mamá con movilidad reducida."},
             {"role": "assistant", "content": "¿En qué localidad?"},
         ]
 
-        response = {"choices": [{"message": {"content": "Buscaré opciones de cuidadores en Suba."}}]}
-        with patch("app.services.ai_agent.buscar_profesionales_similares") as search, patch(
-            "app.services.ai_agent._llamar_sai", return_value=response
+        payload = '{"texto": "Encontré cuidadores.", "profesionales": []}'
+        with patch("app.services.ai_agent.buscar_profesionales_similares", return_value=payload) as search, patch(
+            "app.services.ai_agent._llamar_sai"
         ) as sai:
             result = ai_agent.conversar("En Suba.", historial=history)
 
-        self.assertEqual(result["texto"], "Buscaré opciones de cuidadores en Suba.")
-        sai.assert_called_once()
-        search.assert_not_called()
+        self.assertEqual(result["profesionales"], [])
+        self.assertEqual(search.call_args.kwargs["tipo_profesional"], "caregiver")
+        self.assertEqual(search.call_args.kwargs["localidad"], "Suba")
+        sai.assert_not_called()
 
     def test_greeting_is_answered_locally_without_provider(self):
         response = {"choices": [{"message": {"content": "   "}}]}

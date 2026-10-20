@@ -403,12 +403,12 @@ def _redactar_recomendaciones_catalogo(result: dict, professional_type: str) -> 
 
 
 def _respuesta_catalogo_local(message: str, history: list[dict[str, str]], locality: str | None = None) -> dict | None:
-    """Gestiona únicamente respuestas locales que no requieren al agente.
+    """Resuelve localmente las búsquedas cuyo tipo profesional ya es conocido.
 
-    Las solicitudes sobre cuidadores y enfermeros se delegan al agente SAI. De
-    este modo el usuario recibe una respuesta conversacional contextual, en vez
-    de una plantilla local, y el agente puede decidir cuándo consultar el
-    catálogo mediante sus herramientas.
+    El catálogo es la fuente autoritativa de las tarjetas mostradas por el
+    cliente. No se delega al proveedor conversacional la decisión de invocarlo:
+    puede redactar una respuesta sin solicitar una herramienta, lo que deja la
+    lista ``profesionales`` vacía aunque haya perfiles elegibles.
     """
     normalized = _normalizar_texto(message)
     if _es_saludo(message):
@@ -419,8 +419,7 @@ def _respuesta_catalogo_local(message: str, history: list[dict[str, str]], local
 
     requested_name = _extraer_nombre_consultado(message)
     if (
-        not professional_type
-        and requested_name
+        requested_name
         and any(word in normalized for word in ("tarifa", "informacion", "información", "perfil", "experiencia", "especial", "localidad", "sobre", "de "))
     ):
         profiles = buscar_profesional_por_nombre(requested_name)
@@ -433,9 +432,43 @@ def _respuesta_catalogo_local(message: str, history: list[dict[str, str]], local
     if not professional_type:
         return None
 
-    # Aunque se haya indicado el rol, no se responde aquí ni se consulta el
-    # catálogo directamente: la solicitud continúa hacia SAI más abajo.
-    return None
+    if re.search(r"\b(siguiente|siguientes|mas opciones|otra pagina|otra página)\b", normalized):
+        return None
+
+    description = _construir_descripcion_busqueda(message, history)
+    requested_locality = _inferir_localidad(user_turns + [message], locality)
+    try:
+        raw_result = buscar_profesionales_similares(
+            descripcion_paciente=description,
+            tipo_profesional=professional_type,
+            localidad=requested_locality,
+        )
+        result = json.loads(raw_result)
+        if not isinstance(result, dict):
+            raise ValueError("El catálogo devolvió un formato no válido.")
+
+        professionals = result.get("profesionales", [])
+        if not isinstance(professionals, list):
+            raise ValueError("El catálogo devolvió profesionales en un formato no válido.")
+
+        logger.info(
+            "Búsqueda local del chat: tipo=%s localidad=%s resultados=%s",
+            professional_type,
+            requested_locality or "sin filtro",
+            len(professionals),
+        )
+        return {
+            "texto": _redactar_recomendaciones_catalogo(result, professional_type),
+            "profesionales": professionals,
+        }
+    except Exception as error:
+        logger.warning(
+            "No fue posible consultar el catálogo local del chat: tipo=%s localidad=%s error=%s",
+            professional_type,
+            requested_locality or "sin filtro",
+            error,
+        )
+        return None
 
 
 def conversar(mensaje_usuario: str, historial: list[dict] = None, familiares: list[dict] = None, localidad: str | None = None) -> dict:
