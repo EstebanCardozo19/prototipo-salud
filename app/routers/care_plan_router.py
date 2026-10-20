@@ -162,14 +162,17 @@ def ask_documentary_assistant(
     parts = []
 
     if asked_medication:
-        if schedule:
+        complete_entries = [item for item in schedule if item.get("medication") and item.get("dosage") and item.get("time")]
+        if complete_entries:
             entries = "\n".join(
-                f"• {item.get('medication')}: {item.get('dosage')} a las {item.get('time')}"
+                f"• {item['medication']}: {item['dosage']} a las {item['time']}"
                 + (f" ({item.get('instructions')})" if item.get('instructions') else "")
-                for item in schedule
+                for item in complete_entries
             )
             parts.append(f"Medicamentos registrados en el plan:\n{entries}")
-        else:
+        if len(complete_entries) != len(schedule):
+            parts.append("Para uno o más medicamentos no existe una pauta autorizada completa de dosis u horario. Verifica la indicación con el profesional de salud responsable; no es seguro inferirla.")
+        if not schedule:
             parts.append("No hay horarios de medicación registrados en este plan.")
 
     if asked_emergency:

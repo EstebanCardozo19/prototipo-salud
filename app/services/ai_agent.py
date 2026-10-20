@@ -47,6 +47,9 @@ SYSTEM_PROMPT = (
     "inicies, suspendas o modifiques medicamentos o tratamientos. No garantices que "
     "un profesional sea el más adecuado: explica que la familia o responsable del "
     "paciente toma la decisión final, idealmente con orientación del médico tratante."
+    "Nunca inventes nombres, tarifas, experiencia, formación, especialidades, cobertura, disponibilidad, dosis, horarios ni porcentajes. "
+    "Los resultados estructurados del catálogo son la única fuente para recomendar perfiles: no presentes disponibilidad como confirmada sin una verificación de fecha y horario. "
+    "El porcentaje de compatibilidad no es una métrica de confiabilidad, calificación ni reconocimiento profesional. Si preguntan por confiabilidad, indica que no existe un indicador implementado."
 )
 
 HEADERS = {
@@ -99,6 +102,11 @@ def _respuesta_segura_local(mensaje_usuario: str) -> str | None:
     )
     if any(tema in mensaje for tema in temas_limitacion):
         return RESPUESTA_LIMITACIONES_AGENTE
+    if any(tema in mensaje for tema in ("confiabilidad", "confiable", "fiabilidad", "porcentaje de cumplimiento")):
+        return (
+            "Actualmente la plataforma no tiene un indicador de confiabilidad profesional implementado ni una fórmula verificable para calcularlo. "
+            "El porcentaje mostrado en una recomendación, cuando existe, corresponde únicamente a compatibilidad con la solicitud; no equivale a confiabilidad, estrellas ni reconocimientos."
+        )
     return None
 
 
@@ -363,7 +371,7 @@ def _redactar_recomendaciones_catalogo(result: dict, professional_type: str) -> 
         )
 
     closing = (
-        "Revisa los perfiles y entrevista a las personas antes de contratar; la "
+        "Revisa los perfiles y confirma la disponibilidad para la fecha y horario requeridos antes de contratar; la "
         "decisión final corresponde a la familia o responsable del paciente."
     )
     return "\n".join([intro, *recommendations, closing])

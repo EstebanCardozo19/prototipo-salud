@@ -11,12 +11,13 @@ from datetime import date
 from sqlmodel import Session, select
 
 from app.database import engine
-from app.models import Availability, Booking, CaregiverProfile, ClinicalRecord, MedicationStatus, NurseProfile, PatientMedication, ProfileStatus, ServiceCarePlan, User
+from app.models import Availability, Booking, BookingStatus, CaregiverProfile, ClinicalRecord, MedicationStatus, NurseProfile, PatientMedication, ProfileStatus, ServiceCarePlan, User, UserRole
 from app.services.bogota_locations import profile_covers_locality
+from app.services.embedding_service import generar_embedding
 
 SPECIALTY_TERMS = {
     "geriatrics": ("geriatria", "geront", "adulto mayor"),
-    "neurology": ("alzheimer", "demencia", "neurolog", "parkinson", "acv"),
+    "neurology": ("alzheimer", "demencia", "deterioro cognitivo", "cognitiv", "memoria", "desorient", "neurolog", "parkinson", "acv"),
     "cardiology": ("cardio", "corazon", "hipertension"),
     "pulmonology": ("pulmon", "respirat", "oxigen"),
     "psychiatry": ("psiquiatr", "salud mental", "ansiedad", "depres"),
@@ -28,6 +29,7 @@ SPECIALTY_TERMS = {
     "orthopedics": ("ortoped", "fractura", "caida"),
 }
 DAY_WORDS = {"lunes": "monday", "martes": "tuesday", "miercoles": "wednesday", "jueves": "thursday", "viernes": "friday", "sabado": "saturday", "domingo": "sunday"}
+SPECIALIZED_NEED_TERMS = tuple(term for terms in SPECIALTY_TERMS.values() for term in terms)
 
 
 def _normalized(value: str) -> str:
@@ -46,6 +48,47 @@ def _requested_day(description: str) -> str | None:
         return None
 
 
+def _requested_schedule(description: str) -> tuple[str, int, int] | None:
+    """Extrae fecha ISO y rango horario explícitos para verificarlos.
+
+    Una frase ambigua no permite afirmar disponibilidad real para contratar.
+    """
+    match = re.search(
+        r"\b(20\d{2}-\d{2}-\d{2})\b.*?\b(?:de\s+)?([01]?\d|2[0-3])(?:\s*(?::\s*\d{2})?)?\s*(?:a|hasta|-)\s*([01]?\d|2[0-3])(?:\s*(?::\s*\d{2})?)?\b",
+        _normalized(description),
+    )
+    if not match:
+        return None
+    try:
+        date.fromisoformat(match.group(1))
+        start_hour, end_hour = int(match.group(2)), int(match.group(3))
+        return (match.group(1), start_hour, end_hour) if start_hour != end_hour else None
+    except ValueError:
+        return None
+
+
+def _is_schedule_available(schedule: tuple[str, int, int], availabilities: list, bookings: list) -> bool:
+    """Aplica las mismas reglas de franjas y cruces que el flujo de reserva."""
+    from app.routers.bookings_router import is_schedule_covered_by_availability, schedules_overlap
+
+    service_date, start_hour, end_hour = schedule
+    if not is_schedule_covered_by_availability(service_date, start_hour, end_hour, availabilities):
+        return False
+    return not any(
+        schedules_overlap(service_date, start_hour, end_hour, booking.date, booking.start_hour, booking.end_hour)
+        for booking in bookings
+        if booking.status == BookingStatus.approved
+    )
+
+
+def _semantic_similarity(profile, query_embedding: list[float] | None) -> float:
+    """Calcula similitud sobre embeddings persistidos, solo para ordenar elegibles."""
+    embedding = getattr(profile, "embedding", None)
+    if not query_embedding or not embedding or len(embedding) != len(query_embedding):
+        return 0.0
+    return float(sum(float(left) * float(right) for left, right in zip(embedding, query_embedding)))
+
+
 def _profile_specialties(profile, professional_type: str) -> list[str]:
     if professional_type == "nurse":
         specialty = getattr(profile.specialty, "value", profile.specialty)
@@ -53,7 +96,7 @@ def _profile_specialties(profile, professional_type: str) -> list[str]:
     return [str(value) for value in (profile.specialties or [])]
 
 
-def calcular_compatibilidad(profile, professional_type: str, description: str, locality: str | None, availabilities: list) -> tuple[int, list[str]]:
+def calcular_compatibilidad(profile, professional_type: str, description: str, locality: str | None, availabilities: list, schedule_verified: bool | None = None) -> tuple[int, list[str]]:
     """Calcula un puntaje estable: necesidades 40, experiencia 20, ubicación
     20, disponibilidad 10 y valoraciones verificadas 10.
     """
@@ -65,16 +108,17 @@ def calcular_compatibilidad(profile, professional_type: str, description: str, l
     experience = max(0, int(profile.experience_years or 0))
     experience_score = min(20, experience * 2)
     location_score = 20 if locality and profile_covers_locality(profile, locality) else (10 if not locality else 0)
-    requested_day = _requested_day(description)
     active = [item for item in availabilities if item.is_active]
-    availability_score = 10 if active and (not requested_day or any(getattr(item.day_of_week, "value", item.day_of_week) == requested_day for item in active)) else 0
+    requested_day = _requested_day(description)
+    availability_score = 10 if schedule_verified is True else (10 if active and not _requested_schedule(description) and (not requested_day or any(getattr(item.day_of_week, "value", item.day_of_week) == requested_day for item in active)) else 0)
     rating_count = int(profile.rating_count or 0)
     rating_score = round((min(float(profile.rating_avg or 0), 5) / 5) * 10) if rating_count else 0
     criteria = []
     if matching_terms: criteria.append("coincide con necesidades y especialidad registradas")
     if experience: criteria.append(f"{experience} años de experiencia")
     if location_score == 20: criteria.append("cubre la localidad solicitada")
-    if availability_score: criteria.append("tiene disponibilidad publicada compatible")
+    if schedule_verified is True: criteria.append("disponibilidad verificada para la fecha y horario solicitados")
+    elif availability_score: criteria.append("tiene disponibilidad publicada compatible; confirma el horario antes de contratar")
     if rating_count: criteria.append(f"valoración registrada: {float(profile.rating_avg):.1f}/5 ({rating_count})")
     return min(100, need_score + experience_score + location_score + availability_score + rating_score), criteria
 
@@ -86,7 +130,8 @@ def _serialize(profile, user, professional_type: str, score: int | None = None, 
 
 def _profiles(session: Session, professional_type: str):
     model = NurseProfile if professional_type == "nurse" else CaregiverProfile
-    return session.exec(select(model, User).join(User, User.id == model.user_id).where(model.status == ProfileStatus.approved).where(User.is_active == True)).all()  # noqa: E712
+    role = UserRole.nurse if professional_type == "nurse" else UserRole.caregiver
+    return session.exec(select(model, User).join(User, User.id == model.user_id).where(model.status == ProfileStatus.approved).where(User.is_active == True).where(User.role == role)).all()  # noqa: E712
 
 
 def buscar_profesionales_similares(descripcion_paciente: str, tipo_profesional: str | None = None, localidad: str | None = None, page: int = 1, limit: int = 6) -> str:
@@ -94,21 +139,38 @@ def buscar_profesionales_similares(descripcion_paciente: str, tipo_profesional: 
     if tipo_profesional not in {"caregiver", "nurse"}:
         return json.dumps({"texto": "¿Buscas un cuidador/a o un enfermero/a?", "profesionales": []}, ensure_ascii=False)
     page, limit = max(1, int(page)), max(1, min(int(limit), 20))
-    with Session(engine) as session:
+    page = max(1, int(page or 1)); limit = max(1, min(int(limit or 6), 12)); ranked = []
+    schedule = _requested_schedule(descripcion_paciente)
+    normalized_description = _normalized(descripcion_paciente)
+    requires_specialized_match = any(term in normalized_description for term in SPECIALIZED_NEED_TERMS)
+    try:
+        query_embedding = generar_embedding(descripcion_paciente)
+    except Exception:
+        # No se sustituyen resultados por ejemplos si el modelo local no está listo.
+        query_embedding = None
         candidates = _profiles(session, tipo_profesional)
         ranked = []
         for profile, user in candidates:
             if localidad and not profile_covers_locality(profile, localidad):
                 continue
-            availability = session.exec(select(Availability).where(Availability.professional_user_id == user.id)).all()
-            score, criteria = calcular_compatibilidad(profile, tipo_profesional, descripcion_paciente, localidad, availability)
-            ranked.append((_serialize(profile, user, tipo_profesional, score, criteria), score))
-    ranked.sort(key=lambda item: (-item[1], -item[0]["experience_years"], item[0]["full_name"].casefold()))
+            bookings = session.exec(select(Booking).where(Booking.professional_user_id == user.id).where(Booking.status == BookingStatus.approved)).all() if schedule else []
+            schedule_verified = _is_schedule_available(schedule, availability, bookings) if schedule else None
+            if schedule and not schedule_verified:
+                continue
+            score, criteria = calcular_compatibilidad(profile, tipo_profesional, descripcion_paciente, localidad, availability, schedule_verified)
+            if requires_specialized_match and "coincide con necesidades y especialidad registradas" not in criteria:
+                continue
+            ranked.append((_serialize(profile, user, tipo_profesional, score, criteria), score, _semantic_similarity(profile, query_embedding)))
+    ranked.sort(key=lambda item: (-item[1], -item[2], -item[0]["experience_years"], item[0]["full_name"].casefold()))
     total = len(ranked)
     professionals = [item[0] for item in ranked[(page - 1) * limit:page * limit]]
     label = "enfermeros" if tipo_profesional == "nurse" else "cuidadores"
     text = f"Encontré {total} {label} registrados que cumplen los criterios" + (f" en {localidad}" if localidad else "") + "."
-    if not professionals: text = f"No hay más {label} disponibles con esos criterios."
+    if not professionals:
+        text = (f"No encontré {label} con compatibilidad registrada para esa necesidad específica."
+                if requires_specialized_match else f"No hay más {label} que cumplan los criterios.")
+    elif not schedule:
+        text += " La disponibilidad para una fecha y hora concretas debe confirmarse antes de contratar."
     return json.dumps({"texto": text, "profesionales": professionals, "total": total, "page": page, "limit": limit, "has_more": page * limit < total}, ensure_ascii=False)
 
 
