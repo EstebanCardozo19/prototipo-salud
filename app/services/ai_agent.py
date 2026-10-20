@@ -21,7 +21,7 @@ from app.services.bogota_locations import BOGOTA_LOCALITIES, normalize_location
 
 # Configuración de la API de SAI Applications
 API_URL = "https://sai-library.saiapplications.com/api/prompt/v1/chat/completions"
-API_KEY = os.getenv("SAI_API_KEY", "/cUlRFrje0eXPKWwaOs2IA")
+API_KEY = os.getenv("SAI_API_KEY", "")
 MODEL = "gpt-5.6-terra"
 
 SYSTEM_PROMPT = (
