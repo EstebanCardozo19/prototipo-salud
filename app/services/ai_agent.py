@@ -14,6 +14,7 @@ import os
 import json
 import re
 import unicodedata
+import logging
 import requests
 
 from app.mcp_server import buscar_profesional_por_nombre, buscar_profesionales_similares, get_tool_definitions
@@ -21,8 +22,8 @@ from app.services.bogota_locations import BOGOTA_LOCALITIES, normalize_location
 
 # Configuración de la API de SAI Applications
 API_URL = "https://sai-library.saiapplications.com/api/prompt/v1/chat/completions"
-API_KEY = os.getenv("SAI_API_KEY", "")
 MODEL = "gpt-5.6-terra"
+logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = (
     "Eres un experto en atención geriátrica domiciliaria en Bogotá. "
@@ -52,11 +53,16 @@ SYSTEM_PROMPT = (
     "El porcentaje de compatibilidad no es una métrica de confiabilidad, calificación ni reconocimiento profesional. Si preguntan por confiabilidad, indica que no existe un indicador implementado."
 )
 
-HEADERS = {
-    "accept": "application/json",
-    "Content-Type": "application/json",
-    "Authorization": f"Bearer {API_KEY}",
-}
+def _sai_headers() -> dict[str, str]:
+    """Construye la autorizaci?n usando la variable del proceso en cada llamada."""
+    api_key = os.getenv("SAI_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("SAI_API_KEY no est? configurada en el entorno de ejecuci?n.")
+    return {
+        "accept": "application/json",
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}",
+    }
 
 # Mapa de funciones disponibles (nombre -> callable)
 TOOL_REGISTRY = {
@@ -186,8 +192,16 @@ def _llamar_sai(messages: list[dict], tools: list[dict]) -> dict:
         "max_tokens": 1000,
     }
 
-    response = requests.post(API_URL, headers=HEADERS, json=payload, timeout=150)
-    response.raise_for_status()
+    response = requests.post(API_URL, headers=_sai_headers(), json=payload, timeout=150)
+    try:
+        response.raise_for_status()
+    except requests.HTTPError:
+        logger.warning(
+            "SAI rechaz? la solicitud (HTTP %s): %s",
+            response.status_code,
+            response.text[:1000],
+        )
+        raise
     return response.json()
 
 
