@@ -43,6 +43,38 @@ class RecommendationAgentConversationTests(unittest.TestCase):
             ai_agent.conversar("Necesito enfermeros.", localidad="Chapinero")
         self.assertEqual(search.call_args.kwargs["localidad"], "Chapinero")
 
+    def test_explicit_caregiver_request_explains_why_each_profile_is_recommended(self):
+        payload = json.dumps({
+            "texto": "Encontré cuidadores.",
+            "profesionales": [{
+                "full_name": "Ana Torres",
+                "compatibility_criteria": [
+                    "coincide con necesidades y especialidad registradas",
+                    "8 años de experiencia",
+                    "tiene disponibilidad publicada compatible",
+                ],
+            }],
+            "page": 1,
+        })
+        message = (
+            "Necesito un cuidador para un adulto mayor que presenta deterioro cognitivo, "
+            "problemas de memoria y episodios de desorientación. Busco una persona con "
+            "experiencia atendiendo casos similares. ¿Qué cuidadores disponibles me recomiendas y por qué?"
+        )
+
+        with patch("app.services.ai_agent.buscar_profesionales_similares", return_value=payload) as search, patch(
+            "app.services.ai_agent._llamar_sai"
+        ) as provider:
+            result = ai_agent.conversar(message)
+
+        self.assertEqual(search.call_args.kwargs["tipo_profesional"], "caregiver")
+        self.assertIn("Ana Torres", result["texto"])
+        self.assertIn("coincide con necesidades y especialidad registradas", result["texto"])
+        self.assertIn("8 años de experiencia", result["texto"])
+        self.assertIn("por qué", result["texto"].lower())
+        self.assertEqual(result["profesionales"][0]["full_name"], "Ana Torres")
+        provider.assert_not_called()
+
 
 class CompatibilityScoreTests(unittest.TestCase):
     def setUp(self):

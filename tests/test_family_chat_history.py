@@ -52,7 +52,7 @@ class FamilyChatHistoryTests(unittest.TestCase):
         ) as search, patch("app.services.ai_agent._llamar_sai") as sai:
             result = ai_agent.conversar("Necesito enfermeros, por favor.", historial=history)
 
-        self.assertEqual(result["texto"], "Encontré enfermeros.")
+        self.assertIn("opciones recomendadas", result["texto"])
         self.assertEqual(result["profesionales"], [{"user_id": 1}])
         self.assertFalse(sai.called)
         self.assertEqual(search.call_args.kwargs["tipo_profesional"], "nurse")

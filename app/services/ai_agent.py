@@ -336,6 +336,39 @@ def _inferir_localidad(messages: list[str], explicit_locality: str | None = None
     return None
 
 
+def _redactar_recomendaciones_catalogo(result: dict, professional_type: str) -> str:
+    """Explica las opciones reales devueltas por el catálogo local.
+
+    El catálogo calcula la compatibilidad de forma determinista, por lo que la
+    explicación debe usar únicamente sus criterios verificables y no depender de
+    que el proveedor conversacional decida redactar una justificación.
+    """
+    professionals = result.get("profesionales", [])
+    if not professionals:
+        return result.get("texto", "No encontré profesionales con esos criterios.")
+
+    role_label = "enfermero/a" if professional_type == "nurse" else "cuidador/a"
+    intro = (
+        "Estas son las opciones recomendadas y por qué aparecen primero: prioricé "
+        "perfiles con coincidencias verificables en "
+        "sus necesidades registradas, experiencia, cobertura, disponibilidad y "
+        "valoraciones cuando están disponibles."
+    )
+    recommendations = []
+    for professional in professionals[:3]:
+        criteria = professional.get("compatibility_criteria") or []
+        reasons = "; ".join(criteria) if criteria else "perfil aprobado y registrado en la plataforma"
+        recommendations.append(
+            f"• {professional.get('full_name', 'Perfil sin nombre')} ({role_label}): {reasons}."
+        )
+
+    closing = (
+        "Revisa los perfiles y entrevista a las personas antes de contratar; la "
+        "decisión final corresponde a la familia o responsable del paciente."
+    )
+    return "\n".join([intro, *recommendations, closing])
+
+
 def _respuesta_catalogo_local(message: str, history: list[dict[str, str]], locality: str | None = None) -> dict | None:
     """Gestiona intenciones de catálogo sin depender del LLM ni repetir resultados."""
     normalized = _normalizar_texto(message)
@@ -374,9 +407,10 @@ def _respuesta_catalogo_local(message: str, history: list[dict[str, str]], local
         page=page,
     )
     result = json.loads(raw)
+    text = _redactar_recomendaciones_catalogo(result, professional_type)
     if result.get("profesionales") and "page" in result:
-        result["texto"] += f" Página {result.get('page', page)}. La compatibilidad usa necesidades/especialidad, experiencia, ubicación, disponibilidad publicada y valoraciones verificadas."
-    return {"texto": result["texto"], "profesionales": result.get("profesionales", [])}
+        text += f"\nPágina {result.get('page', page)}."
+    return {"texto": text, "profesionales": result.get("profesionales", [])}
 
 
 def conversar(mensaje_usuario: str, historial: list[dict] = None, familiares: list[dict] = None, localidad: str | None = None) -> dict:
