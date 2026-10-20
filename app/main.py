@@ -1,6 +1,7 @@
 import os
 import threading
 import logging
+from datetime import date
 from pathlib import Path
 from dotenv import load_dotenv
 from sqlmodel import SQLModel, select
@@ -8,7 +9,7 @@ from sqlalchemy import text
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from contextlib import asynccontextmanager
 
 from app.models import User, CaregiverProfile, ClinicalRecord, ClinicalRecordDocument, NurseProfile, Booking, Availability, Review, ProfessionalRecognition, ProfessionalVerification, VerificationDocument, ServiceChatMessage, ServiceCarePlan, ProfessionalAssistantAuditLog, Notification, PushSubscription, MedicationReminderDelivery, MedicalAppointment, AppointmentReminderDelivery, PatientMedication, CancelledServiceComment, CancelledServiceCommentReport  # noqa: F401
@@ -22,6 +23,7 @@ from app.security.encryption import (
 )
 from app.routers import auth_router, caregivers_router, clinical_router, admin_router, nurses_router, bookings_router, recognitions_router
 from app.routers import upload_router, verification_router, service_chat_router, notifications_router, care_plan_router, professional_assistant_router, appointments_router, medications_router
+from app.services.bogota_locations import validate_bogota_professional_location
 
 load_dotenv()
 
@@ -375,7 +377,37 @@ app.mount("/uploads/profiles", StaticFiles(directory="uploads/profiles"), name="
 class ChatRequest(BaseModel):
     mensaje: str
     localidad: str | None = None
+    fecha_servicio: str | None = None
+    hora_inicio: int | None = Field(default=None, ge=0, le=23)
+    hora_fin: int | None = Field(default=None, ge=0, le=23)
     historial: list[dict[str, str]] = Field(default_factory=list, max_length=12)
+
+    @model_validator(mode="after")
+    def validate_search_filters(self):
+        if self.localidad:
+            self.localidad = validate_bogota_professional_location(self.localidad)
+
+        schedule_values = (self.fecha_servicio, self.hora_inicio, self.hora_fin)
+        if any(value is not None for value in schedule_values) and any(value is None for value in schedule_values):
+            raise ValueError("Fecha de servicio, hora de inicio y hora de fin deben enviarse juntas")
+        if self.fecha_servicio is not None:
+            try:
+                date.fromisoformat(self.fecha_servicio)
+            except ValueError as error:
+                raise ValueError("La fecha de servicio debe tener el formato AAAA-MM-DD") from error
+            if self.hora_inicio == self.hora_fin:
+                raise ValueError("La hora de finalización debe ser distinta de la hora de inicio")
+        return self
+
+
+def chat_search_description(request: ChatRequest) -> str:
+    """Conserva los filtros estructurados al usar el catálogo sin el agente."""
+    if request.fecha_servicio is None:
+        return request.mensaje
+    return (
+        f"{request.mensaje} Servicio el {request.fecha_servicio} "
+        f"de {request.hora_inicio} a {request.hora_fin}."
+    )
 
 
 # --- Endpoints base ---
@@ -425,6 +457,9 @@ def chat_con_sai(
             historial=request.historial,
             familiares=familiares,
             localidad=request.localidad,
+            service_date=request.fecha_servicio,
+            start_hour=request.hora_inicio,
+            end_hour=request.hora_fin,
         )
         return {"respuesta": result["texto"], "profesionales": result["profesionales"]}
     except Exception as e:
@@ -436,7 +471,7 @@ def chat_con_sai(
             from app.mcp_server import buscar_profesionales_similares
 
             raw = buscar_profesionales_similares(
-                descripcion_paciente=request.mensaje,
+                descripcion_paciente=chat_search_description(request),
                 localidad=request.localidad,
             )
             parsed = json.loads(raw)
@@ -464,7 +499,7 @@ def chat_local(request: ChatRequest):
 
     try:
         raw = buscar_profesionales_similares(
-            descripcion_paciente=request.mensaje,
+            descripcion_paciente=chat_search_description(request),
             localidad=request.localidad,
         )
         try:

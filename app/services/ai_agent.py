@@ -402,7 +402,14 @@ def _redactar_recomendaciones_catalogo(result: dict, professional_type: str) -> 
     return "\n".join([intro, *recommendations, closing])
 
 
-def _respuesta_catalogo_local(message: str, history: list[dict[str, str]], locality: str | None = None) -> dict | None:
+def _respuesta_catalogo_local(
+    message: str,
+    history: list[dict[str, str]],
+    locality: str | None = None,
+    service_date: str | None = None,
+    start_hour: int | None = None,
+    end_hour: int | None = None,
+) -> dict | None:
     """Resuelve localmente las búsquedas cuyo tipo profesional ya es conocido.
 
     El catálogo es la fuente autoritativa de las tarjetas mostradas por el
@@ -436,6 +443,11 @@ def _respuesta_catalogo_local(message: str, history: list[dict[str, str]], local
         return None
 
     description = _construir_descripcion_busqueda(message, history)
+    # El catálogo verifica una fecha ISO y un rango horario explícitos. Al recibir
+    # estos datos estructurados desde la interfaz se añaden al contexto de búsqueda
+    # sin sustituir la necesidad clínica que escribió la familia.
+    if service_date is not None:
+        description = f"{description} Servicio el {service_date} de {start_hour} a {end_hour}."
     requested_locality = _inferir_localidad(user_turns + [message], locality)
     try:
         raw_result = buscar_profesionales_similares(
@@ -471,7 +483,15 @@ def _respuesta_catalogo_local(message: str, history: list[dict[str, str]], local
         return None
 
 
-def conversar(mensaje_usuario: str, historial: list[dict] = None, familiares: list[dict] = None, localidad: str | None = None) -> dict:
+def conversar(
+    mensaje_usuario: str,
+    historial: list[dict] | None = None,
+    familiares: list[dict] | None = None,
+    localidad: str | None = None,
+    service_date: str | None = None,
+    start_hour: int | None = None,
+    end_hour: int | None = None,
+) -> dict:
     """
     Procesa un mensaje del usuario y retorna { texto, profesionales }.
 
@@ -490,7 +510,14 @@ def conversar(mensaje_usuario: str, historial: list[dict] = None, familiares: li
         return {"texto": respuesta_segura, "profesionales": []}
 
     historial = _normalizar_historial(historial)
-    respuesta_catalogo = _respuesta_catalogo_local(mensaje_usuario, historial, localidad)
+    respuesta_catalogo = _respuesta_catalogo_local(
+        mensaje_usuario,
+        historial,
+        localidad,
+        service_date,
+        start_hour,
+        end_hour,
+    )
     if respuesta_catalogo:
         return respuesta_catalogo
 

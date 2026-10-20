@@ -53,6 +53,22 @@ class RecommendationAgentConversationTests(unittest.TestCase):
         self.assertEqual(search.call_args.kwargs["localidad"], "Chapinero")
         agent.assert_not_called()
 
+    def test_structured_schedule_is_added_for_exact_availability_validation(self):
+        payload = json.dumps({"texto": "Encontré enfermeros.", "profesionales": []})
+        with patch("app.services.ai_agent.buscar_profesionales_similares", return_value=payload) as search:
+            ai_agent.conversar(
+                "Necesito una enfermera para mi abuelo.",
+                localidad="Suba",
+                service_date="2099-01-05",
+                start_hour=9,
+                end_hour=12,
+            )
+
+        description = search.call_args.kwargs["descripcion_paciente"]
+        self.assertIn("2099-01-05 de 9 a 12", description)
+        self.assertEqual(search.call_args.kwargs["tipo_profesional"], "nurse")
+        self.assertEqual(search.call_args.kwargs["localidad"], "Suba")
+
     def test_explicit_caregiver_request_explains_why_each_profile_is_recommended(self):
         payload = json.dumps({
             "texto": "Encontré cuidadores.",
