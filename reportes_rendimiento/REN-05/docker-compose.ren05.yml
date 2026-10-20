@@ -1,0 +1,41 @@
+name: ren05-isolated
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: ren05_postgres
+    environment:
+      POSTGRES_USER: ren05_user
+      POSTGRES_PASSWORD: ren05_local_only_password
+      POSTGRES_DB: ren05_db
+    ports:
+      - "127.0.0.1:15432:5432"
+    volumes:
+      - ren05_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ren05_user -d ren05_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  api:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    container_name: ren05_api
+    environment:
+      DATABASE_URL: postgresql+psycopg2://ren05_user:ren05_local_only_password@db:5432/ren05_db
+      JWT_SECRET_KEY: REN05_only_local_test_jwt_secret_key_2026_abcdef
+      DATA_ENCRYPTION_KEY: 7z5WwYn3WDa7k5M6N4wPp-oGIZYgJ5H5LhkAonQlUXQ=
+      EMAIL_LOOKUP_KEY: REN05_only_local_test_email_lookup_key_2026_abcdef
+      SAI_API_KEY: REN05_NOT_A_PRODUCTION_KEY
+      PRELOAD_EMBEDDING_MODEL: "false"
+    ports:
+      - "127.0.0.1:18000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+volumes:
+  ren05_pgdata:

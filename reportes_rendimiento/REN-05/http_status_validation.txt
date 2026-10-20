@@ -1,0 +1,4 @@
+﻿api_non_200_log_entries=0
+All Locust CSV failure counts: 0.
+Endpoints under load: GET /api/caregivers/ and GET /api/nurses/.
+No mutation endpoint was used.

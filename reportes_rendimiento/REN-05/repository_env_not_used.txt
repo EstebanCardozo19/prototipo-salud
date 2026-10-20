@@ -1,0 +1,8 @@
+﻿POSTGRES_USER=<redacted from repository .env; not consumed by REN-05 compose>
+POSTGRES_PASSWORD=<redacted from repository .env; not consumed by REN-05 compose>
+POSTGRES_DB=<redacted from repository .env; not consumed by REN-05 compose>
+DATABASE_URL=<redacted from repository .env; not consumed by REN-05 compose>
+SAI_API_KEY=<redacted from repository .env; not consumed by REN-05 compose>
+JWT_SECRET_KEY=<redacted from repository .env; not consumed by REN-05 compose>
+DATA_ENCRYPTION_KEY=<redacted from repository .env; not consumed by REN-05 compose>
+EMAIL_LOOKUP_KEY=<redacted from repository .env; not consumed by REN-05 compose>

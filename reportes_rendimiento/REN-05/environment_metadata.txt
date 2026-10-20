@@ -1,0 +1,5 @@
+﻿timestamp=2026-10-20T15:00:12-05:00
+docker_version=29.7.2
+locust_version=locust 2.46.7 from C:\Users\Estba\OneDrive\Documentos\repo\prototipo-salud\.venv-tests\Lib\site-packages\locust (Python 3.11.9)
+compose_file=reportes_rendimiento/REN-05/docker-compose.ren05.yml
+isolation=no .env interpolation; no env_file; explicit local-only PostgreSQL connection; loopback-only host ports; dedicated volume/network

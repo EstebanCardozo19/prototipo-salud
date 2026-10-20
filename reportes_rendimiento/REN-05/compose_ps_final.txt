@@ -1,0 +1,3 @@
+﻿NAME             IMAGE                    COMMAND                  SERVICE   CREATED         STATUS                   PORTS
+ren05_api        ren05-isolated-api       "uvicorn app.main:apÔÇª"   api       6 minutes ago   Up 5 minutes             127.0.0.1:18000->8000/tcp
+ren05_postgres   pgvector/pgvector:pg16   "docker-entrypoint.sÔÇª"   db        6 minutes ago   Up 6 minutes (healthy)   127.0.0.1:15432->5432/tcp

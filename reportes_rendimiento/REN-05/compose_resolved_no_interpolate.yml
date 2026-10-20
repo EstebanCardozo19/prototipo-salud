@@ -1,0 +1,60 @@
+﻿name: ren05-isolated
+networks:
+  default:
+    name: ren05-isolated_default
+services:
+  api:
+    build:
+      context: C:\Users\Estba\OneDrive\Documentos\repo\prototipo-salud
+      dockerfile: Dockerfile
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    container_name: ren05_api
+    depends_on:
+      db:
+        condition: service_healthy
+        required: true
+    environment:
+      DATA_ENCRYPTION_KEY: 7z5WwYn3WDa7k5M6N4wPp-oGIZYgJ5H5LhkAonQlUXQ=
+      DATABASE_URL: postgresql+psycopg2://ren05_user:ren05_local_only_password@db:5432/ren05_db
+      EMAIL_LOOKUP_KEY: REN05_only_local_test_email_lookup_key_2026_abcdef
+      JWT_SECRET_KEY: REN05_only_local_test_jwt_secret_key_2026_abcdef
+      PRELOAD_EMBEDDING_MODEL: "false"
+      SAI_API_KEY: REN05_NOT_A_PRODUCTION_KEY
+    networks:
+      default: null
+    ports:
+      - host_ip: 127.0.0.1
+        mode: ingress
+        protocol: tcp
+        published: "18000"
+        target: 8000
+  db:
+    container_name: ren05_postgres
+    environment:
+      POSTGRES_DB: ren05_db
+      POSTGRES_PASSWORD: ren05_local_only_password
+      POSTGRES_USER: ren05_user
+    healthcheck:
+      interval: 5s
+      retries: 12
+      test:
+        - CMD-SHELL
+        - pg_isready -U ren05_user -d ren05_db
+      timeout: 5s
+    image: pgvector/pgvector:pg16
+    networks:
+      default: null
+    ports:
+      - host_ip: 127.0.0.1
+        mode: ingress
+        protocol: tcp
+        published: "15432"
+        target: 5432
+    volumes:
+      - source: ren05_pgdata
+        target: /var/lib/postgresql/data
+        type: volume
+        volume: {}
+volumes:
+  ren05_pgdata:
+    name: ren05-isolated_ren05_pgdata
