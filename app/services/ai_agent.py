@@ -54,10 +54,10 @@ SYSTEM_PROMPT = (
 )
 
 def _sai_headers() -> dict[str, str]:
-    """Construye la autorizaci?n usando la variable del proceso en cada llamada."""
+    """Construye la autorización usando la variable del proceso en cada llamada."""
     api_key = os.getenv("SAI_API_KEY", "").strip()
     if not api_key:
-        raise RuntimeError("SAI_API_KEY no est? configurada en el entorno de ejecuci?n.")
+        raise RuntimeError("SAI_API_KEY no está configurada en el entorno de ejecución.")
     return {
         "accept": "application/json",
         "Content-Type": "application/json",
@@ -197,12 +197,23 @@ def _llamar_sai(messages: list[dict], tools: list[dict]) -> dict:
         response.raise_for_status()
     except requests.HTTPError:
         logger.warning(
-            "SAI rechaz? la solicitud (HTTP %s): %s",
+            "SAI rechazó la solicitud (HTTP %s): %s",
             response.status_code,
             response.text[:1000],
         )
         raise
     return response.json()
+
+
+def _respuesta_respaldo_conversacional() -> dict:
+    """Evita respuestas vacías si el proveedor conversacional no está disponible."""
+    return {
+        "texto": (
+            "Puedo orientarte sobre el uso de la plataforma y ayudarte a buscar cuidadores o enfermeros. "
+            "Indícame qué apoyo necesita tu familiar y si buscas un cuidador/a o un enfermero/a."
+        ),
+        "profesionales": [],
+    }
 
 
 def conversar_con_contexto_documental(
@@ -392,13 +403,26 @@ def _redactar_recomendaciones_catalogo(result: dict, professional_type: str) -> 
 
 
 def _respuesta_catalogo_local(message: str, history: list[dict[str, str]], locality: str | None = None) -> dict | None:
-    """Gestiona intenciones de catálogo sin depender del LLM ni repetir resultados."""
+    """Gestiona únicamente respuestas locales que no requieren al agente.
+
+    Las solicitudes sobre cuidadores y enfermeros se delegan al agente SAI. De
+    este modo el usuario recibe una respuesta conversacional contextual, en vez
+    de una plantilla local, y el agente puede decidir cuándo consultar el
+    catálogo mediante sus herramientas.
+    """
     normalized = _normalizar_texto(message)
     if _es_saludo(message):
         return {"texto": "¡Hola! Puedo ayudarte a buscar, comparar o consultar datos registrados de cuidadores y enfermeros. ¿Qué necesitas?", "profesionales": []}
 
+    user_turns = [item["content"] for item in history if item["role"] == "user"]
+    professional_type = _inferir_tipo_profesional(user_turns + [message])
+
     requested_name = _extraer_nombre_consultado(message)
-    if requested_name and any(word in normalized for word in ("tarifa", "informacion", "información", "perfil", "experiencia", "especial", "localidad", "sobre", "de ")):
+    if (
+        not professional_type
+        and requested_name
+        and any(word in normalized for word in ("tarifa", "informacion", "información", "perfil", "experiencia", "especial", "localidad", "sobre", "de "))
+    ):
         profiles = buscar_profesional_por_nombre(requested_name)
         if len(profiles) == 1:
             return {"texto": _formatear_perfil(profiles[0]), "profesionales": profiles}
@@ -406,33 +430,12 @@ def _respuesta_catalogo_local(message: str, history: list[dict[str, str]], local
             return {"texto": f"Encontré {len(profiles)} perfiles con el nombre {requested_name}. Indícame el rol o la localidad para identificarlo.", "profesionales": profiles}
         return {"texto": f"No encontré un perfil público aprobado con el nombre {requested_name}.", "profesionales": []}
 
-    wants_next = bool(re.search(r"\b(siguientes?|mas|más|otros|continuar)\b", normalized))
-    user_turns = [item["content"] for item in history if item["role"] == "user"]
-    professional_type = _inferir_tipo_profesional(user_turns + [message])
     if not professional_type:
-        if not history and _parece_solicitud_de_cuidado(message, history):
-            return {"texto": PREGUNTA_TIPO_PROFESIONAL, "profesionales": []}
         return None
-    # Una pregunta de seguimiento que no pide catálogo se resuelve antes de buscar.
-    if not wants_next and requested_name:
-        profiles = buscar_profesional_por_nombre(requested_name, professional_type)
-        return {"texto": _formatear_perfil(profiles[0]) if len(profiles) == 1 else f"No encontré un perfil único para {requested_name}.", "profesionales": profiles}
-    page = 1
-    if wants_next:
-        page = 1 + sum("Página " in item["content"] for item in history if item["role"] == "assistant")
-    description = _construir_descripcion_busqueda(message, history)
-    requested_locality = _inferir_localidad(user_turns + [message], locality)
-    raw = buscar_profesionales_similares(
-        descripcion_paciente=description,
-        tipo_profesional=professional_type,
-        localidad=requested_locality,
-        page=page,
-    )
-    result = json.loads(raw)
-    text = _redactar_recomendaciones_catalogo(result, professional_type)
-    if result.get("profesionales") and "page" in result:
-        text += f"\nPágina {result.get('page', page)}."
-    return {"texto": text, "profesionales": result.get("profesionales", [])}
+
+    # Aunque se haya indicado el rol, no se responde aquí ni se consulta el
+    # catálogo directamente: la solicitud continúa hacia SAI más abajo.
+    return None
 
 
 def conversar(mensaje_usuario: str, historial: list[dict] = None, familiares: list[dict] = None, localidad: str | None = None) -> dict:
@@ -459,27 +462,6 @@ def conversar(mensaje_usuario: str, historial: list[dict] = None, familiares: li
         return respuesta_catalogo
 
     tools = get_tool_definitions()
-    descripcion_busqueda = _construir_descripcion_busqueda(mensaje_usuario, historial)
-    tipo_profesional = _inferir_tipo_profesional([
-        item["content"] for item in historial if item["role"] == "user"
-    ] + [mensaje_usuario])
-
-    # Esta regla de negocio evita depender de que el modelo detecte una solicitud
-    # explícita o decida invocar la herramienta. Así no vuelve a preguntar por
-    # enfermería/cuidado ni deja a la familia sin una respuesta útil.
-    if tipo_profesional:
-        raw = buscar_profesionales_similares(
-            descripcion_paciente=descripcion_busqueda,
-            tipo_profesional=tipo_profesional,
-        )
-        try:
-            resultado = _json.loads(raw)
-        except _json.JSONDecodeError:
-            resultado = {"texto": raw, "profesionales": []}
-        return {
-            "texto": resultado.get("texto", ""),
-            "profesionales": resultado.get("profesionales", []),
-        }
 
     # Enriquecer el system prompt con el contexto de familiares si existe
     contexto_familiar = _construir_contexto_familiar(familiares or [])
@@ -489,7 +471,10 @@ def conversar(mensaje_usuario: str, historial: list[dict] = None, familiares: li
     messages.extend(historial)
     messages.append({"role": "user", "content": mensaje_usuario})
 
-    response_data = _llamar_sai(messages, tools)
+    try:
+        response_data = _llamar_sai(messages, tools)
+    except (requests.RequestException, KeyError, IndexError, TypeError, ValueError):
+        return _respuesta_respaldo_conversacional()
     choice = response_data["choices"][0]
     assistant_message = choice["message"]
     tool_calls = assistant_message.get("tool_calls")

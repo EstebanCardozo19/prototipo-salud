@@ -1,9 +1,10 @@
 """Regresiones deterministas para los criterios académicos del agente."""
+import json
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from app.models import Availability, Booking, BookingStatus, CaregiverProfile, DayOfWeek, ProfileStatus, User, UserRole
-from app.mcp_server import _is_schedule_available, _requested_schedule, calcular_compatibilidad
+from app.mcp_server import _is_schedule_available, _requested_schedule, buscar_profesionales_similares, calcular_compatibilidad
 from app.routers import care_plan_router
 from app.services import ai_agent
 
@@ -47,9 +48,27 @@ class AgentAcademicCriteriaTests(unittest.TestCase):
         self.assertIn("no tiene un indicador de confiabilidad", result["texto"])
         self.assertEqual(result["profesionales"], [])
 
-    def test_general_care_without_explicit_role_requests_clarification(self):
-        result = ai_agent.conversar("Mi abuelo requiere acompañamiento, movilidad y ayuda con la alimentación.")
+    def test_general_care_without_explicit_role_is_handled_by_the_agent(self):
+        response = {"choices": [{"message": {"content": ai_agent.PREGUNTA_TIPO_PROFESIONAL}}]}
+        with patch("app.services.ai_agent._llamar_sai", return_value=response) as sai:
+            result = ai_agent.conversar("Mi abuelo requiere acompañamiento, movilidad y ayuda con la alimentación.")
         self.assertEqual(result, {"texto": ai_agent.PREGUNTA_TIPO_PROFESIONAL, "profesionales": []})
+        sai.assert_called_once()
+
+    def test_catalog_queries_eligible_profiles_when_embedding_is_available(self):
+        user = User(id=7, email="caregiver@example.test", password_hash="x", full_name="Cuidador Aprobado", role=UserRole.caregiver)
+        session = MagicMock()
+        session.exec.return_value.all.return_value = []
+        session_context = MagicMock()
+        session_context.__enter__.return_value = session
+
+        with patch("app.mcp_server.generar_embedding", return_value=[0.1] * 384), patch(
+            "app.mcp_server.Session", return_value=session_context
+        ), patch("app.mcp_server._profiles", return_value=[(self.caregiver, user)]):
+            result = json.loads(buscar_profesionales_similares("Necesito un cuidador para mi abuelo", "caregiver"))
+
+        self.assertEqual(result["total"], 1)
+        self.assertEqual(result["profesionales"][0]["full_name"], "Cuidador Aprobado")
 
 
 class DocumentaryMedicationSafetyTests(unittest.TestCase):

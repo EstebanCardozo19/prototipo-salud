@@ -17,31 +17,38 @@ class RecommendationAgentConversationTests(unittest.TestCase):
         search.assert_not_called()
         provider.assert_not_called()
 
-    def test_follow_up_uses_the_real_profile_named_in_question(self):
+    def test_follow_up_about_a_profile_after_a_nurse_search_is_handled_by_agent(self):
         profile = {"full_name": "Rosa Helena Flores Vega", "role": "nurse", "hourly_rate": 75000.0, "location": "Suba", "experience_years": 9, "specialty_display": "geriatrics", "specialties": ["geriatrics"], "rating_count": 3, "rating_avg": 4.7}
         history = [{"role": "user", "content": "Muéstrame enfermeros."}, {"role": "assistant", "content": "Encontré opciones."}]
-        with patch("app.services.ai_agent.buscar_profesional_por_nombre", return_value=[profile]) as lookup, patch("app.services.ai_agent.buscar_profesionales_similares") as search:
+        response = {"choices": [{"message": {"content": "Te ayudaré a confirmar los datos de Rosa Helena Flores Vega."}}]}
+        with patch("app.services.ai_agent.buscar_profesional_por_nombre", return_value=[profile]) as lookup, patch(
+            "app.services.ai_agent.buscar_profesionales_similares"
+        ) as search, patch("app.services.ai_agent._llamar_sai", return_value=response) as agent:
             result = ai_agent.conversar("¿Cuál es la tarifa y experiencia de Rosa Helena Flores Vega?", historial=history)
-        self.assertIn("$75,000/h", result["texto"])
-        self.assertIn("9 años", result["texto"])
-        self.assertEqual(result["profesionales"], [profile])
-        lookup.assert_called_once_with("Rosa Helena Flores Vega")
+        self.assertEqual(result, {"texto": "Te ayudaré a confirmar los datos de Rosa Helena Flores Vega.", "profesionales": []})
+        agent.assert_called_once()
+        lookup.assert_not_called()
         search.assert_not_called()
 
-    def test_next_request_preserves_type_and_advances_page(self):
+    def test_next_request_after_a_nurse_search_is_handled_by_agent(self):
         history = [{"role": "user", "content": "Necesito enfermeros para mi abuelo."}, {"role": "assistant", "content": "Página 1."}]
-        payload = json.dumps({"texto": "Encontré 8 enfermeros.", "profesionales": [{"user_id": 7}], "page": 2})
-        with patch("app.services.ai_agent.buscar_profesionales_similares", return_value=payload) as search:
+        response = {"choices": [{"message": {"content": "Buscaré más opciones de enfermería."}}]}
+        with patch("app.services.ai_agent.buscar_profesionales_similares") as search, patch(
+            "app.services.ai_agent._llamar_sai", return_value=response
+        ) as agent:
             result = ai_agent.conversar("Muéstrame los siguientes", historial=history)
-        self.assertEqual(search.call_args.kwargs["tipo_profesional"], "nurse")
-        self.assertEqual(search.call_args.kwargs["page"], 2)
-        self.assertEqual(result["profesionales"], [{"user_id": 7}])
+        self.assertEqual(result, {"texto": "Buscaré más opciones de enfermería.", "profesionales": []})
+        agent.assert_called_once()
+        search.assert_not_called()
 
     def test_explicit_locality_is_passed_to_deterministic_catalog(self):
-        payload = json.dumps({"texto": "Encontré enfermeros.", "profesionales": []})
-        with patch("app.services.ai_agent.buscar_profesionales_similares", return_value=payload) as search:
+        response = {"choices": [{"message": {"content": "Buscaré enfermeros en Chapinero."}}]}
+        with patch("app.services.ai_agent.buscar_profesionales_similares") as search, patch(
+            "app.services.ai_agent._llamar_sai", return_value=response
+        ) as agent:
             ai_agent.conversar("Necesito enfermeros.", localidad="Chapinero")
-        self.assertEqual(search.call_args.kwargs["localidad"], "Chapinero")
+        agent.assert_called_once()
+        search.assert_not_called()
 
     def test_explicit_caregiver_request_explains_why_each_profile_is_recommended(self):
         payload = json.dumps({
@@ -62,18 +69,26 @@ class RecommendationAgentConversationTests(unittest.TestCase):
             "experiencia atendiendo casos similares. ¿Qué cuidadores disponibles me recomiendas y por qué?"
         )
 
+        tool_call = {
+            "id": "call_001",
+            "function": {
+                "name": "buscar_profesionales_similares",
+                "arguments": json.dumps({"descripcion_paciente": message, "tipo_profesional": "caregiver"}),
+            },
+        }
+        first_response = {"choices": [{"message": {"content": None, "tool_calls": [tool_call]}}]}
+        final_response = {"choices": [{"message": {"content": "Ana Torres es una opción compatible por su experiencia registrada."}}]}
         with patch("app.services.ai_agent.buscar_profesionales_similares", return_value=payload) as search, patch(
-            "app.services.ai_agent._llamar_sai"
+            "app.services.ai_agent.buscar_profesional_por_nombre", return_value=[]
+        ), patch(
+            "app.services.ai_agent._llamar_sai", side_effect=[first_response, final_response]
         ) as provider:
             result = ai_agent.conversar(message)
 
-        self.assertEqual(search.call_args.kwargs["tipo_profesional"], "caregiver")
-        self.assertIn("Ana Torres", result["texto"])
-        self.assertIn("coincide con necesidades y especialidad registradas", result["texto"])
-        self.assertIn("8 años de experiencia", result["texto"])
-        self.assertIn("por qué", result["texto"].lower())
+        self.assertEqual(result["texto"], "Ana Torres es una opción compatible por su experiencia registrada.")
         self.assertEqual(result["profesionales"][0]["full_name"], "Ana Torres")
-        provider.assert_not_called()
+        self.assertEqual(provider.call_count, 2)
+        self.assertEqual(search.call_args.kwargs["tipo_profesional"], "caregiver")
 
 
 class CompatibilityScoreTests(unittest.TestCase):
