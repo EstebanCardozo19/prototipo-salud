@@ -17,6 +17,7 @@ export default function MainScreen({ user, token, onLogout, onUnauthorized, onUs
     user.role === 'admin' ? 'users' : user.role === 'family' ? 'caregivers' : 'account'
   );
   const [serviceChats, setServiceChats] = useState(null);
+  const [chatOpen, setChatOpen] = useState(false); // toggle chat en móvil
 
   const handleNav = (key) => setActiveNav(key);
   const handleOpenMessages = (bookingId) => setServiceChats({ initialBookingId: bookingId });
@@ -55,14 +56,61 @@ export default function MainScreen({ user, token, onLogout, onUnauthorized, onUs
         return <MedicationsScreen user={user} token={token} />;
       }
       return (
-        <div className="flex h-full">
+        <div className="flex h-full relative">
+          {/* Contenido principal */}
           <div className={`flex-1 overflow-hidden ${activeNav !== 'my-requests' ? 'border-r border-[#c3c6d6]/30' : ''}`}>
             <SearchPanel user={user} token={token} activeTab={activeNav} onTabChange={setActiveNav} />
           </div>
+
+          {/* Chat lateral — oculto en móvil a menos que esté abierto */}
           {activeNav !== 'my-requests' && (
-            <div className="w-[300px] xl:w-[340px] shrink-0">
-              <ChatPanel user={user} token={token} onUnauthorized={onUnauthorized} />
-            </div>
+            <>
+              {/* Desktop: siempre visible */}
+              <div className="hidden md:block w-[300px] xl:w-[340px] shrink-0">
+                <ChatPanel user={user} token={token} onUnauthorized={onUnauthorized} />
+              </div>
+
+              {/* Móvil: overlay cuando chatOpen=true */}
+              {chatOpen && (
+                <div className="md:hidden fixed inset-0 z-[80] flex flex-col">
+                  {/* Backdrop */}
+                  <div
+                    className="absolute inset-0 bg-[#071426]/50 backdrop-blur-sm"
+                    onClick={() => setChatOpen(false)}
+                  />
+                  {/* Panel del chat */}
+                  <div className="absolute bottom-0 left-0 right-0 h-[85vh] rounded-t-3xl bg-white overflow-hidden shadow-2xl flex flex-col">
+                    {/* Handle + botón cerrar */}
+                    <div className="flex items-center justify-between px-5 pt-4 pb-2 border-b border-[#dce3eb] shrink-0">
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-[#0040a1] text-[22px]">smart_toy</span>
+                        <span className="font-bold text-[15px] text-[#17324d]">Asistente IA</span>
+                      </div>
+                      <button
+                        onClick={() => setChatOpen(false)}
+                        className="w-8 h-8 rounded-full bg-[#f3f3f6] flex items-center justify-center text-[#536779] hover:bg-[#dce3eb] transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">close</span>
+                      </button>
+                    </div>
+                    <div className="flex-1 overflow-hidden">
+                      <ChatPanel user={user} token={token} onUnauthorized={onUnauthorized} />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Botón flotante para abrir el chat en móvil */}
+              {!chatOpen && (
+                <button
+                  onClick={() => setChatOpen(true)}
+                  className="md:hidden fixed bottom-6 right-5 z-[70] w-14 h-14 rounded-full bg-[#0040a1] text-white shadow-lg flex items-center justify-center hover:bg-[#003080] transition-all active:scale-95"
+                  aria-label="Abrir asistente"
+                >
+                  <span className="material-symbols-outlined text-[26px]">smart_toy</span>
+                </button>
+              )}
+            </>
           )}
         </div>
       );
