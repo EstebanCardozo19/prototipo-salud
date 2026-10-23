@@ -519,6 +519,34 @@ def conversar(
         end_hour,
     )
     if respuesta_catalogo:
+        # Intentar enriquecer la respuesta del catálogo con SAI para que sea conversacional
+        profesionales = respuesta_catalogo.get("profesionales", [])
+        texto_catalogo = respuesta_catalogo.get("texto", "")
+        if profesionales:
+            try:
+                contexto_familiar = _construir_contexto_familiar(familiares or [])
+                system_content = SYSTEM_PROMPT + contexto_familiar
+                messages_enrich = [
+                    {"role": "system", "content": system_content},
+                    *historial,
+                    {"role": "user", "content": mensaje_usuario},
+                    {
+                        "role": "tool",
+                        "tool_call_id": "local_catalog",
+                        "content": texto_catalogo,
+                    },
+                ]
+                # Pedirle a SAI que redacte la respuesta con los resultados del catálogo
+                messages_enrich.append({
+                    "role": "user",
+                    "content": "[Sistema: ya se ejecutó la búsqueda. Redacta una respuesta conversacional, empática y personalizada basada en los resultados anteriores. No vuelvas a llamar la herramienta.]"
+                })
+                enriched = _llamar_sai(messages_enrich, [])
+                texto_sai = (enriched["choices"][0]["message"].get("content") or "").strip()
+                if texto_sai:
+                    return {"texto": texto_sai, "profesionales": profesionales}
+            except Exception as err:
+                logger.warning("SAI no pudo enriquecer respuesta del catálogo: %s", err)
         return respuesta_catalogo
 
     tools = get_tool_definitions()
