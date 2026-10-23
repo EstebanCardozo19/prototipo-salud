@@ -32,15 +32,17 @@ export default function TopBar({ user, token, activeNav, onNav, onLogout, onOpen
       ];
 
   return (
-    <header className="bg-[#0040a1] text-white flex items-center justify-between px-8 h-[64px] shrink-0 shadow-md z-50">
-      <div className="flex items-center gap-2 font-bold text-[20px]">
-        <span className="material-symbols-outlined text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+    <header className="bg-[#0040a1] text-white flex items-center justify-between px-4 md:px-8 h-[56px] md:h-[64px] shrink-0 shadow-md z-50">
+      {/* Logo */}
+      <div className="flex items-center gap-2 font-bold text-[17px] md:text-[20px] shrink-0 min-w-0">
+        <span className="material-symbols-outlined text-[24px] md:text-[28px] shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>
           favorite
         </span>
-        {t('nav.appName')}
+        <span className="hidden sm:inline truncate">{t('nav.appName')}</span>
       </div>
 
-      <nav className="hidden md:flex items-center gap-1">
+      {/* Nav escritorio */}
+      <nav className="hidden md:flex items-center gap-1 min-w-0 overflow-x-auto">
         {navItems.map(item => (
           <button
             key={item.key}
@@ -51,44 +53,50 @@ export default function TopBar({ user, token, activeNav, onNav, onLogout, onOpen
               borderBottom: activeNav === item.key ? '2px solid #8df1e3' : '2px solid transparent',
               paddingTop: '6px',
               paddingBottom: activeNav === item.key ? '2px' : '4px',
-              paddingLeft: '16px',
-              paddingRight: '16px',
+              paddingLeft: '14px',
+              paddingRight: '14px',
               background: 'none',
               fontWeight: 600,
-              fontSize: 14,
+              fontSize: 13,
               borderRadius: 8,
               cursor: 'pointer',
               transition: 'all 0.15s',
+              whiteSpace: 'nowrap',
             }}
-            onMouseEnter={e => {
-              if (activeNav !== item.key) e.currentTarget.style.opacity = '1';
-            }}
-            onMouseLeave={e => {
-              if (activeNav !== item.key) e.currentTarget.style.opacity = '0.65';
-            }}
+            onMouseEnter={e => { if (activeNav !== item.key) e.currentTarget.style.opacity = '1'; }}
+            onMouseLeave={e => { if (activeNav !== item.key) e.currentTarget.style.opacity = '0.65'; }}
           >
             {item.label}
           </button>
         ))}
       </nav>
 
-      <div className="flex items-center gap-3">
+      {/* Acciones derecha */}
+      <div className="flex items-center gap-1 shrink-0">
         <NotificationCenter token={token} role={user.role} onNavigate={onNav} onOpenMessages={onOpenMessages} />
-        <div className="flex items-center gap-2 text-[14px] font-semibold">
-          <span className="material-symbols-outlined text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+        {/* Nombre solo en desktop */}
+        <div className="hidden md:flex items-center gap-1.5 text-[13px] font-semibold ml-1">
+          <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>
             account_circle
           </span>
-          <span className="hidden md:inline">
+          <span className="max-w-[140px] truncate">
             {user.full_name} — {getRoleLabel(user.role, lang)}
           </span>
         </div>
-
-        {/* Selector de idioma eliminado — se configura en Preferencias (Mi Cuenta) */}
-
+        {/* Icono usuario solo en móvil */}
+        <button
+          onClick={() => onNav('account')}
+          className="md:hidden p-1.5 hover:bg-white/10 rounded-full transition-colors"
+          title={t('nav.myAccount')}
+        >
+          <span className="material-symbols-outlined text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+            account_circle
+          </span>
+        </button>
         <button
           onClick={onLogout}
           title={t('nav.logout')}
-          className="p-2 hover:bg-white/10 rounded-full transition-colors"
+          className="p-1.5 hover:bg-white/10 rounded-full transition-colors"
         >
           <span className="material-symbols-outlined text-[22px]">logout</span>
         </button>

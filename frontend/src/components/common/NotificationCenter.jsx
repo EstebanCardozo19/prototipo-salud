@@ -88,13 +88,13 @@ export default function NotificationCenter({ token, role, onNavigate, onOpenMess
 
   const unreadCount = notifications.filter(item => !item.is_read).length;
   const unreadMessages = notifications.filter(item => item.type === 'message' && !item.is_read).length;
-  return <div ref={containerRef} className="relative">
-    <button type="button" onClick={() => setIsOpen(open => !open)} title="Notificaciones" aria-label="Notificaciones" aria-expanded={isOpen} className="relative p-2 hover:bg-white/10 rounded-full transition-colors">
-      <span className="material-symbols-outlined text-[23px]">notifications</span>
+  return <div ref={containerRef} className="relative flex items-center gap-0.5">
+    <button type="button" onClick={() => setIsOpen(open => !open)} title="Notificaciones" aria-label="Notificaciones" aria-expanded={isOpen} className="relative p-1.5 hover:bg-white/10 rounded-full transition-colors shrink-0">
+      <span className="material-symbols-outlined text-[22px]">notifications</span>
       {unreadCount > 0 && <span className="absolute -right-0.5 -top-0.5 min-w-4 h-4 px-1 flex items-center justify-center rounded-full bg-[#ffcf4d] text-[10px] leading-none font-bold text-[#1a1c1e]">{unreadCount > 9 ? '9+' : unreadCount}</span>}
     </button>
-    <button type="button" onClick={() => onOpenMessages?.()} title="Mensajes" aria-label="Mensajes" className="relative ml-1 rounded-full p-2 transition-colors hover:bg-white/10">
-      <span className="material-symbols-outlined text-[23px]">forum</span>
+    <button type="button" onClick={() => onOpenMessages?.()} title="Mensajes" aria-label="Mensajes" className="relative rounded-full p-1.5 transition-colors hover:bg-white/10 shrink-0">
+      <span className="material-symbols-outlined text-[22px]">forum</span>
       {unreadMessages > 0 && <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#8df1e3] px-1 text-[10px] font-bold leading-none text-[#003070]">{unreadMessages > 9 ? '9+' : unreadMessages}</span>}
     </button>
     {isOpen && <section className="absolute right-0 top-[calc(100%+12px)] z-[100] w-[min(380px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-[#dae2ff] bg-white text-[#1a1c1e] shadow-2xl">
