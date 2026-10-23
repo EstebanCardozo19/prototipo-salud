@@ -197,6 +197,14 @@ def update_my_profile(
     for k, v in update_data.items():
         if k == "specialty" and v: setattr(p, k, NurseSpecialty(v))
         else: setattr(p, k, v)
+    # Regenerar embedding si cambió bio, especialidad o location
+    try:
+        from app.services.embedding_service import generar_embedding
+        specialty_label = SPECIALTY_LABELS.get(p.specialty.value if hasattr(p.specialty, "value") else str(p.specialty), str(p.specialty))
+        texto_embedding = f"{specialty_label} {p.bio or ''} {p.location or ''} {p.experience_years} años experiencia enfermería domiciliaria"
+        p.embedding = generar_embedding(texto_embedding)
+    except Exception:
+        pass
     session.add(p); session.commit(); session.refresh(p)
     if any(key in update_data for key in ("specialty", "bio", "location", "coverage_localities", "covers_all_bogota")) and p.bio:
         embedding_text = f"{p.bio} Especialidad: {p.specialty.value}. Localidad primaria: {p.location}. Cobertura: {'Toda Bogotá' if p.covers_all_bogota else ', '.join(p.coverage_localities or [])}."

@@ -147,6 +147,15 @@ export default function PatientFormModal({ initial, onSave, onCancel, saving, er
 
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    // Evita que un submit implícito (por ejemplo, al pulsar Enter en un campo)
+    // guarde la ficha desde una pestaña anterior y omita Seguridad social.
+    const currentIndex = sections.findIndex(section => section.id === activeSection);
+    if (currentIndex < sections.length - 1) {
+      setActiveSection(sections[currentIndex + 1].id);
+      return;
+    }
+
     const finalAddress = form.address || builtAddress || null;
     onSave({
       patient_name:       form.patient_name,
@@ -184,6 +193,21 @@ export default function PatientFormModal({ initial, onSave, onCancel, saving, er
   ];
   const [activeSection, setActiveSection] = useState('basic');
 
+  // Mantiene el flujo de creación estrictamente secuencial: Datos básicos →
+  // Condición médica → Vivienda → Seguridad social. La última sección es la
+  // única desde la que se permite guardar la ficha.
+  const goToPreviousSection = () => {
+    const currentIndex = sections.findIndex(section => section.id === activeSection);
+    if (currentIndex > 0) setActiveSection(sections[currentIndex - 1].id);
+  };
+
+  const goToNextSection = () => {
+    const currentIndex = sections.findIndex(section => section.id === activeSection);
+    if (currentIndex >= 0 && currentIndex < sections.length - 1) {
+      setActiveSection(sections[currentIndex + 1].id);
+    }
+  };
+
   return (
     <div
       className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6"
@@ -209,6 +233,7 @@ export default function PatientFormModal({ initial, onSave, onCancel, saving, er
             </div>
           </div>
           <button
+            type="button"
             onClick={onCancel}
             className="w-9 h-9 rounded-full bg-white/15 flex items-center justify-center hover:bg-white/25 transition-all"
           >
@@ -221,6 +246,7 @@ export default function PatientFormModal({ initial, onSave, onCancel, saving, er
           {sections.map(s => (
             <button
               key={s.id}
+              type="button"
               onClick={() => setActiveSection(s.id)}
               className={`flex items-center gap-1.5 px-4 py-3 text-[13px] font-semibold whitespace-nowrap border-b-2 transition-all ${
                 activeSection === s.id
@@ -898,10 +924,7 @@ export default function PatientFormModal({ initial, onSave, onCancel, saving, er
               {/* Prev */}
               <button
                 type="button"
-                onClick={() => {
-                  const idx = sections.findIndex(s => s.id === activeSection);
-                  if (idx > 0) setActiveSection(sections[idx - 1].id);
-                }}
+                onClick={goToPreviousSection}
                 disabled={activeSection === sections[0].id}
                 className="h-[42px] px-4 border border-[#c3c6d6] text-[#424654] rounded-xl font-semibold text-[13px] disabled:opacity-30 hover:bg-[#f3f3f6] transition-all flex items-center gap-1"
               >
@@ -928,10 +951,7 @@ export default function PatientFormModal({ initial, onSave, onCancel, saving, er
               {activeSection !== sections[sections.length - 1].id ? (
                 <button
                   type="button"
-                  onClick={() => {
-                    const idx = sections.findIndex(s => s.id === activeSection);
-                    setActiveSection(sections[idx + 1].id);
-                  }}
+                  onClick={goToNextSection}
                   className="h-[42px] px-4 bg-[#0040a1] text-white rounded-xl font-semibold text-[13px] hover:bg-[#003080] transition-all flex items-center gap-1"
                 >
                   <span className="hidden sm:inline">{t('patients.next')}</span>
@@ -946,7 +966,7 @@ export default function PatientFormModal({ initial, onSave, onCancel, saving, er
                   {saving ? <Spinner sm /> : (
                     <>
                       <span className="material-symbols-outlined text-[18px]">save</span>
-                      {t('patients.save_short')}
+                      {t('patients.finish')}
                     </>
                   )}
                 </button>

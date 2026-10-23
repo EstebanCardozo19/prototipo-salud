@@ -220,6 +220,10 @@ class NurseProfile(SQLModel, table=True):
     # Rating agregado; None significa que todavía no tiene reseñas.
     rating_avg: Optional[float] = Field(default=None)
     rating_count: int = Field(default=0)
+    embedding: Optional[List[float]] = Field(
+        default=None,
+        sa_column=Column(Vector(384))
+    )
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime(timezone=True), server_default=func.now())

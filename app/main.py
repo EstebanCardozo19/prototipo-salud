@@ -243,6 +243,8 @@ async def lifespan(app: FastAPI):
         # Recrea el constraint único sin booking_id obligatorio
         conn.execute(text("ALTER TABLE medication_reminder_deliveries DROP CONSTRAINT IF EXISTS uq_medication_reminder_delivery"))
         conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_medication_reminder_delivery ON medication_reminder_deliveries (schedule_key, reminder_date)"))
+        # Embedding para enfermeros (igual que cuidadores)
+        conn.execute(text("ALTER TABLE nurse_profiles ADD COLUMN IF NOT EXISTS embedding vector(384)"))
         conn.commit()
     _migrate_sensitive_data()
     # Cierra automáticamente los servicios aprobados 30 minutos después de su hora
@@ -333,6 +335,46 @@ def _migrate_sensitive_data() -> None:
                 if not content.startswith(b"gAAAA"):
                     path.write_bytes(encrypt_bytes(content))
         session.commit()
+
+    # Generar embeddings para enfermeros que no los tienen aún
+    _migrate_nurse_embeddings()
+
+
+def _migrate_nurse_embeddings() -> None:
+    """Genera embeddings para enfermeros aprobados que no tienen vector aún."""
+    from app.models import NurseProfile, ProfileStatus as PS
+    from app.services.embedding_service import generar_embedding
+
+    SPECIALTY_LABELS = {
+        "general": "Enfermería General", "geriatrics": "Geriatría", "neurology": "Neurología",
+        "cardiology": "Cardiología", "pulmonology": "Neumología", "psychiatry": "Psiquiatría",
+        "physiatry": "Rehabilitación", "palliative": "Cuidados Paliativos",
+        "internal_medicine": "Medicina Interna", "endocrinology": "Endocrinología",
+        "nephrology": "Nefrología", "orthopedics": "Ortopedia",
+    }
+
+    with Session(engine) as session:
+        nurses = session.exec(
+            select(NurseProfile).where(
+                NurseProfile.status == PS.approved,
+                NurseProfile.embedding.is_(None),  # type: ignore[attr-defined]
+            )
+        ).all()
+        if not nurses:
+            return
+        updated = 0
+        for nurse in nurses:
+            try:
+                specialty_val = nurse.specialty.value if hasattr(nurse.specialty, "value") else str(nurse.specialty)
+                specialty_label = SPECIALTY_LABELS.get(specialty_val, specialty_val)
+                texto = f"{specialty_label} {nurse.bio or ''} {nurse.location or ''} {nurse.experience_years} años experiencia enfermería domiciliaria"
+                nurse.embedding = generar_embedding(texto)
+                session.add(nurse)
+                updated += 1
+            except Exception:
+                continue
+        if updated:
+            session.commit()
 
 
 app = FastAPI(
