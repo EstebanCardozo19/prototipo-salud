@@ -510,55 +510,60 @@ def conversar(
         return {"texto": respuesta_segura, "profesionales": []}
 
     historial = _normalizar_historial(historial)
-    respuesta_catalogo = _respuesta_catalogo_local(
-        mensaje_usuario,
-        historial,
-        localidad,
-        service_date,
-        start_hour,
-        end_hour,
-    )
-    if respuesta_catalogo:
-        # Intentar enriquecer la respuesta del catálogo con SAI para que sea conversacional
-        profesionales = respuesta_catalogo.get("profesionales", [])
-        texto_catalogo = respuesta_catalogo.get("texto", "")
-        if profesionales:
-            try:
-                contexto_familiar = _construir_contexto_familiar(familiares or [])
-                system_content = SYSTEM_PROMPT + contexto_familiar
-                messages_enrich = [
-                    {"role": "system", "content": system_content},
-                    *historial,
-                    {"role": "user", "content": mensaje_usuario},
-                    {
-                        "role": "tool",
-                        "tool_call_id": "local_catalog",
-                        "content": texto_catalogo,
-                    },
-                ]
-                # Pedirle a SAI que redacte la respuesta con los resultados del catálogo
-                messages_enrich.append({
-                    "role": "user",
-                    "content": "[Sistema: ya se ejecutó la búsqueda. Redacta una respuesta conversacional, empática y personalizada basada en los resultados anteriores. No vuelvas a llamar la herramienta.]"
-                })
-                enriched = _llamar_sai(messages_enrich, [])
-                texto_sai = (enriched["choices"][0]["message"].get("content") or "").strip()
-                if texto_sai:
-                    return {"texto": texto_sai, "profesionales": profesionales}
-            except Exception as err:
-                logger.warning("SAI no pudo enriquecer respuesta del catálogo: %s", err)
-        return respuesta_catalogo
 
     tools = get_tool_definitions()
-
-    # Enriquecer el system prompt con el contexto de familiares si existe
     contexto_familiar = _construir_contexto_familiar(familiares or [])
     system_content = SYSTEM_PROMPT + contexto_familiar
-
     messages = [{"role": "system", "content": system_content}]
     messages.extend(historial)
     messages.append({"role": "user", "content": mensaje_usuario})
 
+    # Intentar pre-ejecutar el catálogo local para que SAI redacte sobre resultados reales
+    respuesta_catalogo = _respuesta_catalogo_local(
+        mensaje_usuario, historial, localidad, service_date, start_hour, end_hour,
+    )
+
+    if respuesta_catalogo and respuesta_catalogo.get("profesionales"):
+        # Inyectamos los resultados reales como si SAI hubiera invocado la herramienta
+        profesionales = respuesta_catalogo["profesionales"]
+        texto_catalogo = respuesta_catalogo["texto"]
+        fake_tool_call_id = "pre_exec_001"
+        messages.append({
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [{
+                "id": fake_tool_call_id,
+                "type": "function",
+                "function": {
+                    "name": "buscar_profesionales_similares",
+                    "arguments": json.dumps({
+                        "descripcion_paciente": mensaje_usuario,
+                        "tipo_profesional": profesionales[0].get("role", "caregiver"),
+                    }, ensure_ascii=False),
+                },
+            }],
+        })
+        messages.append({
+            "role": "tool",
+            "tool_call_id": fake_tool_call_id,
+            "content": texto_catalogo,
+        })
+        try:
+            second = _llamar_sai(messages, tools)
+            final_text = (second["choices"][0]["message"].get("content") or "").strip()
+            if final_text:
+                return {"texto": final_text, "profesionales": profesionales}
+        except Exception as err:
+            logger.warning("SAI no pudo redactar sobre catálogo local: %s", err)
+        # Fallback: devolver el texto del catálogo si SAI falla
+        return respuesta_catalogo
+
+    # Si el catálogo no tiene resultados pero detectó intención sin tipo definido,
+    # respetamos ese resultado (ej: pregunta por tipo de profesional)
+    if respuesta_catalogo and not respuesta_catalogo.get("profesionales"):
+        return respuesta_catalogo
+
+    # Flujo normal: SAI decide si invocar la herramienta
     try:
         response_data = _llamar_sai(messages, tools)
     except (requests.RequestException, KeyError, IndexError, TypeError, ValueError):
@@ -581,11 +586,9 @@ def conversar(
         tool_call_id = tc.get("id", "call_001")
         result = _ejecutar_tool_call(tc)
 
-        # Extraer profesionales del JSON devuelto por la herramienta
         try:
             parsed = _json.loads(result)
             profesionales_acumulados.extend(parsed.get("profesionales", []))
-            # Pasar solo el texto al contexto de SAI para que genere una respuesta legible
             tool_content = parsed.get("texto", result)
         except (_json.JSONDecodeError, AttributeError):
             tool_content = result
@@ -597,8 +600,11 @@ def conversar(
         })
 
     # Segunda llamada: SAI genera la respuesta narrativa
-    second_response = _llamar_sai(messages, tools)
-    final_text = (second_response["choices"][0]["message"].get("content") or "").strip()
+    try:
+        second_response = _llamar_sai(messages, tools)
+        final_text = (second_response["choices"][0]["message"].get("content") or "").strip()
+    except Exception:
+        final_text = ""
     if not final_text:
         final_text = "Encontré estas opciones que podrían ajustarse a las necesidades descritas."
 
