@@ -12,7 +12,7 @@ from sqlmodel import Session, select
 
 from app.database import engine
 from app.models import Availability, Booking, BookingStatus, CaregiverProfile, ClinicalRecord, MedicationStatus, NurseProfile, PatientMedication, ProfileStatus, ServiceCarePlan, User, UserRole
-from app.services.bogota_locations import profile_covers_locality
+from app.services.bogota_locations import normalize_location, profile_covers_locality
 from app.services.embedding_service import generar_embedding
 
 SPECIALTY_TERMS = {
@@ -188,8 +188,11 @@ def buscar_profesionales_similares(descripcion_paciente: str, tipo_profesional: 
     label = "enfermeros" if tipo_profesional == "nurse" else "cuidadores"
     text = f"Encontré {total} {label} registrados que cumplen los criterios" + (f" en {localidad}" if localidad else "") + "."
     if not professionals:
-        text = (f"No encontré {label} con compatibilidad registrada para esa necesidad específica."
-                if requires_specialized_match else f"No hay más {label} que cumplan los criterios.")
+        if localidad:
+            text = _texto_sin_resultados_por_localidad(_resumir_cobertura(candidates), label, localidad)
+        else:
+            text = (f"No encontré {label} con compatibilidad registrada para esa necesidad específica."
+                    if requires_specialized_match else f"No hay más {label} que cumplan los criterios.")
     elif not schedule:
         text += " La disponibilidad para una fecha y hora concretas debe confirmarse antes de contratar."
     return json.dumps({"texto": text, "profesionales": professionals, "total": total, "page": page, "limit": limit, "has_more": page * limit < total}, ensure_ascii=False)
@@ -205,6 +208,83 @@ def buscar_profesional_por_nombre(name: str, tipo_profesional: str | None = None
             for profile, user in _profiles(session, professional_type):
                 if needle and needle in _normalized(user.full_name): matches.append(_serialize(profile, user, professional_type))
     return matches
+
+
+def _resumir_cobertura(candidates) -> dict:
+    """Resume las localidades cubiertas por una lista de perfiles aprobados.
+
+    No distingue enfermeros de cuidadores: recibe los candidatos ya filtrados por
+    tipo. Deduplica por localidad normalizada (sin tildes) y conserva un nombre
+    legible para mostrar.
+    """
+    counts: dict[str, int] = {}
+    display: dict[str, str] = {}
+    cubre_toda = False
+    for profile, _user in candidates:
+        if getattr(profile, "covers_all_bogota", False):
+            cubre_toda = True
+        for loc in [getattr(profile, "location", ""), *(getattr(profile, "coverage_localities", None) or [])]:
+            if not loc:
+                continue
+            norm = normalize_location(loc)
+            if not norm:
+                continue
+            if norm not in display:
+                display[norm] = loc.strip()
+            counts[norm] = counts.get(norm, 0) + 1
+    localidades = sorted(
+        ({"localidad": display[norm], "profesionales": counts[norm]} for norm in counts),
+        key=lambda item: (-item["profesionales"], item["localidad"].casefold()),
+    )
+    return {"total": len(candidates), "localidades": localidades, "cubre_toda_bogota": cubre_toda}
+
+
+def _texto_cobertura(resumen: dict, label: str) -> str:
+    """Redacta en español el resumen de cobertura de un tipo de profesional."""
+    total = resumen["total"]
+    if not total:
+        return f"Aún no hay {label} aprobados en la plataforma."
+    if resumen["cubre_toda_bogota"]:
+        return (f"Hay {total} {label} aprobados y al menos uno cubre toda Bogotá, "
+                "así que puede atenderte en cualquier localidad.")
+    if resumen["localidades"]:
+        lista = ", ".join(f"{item['localidad']} ({item['profesionales']})" for item in resumen["localidades"])
+        return f"Hay {total} {label} aprobados. Cubren estas localidades de Bogotá: {lista}."
+    return (f"Hay {total} {label} aprobados, pero ninguno tiene localidades de cobertura registradas. "
+            "Pídele a un profesional que complete su ubicación o cobertura.")
+
+
+def _texto_sin_resultados_por_localidad(resumen: dict, label: str, localidad: str) -> str:
+    """Explica por qué una búsqueda por localidad no devolvió resultados."""
+    total = resumen["total"]
+    if total == 0:
+        return f"No hay {label} aprobados en la plataforma todavía."
+    if resumen["cubre_toda_bogota"]:
+        return (f"No hay {label} con {localidad} registrada en su cobertura, pero hay {total} aprobados "
+                "y alguno cubre toda Bogotá. Prueba sin filtro de localidad o pídele al profesional que agregue esa zona.")
+    if resumen["localidades"]:
+        disponibles = ", ".join(item["localidad"] for item in resumen["localidades"])
+        return (f"No hay {label} que cubran {localidad}. Los {label} aprobados atienden en: {disponibles}. "
+                "Pídele a un profesional que agregue esa cobertura o prueba sin filtro de localidad.")
+    return (f"No hay {label} que cubran {localidad} y los aprobados no tienen localidades de cobertura registradas. "
+            "Pídele a un profesional que complete su ubicación o cobertura.")
+
+
+def listar_cobertura_profesionales(tipo_profesional: str | None = None) -> str:
+    """Lista las localidades de Bogotá con profesionales aprobados del tipo indicado."""
+    if tipo_profesional not in {"caregiver", "nurse"}:
+        return json.dumps(
+            {"texto": "¿Buscas la cobertura de cuidadores o de enfermeros?", "tipo": None,
+             "total": 0, "localidades": [], "cubre_toda_bogota": False},
+            ensure_ascii=False,
+        )
+    label = "enfermeros" if tipo_profesional == "nurse" else "cuidadores"
+    with Session(engine) as session:
+        resumen = _resumir_cobertura(_profiles(session, tipo_profesional))
+    return json.dumps(
+        {"texto": _texto_cobertura(resumen, label), "tipo": tipo_profesional, **resumen},
+        ensure_ascii=False,
+    )
 
 
 def buscar_cuidadores_similares(descripcion_paciente: str, localidad: str = None) -> str:
@@ -240,6 +320,24 @@ def get_tool_definitions() -> list[dict]:
                     "page": {"type": "integer"},
                 },
                 "required": ["descripcion_paciente", "tipo_profesional"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "name": "listar_cobertura_profesionales",
+        "function": {
+            "name": "listar_cobertura_profesionales",
+            "description": (
+                "Indica en qué localidades de Bogotá hay profesionales aprobados del tipo solicitado. "
+                "Úsala cuando la familia pregunte por ubicaciones, zonas, cobertura o dónde hay cuidadores o enfermeros."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "tipo_profesional": {"type": "string", "enum": ["caregiver", "nurse"]},
+                },
+                "required": ["tipo_profesional"],
             },
         },
     }]

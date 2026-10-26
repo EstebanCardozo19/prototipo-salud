@@ -17,7 +17,12 @@ import unicodedata
 import logging
 import requests
 
-from app.mcp_server import buscar_profesional_por_nombre, buscar_profesionales_similares, get_tool_definitions
+from app.mcp_server import (
+    buscar_profesional_por_nombre,
+    buscar_profesionales_similares,
+    get_tool_definitions,
+    listar_cobertura_profesionales,
+)
 from app.services.bogota_locations import BOGOTA_LOCALITIES, normalize_location
 
 # Configuración de la API de SAI Applications
@@ -40,6 +45,8 @@ SYSTEM_PROMPT = (
     "Cuando la familia responda con uno de los tipos, conserva todas las necesidades que "
     "había descrito antes y busca de inmediato; no vuelvas a pedir el tipo ni la descripción. "
     "Usa la herramienta buscar_profesionales_similares para encontrar profesionales. "
+    "Si la familia pregunta por ubicaciones, zonas, cobertura o dónde hay cuidadores o enfermeros, "
+    "usa la herramienta listar_cobertura_profesionales para mostrar las localidades reales con profesionales aprobados. "
     "IMPORTANTE: cuando uses la herramienta, SIEMPRE incluye el campo 'descripcion_paciente' "
     "con la descripción completa de las necesidades del paciente extraída de la conversación. "
     "Responde siempre en español, de forma empática y profesional. "
@@ -67,6 +74,7 @@ def _sai_headers() -> dict[str, str]:
 # Mapa de funciones disponibles (nombre -> callable)
 TOOL_REGISTRY = {
     "buscar_profesionales_similares": buscar_profesionales_similares,
+    "listar_cobertura_profesionales": listar_cobertura_profesionales,
 }
 
 PREGUNTA_TIPO_PROFESIONAL = "¿Buscas un cuidador/a o un enfermero/a?"
@@ -130,6 +138,53 @@ def _inferir_tipo_profesional(mensajes: list[str]) -> str | None:
         if re.search(r"\bcuidador(?:a|es|as)?\b", normalizado):
             return "caregiver"
     return None
+
+
+_COBERTURA_INDICIOS = (
+    "ubicacion", "ubicaciones", "localidad", "localidades", "cobertura",
+    "zonas", "donde hay", "que lugares", "en que partes", "que areas",
+    "cubren", "cubre", "en que zonas", "en que lugares",
+)
+# Términos que indican que el mensaje pide cuidado para un paciente concreto:
+# en ese caso NO se trata como una consulta de cobertura, sino como búsqueda.
+_SOLICITUD_CUIDADO_INDICIOS = (
+    "abuelo", "abuela", "mama", "papa", "paciente", "alzheimer", "demencia",
+    "movilidad", "acompanamiento", "acompañamiento", "cuidado de", "ayuda con",
+    "apoyo con", "noche", "postoperatorio", "heridas", "diabetes", "parkinson",
+    "solo trabaje", "trabaje en", "que atienda a", "para mi", "necesito un",
+    "buscame", "busco", "requiero",
+)
+
+
+def _es_consulta_cobertura(message: str, history: list[dict[str, str]]) -> bool:
+    """Detecta preguntas sobre en qué localidades hay profesionales disponibles.
+
+    Se descartan las solicitudes concretas de cuidado para un paciente (que deben
+    ir a la búsqueda del catálogo), de modo que esto solo captura preguntas
+    informativas del estilo "¿dónde hay enfermeros?" o "¿qué localidades cubren?".
+    """
+    combined = _normalizar_texto(" ".join(
+        [item["content"] for item in history if item["role"] == "user"] + [message]
+    ))
+    if any(term in combined for term in _SOLICITUD_CUIDADO_INDICIOS):
+        return False
+    return any(indicio in combined for indicio in _COBERTURA_INDICIOS)
+
+
+def _respuesta_cobertura_local(message: str, history: list[dict[str, str]]) -> dict | None:
+    """Responde localmente en qué localidades hay profesionales aprobados."""
+    if not _es_consulta_cobertura(message, history):
+        return None
+    user_turns = [item["content"] for item in history if item["role"] == "user"]
+    tipo = _inferir_tipo_profesional(user_turns + [message])
+    if not tipo:
+        return {"texto": PREGUNTA_TIPO_PROFESIONAL, "profesionales": []}
+    try:
+        resultado = json.loads(listar_cobertura_profesionales(tipo))
+    except Exception as error:  # noqa: BLE001 - nunca bloquear el chat por un fallo de catálogo
+        logger.warning("No fue posible consultar la cobertura local: tipo=%s error=%s", tipo, error)
+        return None
+    return {"texto": resultado.get("texto", "No pude obtener la cobertura en este momento."), "profesionales": []}
 
 
 def _parece_solicitud_de_cuidado(message: str, history: list[dict[str, str]]) -> bool:
@@ -278,6 +333,11 @@ def _ejecutar_tool_call(tool_call: dict) -> str:
         # Si sigue sin el argumento requerido, usar el mensaje original
         if "descripcion_paciente" not in arguments:
             arguments["descripcion_paciente"] = "cuidador general para adulto mayor"
+
+    if function_name == "listar_cobertura_profesionales":
+        for alias in ("tipo", "role", "rol", "profesional"):
+            if alias in arguments and "tipo_profesional" not in arguments:
+                arguments["tipo_profesional"] = arguments.pop(alias)
 
     try:
         return func(**arguments)
@@ -510,6 +570,11 @@ def conversar(
         return {"texto": respuesta_segura, "profesionales": []}
 
     historial = _normalizar_historial(historial)
+
+    # Consultas informativas sobre cobertura/ubicaciones se resuelven localmente.
+    respuesta_cobertura = _respuesta_cobertura_local(mensaje_usuario, historial)
+    if respuesta_cobertura:
+        return respuesta_cobertura
 
     tools = get_tool_definitions()
     contexto_familiar = _construir_contexto_familiar(familiares or [])
