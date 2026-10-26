@@ -96,13 +96,31 @@ def _profile_specialties(profile, professional_type: str) -> list[str]:
     return [str(value) for value in (profile.specialties or [])]
 
 
+def _profile_match_text(profile, professional_type: str) -> str:
+    """Texto del perfil usado para emparejarlo con la necesidad del paciente.
+
+    Los enfermeros declaran su especialidad como un enum en inglés (p. ej.
+    ``neurology``). Para que coincidan con las necesidades relacionadas en
+    español (Alzheimer, demencia, Parkinson...) se incluyen los términos
+    asociados a esa especialidad, de modo que no dependan de que la bio repita
+    esas palabras exactas. Los cuidadores ya registran sus especialidades en
+    español como texto libre, así que se usan tal cual.
+    """
+    parts = [profile.bio or ""]
+    if professional_type == "nurse":
+        specialty_value = getattr(profile.specialty, "value", str(profile.specialty))
+        parts.extend(SPECIALTY_TERMS.get(specialty_value, ()))
+    else:
+        parts.extend(_profile_specialties(profile, professional_type))
+    return _normalized(" ".join(parts))
+
+
 def calcular_compatibilidad(profile, professional_type: str, description: str, locality: str | None, availabilities: list, schedule_verified: bool | None = None) -> tuple[int, list[str]]:
     """Calcula un puntaje estable: necesidades 40, experiencia 20, ubicación
     20, disponibilidad 10 y valoraciones verificadas 10.
     """
     text = _normalized(description)
-    specialties = _profile_specialties(profile, professional_type)
-    profile_text = _normalized(" ".join([profile.bio or "", *specialties]))
+    profile_text = _profile_match_text(profile, professional_type)
     matching_terms = [term for terms in SPECIALTY_TERMS.values() for term in terms if term in text and term in profile_text]
     need_score = 40 if matching_terms else (20 if any(term in profile_text for term in re.findall(r"[a-z]{5,}", text)) else 0)
     experience = max(0, int(profile.experience_years or 0))
