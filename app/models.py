@@ -62,6 +62,10 @@ class User(SQLModel, table=True):
     is_active: bool = Field(default=True)
     photo_url: Optional[str] = Field(default=None, max_length=500)
     phone: Optional[str] = Field(default=None, sa_column=Column(EncryptedText, nullable=True))
+    # Cédula de ciudadanía (solo cuentas familiares). Se almacena cifrada en
+    # reposo y se valida manualmente por el administrador antes de activar la cuenta.
+    national_id: Optional[str] = Field(default=None, sa_column=Column(EncryptedText, nullable=True))
+    national_id_verified: bool = Field(default=False, nullable=False)
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime(timezone=True), server_default=func.now())
@@ -109,6 +113,30 @@ class ProfessionalVerification(SQLModel, table=True):
     reviewed_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime(timezone=True)))
     reviewed_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
     rejection_reason: Optional[str] = Field(default=None, max_length=500)
+
+
+class FamilyVerification(SQLModel, table=True):
+    """Solicitud de verificación de cédula para cuentas de tipo 'family'.
+
+    El familiar sube su cédula al registrarse y la cuenta permanece inactiva
+    (``User.is_active=False``) hasta que el administrador la aprueba.
+    """
+    __tablename__ = "family_verifications"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="users.id", unique=True, nullable=False)
+    status: ProfileStatus = Field(
+        default=ProfileStatus.pending,
+        sa_column=Column(SAEnum(ProfileStatus, name="familyverificationstatus"), nullable=False, server_default="pending"),
+    )
+    submitted_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True)),
+    )
+    reviewed_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime(timezone=True)))
+    reviewed_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    rejection_reason: Optional[str] = Field(default=None, max_length=500)
+
 
 class VerificationDocument(SQLModel, table=True):
     __tablename__ = "verification_documents"

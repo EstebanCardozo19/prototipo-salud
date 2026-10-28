@@ -245,6 +245,26 @@ async def lifespan(app: FastAPI):
         conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_medication_reminder_delivery ON medication_reminder_deliveries (schedule_key, reminder_date)"))
         # Embedding para enfermeros (igual que cuidadores)
         conn.execute(text("ALTER TABLE nurse_profiles ADD COLUMN IF NOT EXISTS embedding vector(384)"))
+        # Verificación de cédula para cuentas familiares.
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS national_id TEXT"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS national_id_verified BOOLEAN NOT NULL DEFAULT FALSE"))
+        conn.execute(text("""
+            DO $$ BEGIN
+                CREATE TYPE familyverificationstatus AS ENUM ('pending', 'approved', 'rejected');
+            EXCEPTION WHEN duplicate_object THEN NULL; END $$
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS family_verifications (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL UNIQUE REFERENCES users(id),
+                status familyverificationstatus NOT NULL DEFAULT 'pending',
+                submitted_at TIMESTAMP WITH TIME ZONE,
+                reviewed_at TIMESTAMP WITH TIME ZONE,
+                reviewed_by_user_id INTEGER REFERENCES users(id),
+                rejection_reason VARCHAR(500)
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_family_verifications_user_id ON family_verifications (user_id)"))
         conn.commit()
     _migrate_sensitive_data()
     # Cierra automáticamente los servicios aprobados 30 minutos después de su hora

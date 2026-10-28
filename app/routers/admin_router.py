@@ -5,9 +5,9 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 from app.auth import require_role
 from app.database import get_session
-from app.models import CaregiverProfile, NurseProfile, ProfessionalVerification, ProfileStatus, User, UserRole, VerificationDocument
+from app.models import CaregiverProfile, FamilyVerification, NurseProfile, ProfessionalVerification, ProfileStatus, User, UserRole, VerificationDocument
 from app.routers.notifications_router import create_notification
-from app.security.encryption import encrypt_text, user_email, user_full_name
+from app.security.encryption import encrypt_text, decrypt_text, user_email, user_full_name
 
 router = APIRouter(prefix='/api/admin', tags=['Administración'])
 class ReviewRequest(BaseModel): status: str; reason: Optional[str] = None
@@ -22,6 +22,17 @@ class AdminUserResponse(BaseModel):
     is_active: bool
     verification_status: Optional[str] = None
     verification_submitted_at: Optional[datetime] = None
+    national_id_verified: bool = False
+    family_verification_status: Optional[str] = None
+
+class FamilyPendingResponse(BaseModel):
+    user_id: int
+    full_name: str
+    email: str
+    national_id: str
+    submitted_at: Optional[datetime]
+    status: str
+    rejection_reason: Optional[str] = None
 class UpdateUserNameRequest(BaseModel): full_name: str
 def serialize(v, u, s):
     model=CaregiverProfile if v.role==UserRole.caregiver else NurseProfile; p=s.exec(select(model).where(model.user_id==u.id)).first(); docs=s.exec(select(VerificationDocument).where(VerificationDocument.verification_id==v.id)).all()
@@ -75,6 +86,8 @@ def users(skip:int=0,limit:int=50,current_user:User=Depends(require_role(UserRol
             is_active=u.is_active,
             verification_status=verifications[u.id].status.value if u.id in verifications else None,
             verification_submitted_at=verifications[u.id].submitted_at if u.id in verifications else None,
+            national_id_verified=u.national_id_verified,
+            family_verification_status=None,
         )
         for u in all_users
     ]
@@ -104,4 +117,90 @@ def update_user_full_name(user_id: int, request: UpdateUserNameRequest, current_
         is_active=u.is_active,
         verification_status=verification.status.value if verification else None,
         verification_submitted_at=verification.submitted_at if verification else None,
+        national_id_verified=u.national_id_verified,
+    )
+
+
+@router.get('/family-verifications/pending', response_model=list[FamilyPendingResponse])
+def pending_families(
+    current_user: User = Depends(require_role(UserRole.admin)),
+    session: Session = Depends(get_session),
+):
+    """Lista las cuentas familiares cuya cédula está pendiente de revisión."""
+    rows = session.exec(
+        select(FamilyVerification, User)
+        .join(User, User.id == FamilyVerification.user_id)
+        .where(FamilyVerification.status == ProfileStatus.pending)
+    ).all()
+    result = []
+    for fv, u in rows:
+        raw_id = decrypt_text(u.national_id, allow_legacy_plaintext=True) if u.national_id else ""
+        result.append(FamilyPendingResponse(
+            user_id=u.id,
+            full_name=user_full_name(u),
+            email=user_email(u),
+            national_id=raw_id,
+            submitted_at=fv.submitted_at,
+            status=fv.status.value,
+            rejection_reason=fv.rejection_reason,
+        ))
+    return result
+
+
+@router.put('/family-verifications/{user_id}/review', response_model=FamilyPendingResponse)
+def review_family(
+    user_id: int,
+    request: ReviewRequest,
+    current_user: User = Depends(require_role(UserRole.admin)),
+    session: Session = Depends(get_session),
+):
+    """Aprueba o rechaza la verificación de cédula de una cuenta familiar.
+
+    - Aprobación: activa la cuenta (``is_active=True``) y marca ``national_id_verified=True``.
+    - Rechazo: la cuenta permanece inactiva; se guarda el motivo de rechazo.
+    """
+    if request.status not in ("approved", "rejected"):
+        raise HTTPException(400, "Status debe ser 'approved' o 'rejected'")
+    if request.status == "rejected" and not (request.reason or "").strip():
+        raise HTTPException(400, "Debe indicar el motivo de rechazo")
+
+    u = session.get(User, user_id)
+    if not u or u.role != UserRole.family:
+        raise HTTPException(404, "Usuario familiar no encontrado")
+
+    fv = session.exec(select(FamilyVerification).where(FamilyVerification.user_id == user_id)).first()
+    if not fv:
+        raise HTTPException(404, "Verificación familiar no encontrada")
+
+    fv.status = ProfileStatus(request.status)
+    fv.reviewed_at = datetime.now(timezone.utc)
+    fv.reviewed_by_user_id = current_user.id
+    fv.rejection_reason = request.reason.strip() if request.status == "rejected" else None
+
+    if request.status == "approved":
+        u.is_active = True
+        u.national_id_verified = True
+
+    session.add(fv)
+    session.add(u)
+    session.commit()
+    session.refresh(fv)
+
+    outcome = "aprobada" if request.status == "approved" else "rechazada"
+    body = (
+        "Tu cuenta ya está activa. Puedes iniciar sesión."
+        if request.status == "approved"
+        else f"Motivo: {fv.rejection_reason}"
+    )
+    create_notification(session, user_id, "verification", f"Verificación de cuenta {outcome}", body)
+
+    raw_id = decrypt_text(u.national_id, allow_legacy_plaintext=True) if u.national_id else ""
+    return FamilyPendingResponse(
+        user_id=u.id,
+        full_name=user_full_name(u),
+        email=user_email(u),
+        national_id=raw_id,
+        submitted_at=fv.submitted_at,
+        status=fv.status.value,
+        rejection_reason=fv.rejection_reason,
     )

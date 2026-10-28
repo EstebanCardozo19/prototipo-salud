@@ -54,6 +54,7 @@ class RegisterRequest(BaseModel):
     password: str
     full_name: str
     role: str  # "family" o "caregiver"
+    national_id: Optional[str] = None  # Cédula (requerida para role=family)
     security_question_1: str
     security_answer_1: str
     security_question_2: str
@@ -102,6 +103,7 @@ class UserResponse(BaseModel):
     is_active: bool
     photo_url: Optional[str] = None
     phone: Optional[str] = None
+    national_id_verified: bool = False
 
 
 class UpdateMyAccountRequest(BaseModel):
