@@ -405,6 +405,14 @@ def _extraer_nombre_consultado(message: str) -> str | None:
     return match.group(1).strip(" .,?!") if match else None
 
 
+def _formatear_horarios(availability: list[dict]) -> str:
+    """Convierte la lista de franjas activas en una cadena legible en español."""
+    if not availability:
+        return "sin horarios publicados"
+    partes = [f"{item['day_es']} {item['schedule']}" for item in availability]
+    return ", ".join(partes)
+
+
 def _formatear_perfil(profile: dict) -> str:
     specialty = profile.get("specialty_display") or ", ".join(profile.get("specialties") or []) or "sin especialidad registrada"
     text = (
@@ -412,6 +420,8 @@ def _formatear_perfil(profile: dict) -> str:
         f"Tarifa: ${profile['hourly_rate']:,.0f}/h; localidad: {profile['location']}; "
         f"experiencia: {profile['experience_years']} años; especialidades: {specialty}."
     )
+    horarios = _formatear_horarios(profile.get("availability") or [])
+    text += f" Horarios publicados: {horarios}."
     if profile.get("rating_count"):
         text += f" Valoración registrada: {profile['rating_avg']:.1f}/5 ({profile['rating_count']} reseñas)."
     return text
@@ -451,9 +461,11 @@ def _redactar_recomendaciones_catalogo(result: dict, professional_type: str) -> 
     for professional in professionals[:3]:
         criteria = professional.get("compatibility_criteria") or []
         reasons = "; ".join(criteria) if criteria else "perfil aprobado y registrado en la plataforma"
-        recommendations.append(
-            f"• {professional.get('full_name', 'Perfil sin nombre')} ({role_label}): {reasons}."
-        )
+        rec = f"• {professional.get('full_name', 'Perfil sin nombre')} ({role_label}): {reasons}."
+        horarios = _formatear_horarios(professional.get("availability") or [])
+        if horarios != "sin horarios publicados":
+            rec += f" Horarios publicados: {horarios}."
+        recommendations.append(rec)
 
     closing = (
         "Revisa los perfiles y confirma la disponibilidad para la fecha y horario requeridos antes de contratar; la "

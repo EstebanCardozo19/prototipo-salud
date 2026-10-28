@@ -141,9 +141,50 @@ def calcular_compatibilidad(profile, professional_type: str, description: str, l
     return min(100, need_score + experience_score + location_score + availability_score + rating_score), criteria
 
 
-def _serialize(profile, user, professional_type: str, score: int | None = None, criteria: list[str] | None = None) -> dict:
+_DAY_ES = {
+    "monday": "lunes", "tuesday": "martes", "wednesday": "miércoles",
+    "thursday": "jueves", "friday": "viernes", "saturday": "sábado", "sunday": "domingo",
+}
+
+
+def _format_availability(availabilities: list) -> list[dict]:
+    """Convierte franjas activas a dicts con día en español y rango legible."""
+    result = []
+    for item in availabilities:
+        if not getattr(item, "is_active", True):
+            continue
+        day_value = getattr(item.day_of_week, "value", str(item.day_of_week))
+        day_es = _DAY_ES.get(day_value, day_value)
+        start = item.start_hour
+        end = item.end_hour
+        horario = f"{start:02d}:00–{end:02d}:00" if end > start else f"{start:02d}:00–{end:02d}:00 (turno nocturno)"
+        result.append({"day": day_value, "day_es": day_es, "start_hour": start, "end_hour": end, "schedule": horario})
+    result.sort(key=lambda x: list(_DAY_ES).index(x["day"]) if x["day"] in _DAY_ES else 7)
+    return result
+
+
+def _serialize(profile, user, professional_type: str, score: int | None = None, criteria: list[str] | None = None, availabilities: list | None = None) -> dict:
     specialties = _profile_specialties(profile, professional_type)
-    return {"user_id": user.id, "profile_id": profile.id, "full_name": user.full_name, "photo_url": user.photo_url, "specialties": specialties, "specialty_display": ", ".join(specialties) or "Cuidado general", "location": profile.location, "coverage_localities": profile.coverage_localities or [], "covers_all_bogota": profile.covers_all_bogota, "experience_years": profile.experience_years, "hourly_rate": float(profile.hourly_rate), "bio": profile.bio or "", "rating_avg": float(profile.rating_avg) if profile.rating_count and profile.rating_avg is not None else None, "rating_count": int(profile.rating_count or 0), "role": professional_type, "compatibility": score, "compatibility_criteria": criteria or []}
+    return {
+        "user_id": user.id,
+        "profile_id": profile.id,
+        "full_name": user.full_name,
+        "photo_url": user.photo_url,
+        "specialties": specialties,
+        "specialty_display": ", ".join(specialties) or "Cuidado general",
+        "location": profile.location,
+        "coverage_localities": profile.coverage_localities or [],
+        "covers_all_bogota": profile.covers_all_bogota,
+        "experience_years": profile.experience_years,
+        "hourly_rate": float(profile.hourly_rate),
+        "bio": profile.bio or "",
+        "rating_avg": float(profile.rating_avg) if profile.rating_count and profile.rating_avg is not None else None,
+        "rating_count": int(profile.rating_count or 0),
+        "role": professional_type,
+        "compatibility": score,
+        "compatibility_criteria": criteria or [],
+        "availability": _format_availability(availabilities or []),
+    }
 
 
 def _profiles(session: Session, professional_type: str):
@@ -181,7 +222,7 @@ def buscar_profesionales_similares(descripcion_paciente: str, tipo_profesional: 
             score, criteria = calcular_compatibilidad(profile, tipo_profesional, descripcion_paciente, localidad, availability, schedule_verified)
             if requires_specialized_match and "coincide con necesidades y especialidad registradas" not in criteria:
                 continue
-            ranked.append((_serialize(profile, user, tipo_profesional, score, criteria), score, _semantic_similarity(profile, query_embedding)))
+            ranked.append((_serialize(profile, user, tipo_profesional, score, criteria, availability), score, _semantic_similarity(profile, query_embedding)))
     ranked.sort(key=lambda item: (-item[1], -item[2], -item[0]["experience_years"], item[0]["full_name"].casefold()))
     total = len(ranked)
     professionals = [item[0] for item in ranked[(page - 1) * limit:page * limit]]
@@ -206,7 +247,11 @@ def buscar_profesional_por_nombre(name: str, tipo_profesional: str | None = None
     with Session(engine) as session:
         for professional_type in types:
             for profile, user in _profiles(session, professional_type):
-                if needle and needle in _normalized(user.full_name): matches.append(_serialize(profile, user, professional_type))
+                if needle and needle in _normalized(user.full_name):
+                    availability = session.exec(
+                        select(Availability).where(Availability.professional_user_id == user.id)
+                    ).all()
+                    matches.append(_serialize(profile, user, professional_type, availabilities=availability))
     return matches
 
 
