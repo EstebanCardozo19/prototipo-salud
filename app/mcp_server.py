@@ -11,7 +11,7 @@ from datetime import date
 from sqlmodel import Session, select
 
 from app.database import engine
-from app.models import Availability, Booking, BookingStatus, CaregiverProfile, ClinicalRecord, MedicationStatus, NurseProfile, PatientMedication, ProfileStatus, ServiceCarePlan, User, UserRole
+from app.models import Availability, Booking, BookingStatus, CaregiverProfile, ClinicalRecord, MedicationStatus, NurseProfile, PatientMedication, ProfileStatus, Review, ServiceCarePlan, User, UserRole
 from app.services.bogota_locations import normalize_location, profile_covers_locality
 from app.services.embedding_service import generar_embedding
 
@@ -27,6 +27,22 @@ SPECIALTY_TERMS = {
     "endocrinology": ("diabetes", "endocrin"),
     "nephrology": ("renal", "rinon", "dialisis"),
     "orthopedics": ("ortoped", "fractura", "caida"),
+}
+
+# Etiquetas en español para las especialidades de enfermería (enum en inglés → texto legible).
+NURSE_SPECIALTY_LABELS: dict[str, str] = {
+    "general": "Enfermería General",
+    "geriatrics": "Geriatría",
+    "neurology": "Neurología",
+    "cardiology": "Cardiología",
+    "pulmonology": "Neumología",
+    "psychiatry": "Psiquiatría",
+    "physiatry": "Rehabilitación",
+    "palliative": "Cuidados Paliativos",
+    "internal_medicine": "Medicina Interna",
+    "endocrinology": "Endocrinología",
+    "nephrology": "Nefrología",
+    "orthopedics": "Ortopedia",
 }
 DAY_WORDS = {"lunes": "monday", "martes": "tuesday", "miercoles": "wednesday", "jueves": "thursday", "viernes": "friday", "sabado": "saturday", "domingo": "sunday"}
 SPECIALIZED_NEED_TERMS = tuple(term for terms in SPECIALTY_TERMS.values() for term in terms)
@@ -92,7 +108,8 @@ def _semantic_similarity(profile, query_embedding: list[float] | None) -> float:
 def _profile_specialties(profile, professional_type: str) -> list[str]:
     if professional_type == "nurse":
         specialty = getattr(profile.specialty, "value", profile.specialty)
-        return [str(specialty)] if specialty else []
+        label = NURSE_SPECIALTY_LABELS.get(str(specialty), str(specialty)) if specialty else ""
+        return [label] if label else []
     return [str(value) for value in (profile.specialties or [])]
 
 
@@ -163,7 +180,23 @@ def _format_availability(availabilities: list) -> list[dict]:
     return result
 
 
-def _serialize(profile, user, professional_type: str, score: int | None = None, criteria: list[str] | None = None, availabilities: list | None = None) -> dict:
+def _recent_reviews(session: Session, professional_user_id: int, limit: int = 3) -> list[dict]:
+    """Devuelve los últimos comentarios con texto de un profesional (solo reseñas con comment)."""
+    rows = session.exec(
+        select(Review)
+        .where(Review.professional_user_id == professional_user_id)
+        .where(Review.comment != None)  # noqa: E711
+        .order_by(Review.created_at.desc())
+        .limit(limit)
+    ).all()
+    return [
+        {"rating": row.rating, "comment": (row.comment or "").strip()}
+        for row in rows
+        if row.comment and row.comment.strip()
+    ]
+
+
+def _serialize(profile, user, professional_type: str, score: int | None = None, criteria: list[str] | None = None, availabilities: list | None = None, reviews: list[dict] | None = None) -> dict:
     specialties = _profile_specialties(profile, professional_type)
     return {
         "user_id": user.id,
@@ -184,6 +217,7 @@ def _serialize(profile, user, professional_type: str, score: int | None = None, 
         "compatibility": score,
         "compatibility_criteria": criteria or [],
         "availability": _format_availability(availabilities or []),
+        "recent_reviews": reviews or [],
     }
 
 
@@ -222,7 +256,8 @@ def buscar_profesionales_similares(descripcion_paciente: str, tipo_profesional: 
             score, criteria = calcular_compatibilidad(profile, tipo_profesional, descripcion_paciente, localidad, availability, schedule_verified)
             if requires_specialized_match and "coincide con necesidades y especialidad registradas" not in criteria:
                 continue
-            ranked.append((_serialize(profile, user, tipo_profesional, score, criteria, availability), score, _semantic_similarity(profile, query_embedding)))
+            reviews = _recent_reviews(session, user.id)
+            ranked.append((_serialize(profile, user, tipo_profesional, score, criteria, availability, reviews), score, _semantic_similarity(profile, query_embedding)))
     ranked.sort(key=lambda item: (-item[1], -item[2], -item[0]["experience_years"], item[0]["full_name"].casefold()))
     total = len(ranked)
     professionals = [item[0] for item in ranked[(page - 1) * limit:page * limit]]
@@ -251,7 +286,8 @@ def buscar_profesional_por_nombre(name: str, tipo_profesional: str | None = None
                     availability = session.exec(
                         select(Availability).where(Availability.professional_user_id == user.id)
                     ).all()
-                    matches.append(_serialize(profile, user, professional_type, availabilities=availability))
+                    reviews = _recent_reviews(session, user.id)
+                    matches.append(_serialize(profile, user, professional_type, availabilities=availability, reviews=reviews))
     return matches
 
 

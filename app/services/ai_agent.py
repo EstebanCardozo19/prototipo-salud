@@ -413,6 +413,17 @@ def _formatear_horarios(availability: list[dict]) -> str:
     return ", ".join(partes)
 
 
+def _formatear_reseñas(reviews: list[dict]) -> str:
+    """Convierte las últimas reseñas a texto citables por el agente."""
+    if not reviews:
+        return ""
+    frases = []
+    for r in reviews:
+        estrellas = "★" * r["rating"] + "☆" * (5 - r["rating"])
+        frases.append(f'"{r["comment"]}" ({estrellas})')
+    return "; ".join(frases)
+
+
 def _formatear_perfil(profile: dict) -> str:
     specialty = profile.get("specialty_display") or ", ".join(profile.get("specialties") or []) or "sin especialidad registrada"
     text = (
@@ -424,6 +435,9 @@ def _formatear_perfil(profile: dict) -> str:
     text += f" Horarios publicados: {horarios}."
     if profile.get("rating_count"):
         text += f" Valoración registrada: {profile['rating_avg']:.1f}/5 ({profile['rating_count']} reseñas)."
+    reseñas = _formatear_reseñas(profile.get("recent_reviews") or [])
+    if reseñas:
+        text += f" Comentarios recientes: {reseñas}."
     return text
 
 
@@ -461,10 +475,15 @@ def _redactar_recomendaciones_catalogo(result: dict, professional_type: str) -> 
     for professional in professionals[:3]:
         criteria = professional.get("compatibility_criteria") or []
         reasons = "; ".join(criteria) if criteria else "perfil aprobado y registrado en la plataforma"
-        rec = f"• {professional.get('full_name', 'Perfil sin nombre')} ({role_label}): {reasons}."
+        hourly = professional.get("hourly_rate")
+        tarifa = f" Tarifa: ${hourly:,.0f}/h." if hourly else ""
+        rec = f"• {professional.get('full_name', 'Perfil sin nombre')} ({role_label}): {reasons}.{tarifa}"
         horarios = _formatear_horarios(professional.get("availability") or [])
         if horarios != "sin horarios publicados":
-            rec += f" Horarios publicados: {horarios}."
+            rec += f" Horarios: {horarios}."
+        reseñas = _formatear_reseñas(professional.get("recent_reviews") or [])
+        if reseñas:
+            rec += f" Comentarios de familias: {reseñas}."
         recommendations.append(rec)
 
     closing = (
