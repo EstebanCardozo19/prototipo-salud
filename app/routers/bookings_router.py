@@ -17,6 +17,7 @@ from app.models import (
     Availability, DayOfWeek, Review, FamilyReview,
     CaregiverProfile, NurseProfile,
     ClinicalRecord, ProfessionalVerification, ProfileStatus,
+    FamilyVerification,
     CancelledServiceComment, CancelledServiceCommentReport,
 )
 from app.auth import get_current_user, require_role
@@ -513,6 +514,16 @@ def create_booking(
     session: Session = Depends(get_session),
 ):
     """Familiar crea una solicitud de contratación a un profesional."""
+    # Verificar que la familia tiene cédula aprobada antes de contratar
+    fv = session.exec(
+        select(FamilyVerification).where(FamilyVerification.user_id == current_user.id)
+    ).first()
+    if not fv or fv.status != ProfileStatus.approved:
+        raise HTTPException(
+            status_code=403,
+            detail="Para contratar un servicio debes verificar tu identidad. Sube tu cédula en la sección 'Mi verificación' de tu perfil.",
+        )
+
     professional = session.get(User, request.professional_user_id)
     if not professional:
         raise HTTPException(status_code=404, detail="Profesional no encontrado")

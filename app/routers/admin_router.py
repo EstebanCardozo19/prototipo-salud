@@ -7,7 +7,7 @@ from app.auth import require_role
 from app.database import get_session
 from app.models import CaregiverProfile, FamilyVerification, NurseProfile, ProfessionalVerification, ProfileStatus, User, UserRole, VerificationDocument
 from app.routers.notifications_router import create_notification
-from app.security.encryption import encrypt_text, decrypt_text, user_email, user_full_name
+from app.security.encryption import encrypt_text, user_email, user_full_name
 
 router = APIRouter(prefix='/api/admin', tags=['Administración'])
 class ReviewRequest(BaseModel): status: str; reason: Optional[str] = None
@@ -33,6 +33,7 @@ class FamilyPendingResponse(BaseModel):
     submitted_at: Optional[datetime]
     status: str
     rejection_reason: Optional[str] = None
+    document_url: Optional[str] = None
 class UpdateUserNameRequest(BaseModel): full_name: str
 def serialize(v, u, s):
     model=CaregiverProfile if v.role==UserRole.caregiver else NurseProfile; p=s.exec(select(model).where(model.user_id==u.id)).first(); docs=s.exec(select(VerificationDocument).where(VerificationDocument.verification_id==v.id)).all()
@@ -131,18 +132,19 @@ def pending_families(
         select(FamilyVerification, User)
         .join(User, User.id == FamilyVerification.user_id)
         .where(FamilyVerification.status == ProfileStatus.pending)
+        .where(FamilyVerification.submitted_at != None)  # noqa: E711
     ).all()
     result = []
     for fv, u in rows:
-        raw_id = decrypt_text(u.national_id, allow_legacy_plaintext=True) if u.national_id else ""
         result.append(FamilyPendingResponse(
             user_id=u.id,
             full_name=user_full_name(u),
             email=user_email(u),
-            national_id=raw_id,
+            national_id="",  # no se muestra en listado; el admin descarga el doc
             submitted_at=fv.submitted_at,
             status=fv.status.value,
             rejection_reason=fv.rejection_reason,
+            document_url=f"/api/family-verification/documents/{u.id}/download",
         ))
     return result
 
@@ -188,19 +190,19 @@ def review_family(
 
     outcome = "aprobada" if request.status == "approved" else "rechazada"
     body = (
-        "Tu cuenta ya está activa. Puedes iniciar sesión."
+        "Tu identidad fue verificada. Ya puedes contratar servicios."
         if request.status == "approved"
         else f"Motivo: {fv.rejection_reason}"
     )
     create_notification(session, user_id, "verification", f"Verificación de cuenta {outcome}", body)
 
-    raw_id = decrypt_text(u.national_id, allow_legacy_plaintext=True) if u.national_id else ""
     return FamilyPendingResponse(
         user_id=u.id,
         full_name=user_full_name(u),
         email=user_email(u),
-        national_id=raw_id,
+        national_id="",
         submitted_at=fv.submitted_at,
         status=fv.status.value,
         rejection_reason=fv.rejection_reason,
+        document_url=f"/api/family-verification/documents/{u.id}/download",
     )

@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
 from contextlib import asynccontextmanager
 
-from app.models import User, CaregiverProfile, ClinicalRecord, ClinicalRecordDocument, NurseProfile, Booking, Availability, Review, ProfessionalRecognition, ProfessionalVerification, VerificationDocument, ServiceChatMessage, ServiceCarePlan, ProfessionalAssistantAuditLog, Notification, PushSubscription, MedicationReminderDelivery, MedicalAppointment, AppointmentReminderDelivery, PatientMedication, CancelledServiceComment, CancelledServiceCommentReport  # noqa: F401
+from app.models import User, CaregiverProfile, ClinicalRecord, ClinicalRecordDocument, NurseProfile, Booking, Availability, Review, ProfessionalRecognition, ProfessionalVerification, FamilyVerification, VerificationDocument, ServiceChatMessage, ServiceCarePlan, ProfessionalAssistantAuditLog, Notification, PushSubscription, MedicationReminderDelivery, MedicalAppointment, AppointmentReminderDelivery, PatientMedication, CancelledServiceComment, CancelledServiceCommentReport  # noqa: F401
 from app.database import engine
 from app.database import get_session
 from sqlmodel import Session
@@ -22,7 +22,7 @@ from app.security.encryption import (
     validate_encryption_configuration,
 )
 from app.routers import auth_router, caregivers_router, clinical_router, admin_router, nurses_router, bookings_router, recognitions_router
-from app.routers import upload_router, verification_router, service_chat_router, notifications_router, care_plan_router, professional_assistant_router, appointments_router, medications_router
+from app.routers import upload_router, verification_router, service_chat_router, notifications_router, care_plan_router, professional_assistant_router, appointments_router, medications_router, family_verification_router
 from app.services.bogota_locations import validate_bogota_professional_location
 
 load_dotenv()
@@ -429,6 +429,7 @@ app.include_router(care_plan_router.router)
 app.include_router(professional_assistant_router.router)
 app.include_router(appointments_router.router)
 app.include_router(medications_router.router)
+app.include_router(family_verification_router.router)
 
 # Servir imágenes subidas como archivos estáticos
 app.mount("/uploads/profiles", StaticFiles(directory="uploads/profiles"), name="uploads-profiles")

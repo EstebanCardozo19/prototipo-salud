@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.models import User, UserRole, CaregiverProfile, FamilyVerification, ProfileStatus
+from app.models import User, UserRole, CaregiverProfile, ProfileStatus
 from app.auth import (
     RegisterRequest,
     LoginRequest,
@@ -66,12 +66,8 @@ def register(request: RegisterRequest, session: Session = Depends(get_session)):
         raise HTTPException(status_code=400, detail="Rol debe ser 'family', 'caregiver' o 'nurse'")
 
     # Cédula obligatoria y con formato válido para cuentas familiares
-    if request.role == "family":
-        raw_id = (request.national_id or "").strip()
-        if not raw_id:
-            raise HTTPException(status_code=422, detail="La cédula es obligatoria para cuentas familiares")
-        if not raw_id.isdigit() or not (7 <= len(raw_id) <= 10):
-            raise HTTPException(status_code=422, detail="La cédula debe contener entre 7 y 10 dígitos numéricos")
+    if request.role not in ("family", "caregiver", "nurse"):
+        raise HTTPException(status_code=400, detail="Rol debe ser 'family', 'caregiver' o 'nurse'")
 
     _validate_security_questions(
         request.security_question_1, request.security_answer_1,
@@ -93,22 +89,11 @@ def register(request: RegisterRequest, session: Session = Depends(get_session)):
         security_answer_2_hash=hash_password(normalize_security_answer(request.security_answer_2)),
         full_name=encrypt_text(request.full_name.strip()) if is_family else request.full_name.strip(),
         role=UserRole(request.role),
-        # Las cuentas familiares permanecen inactivas hasta aprobación de cédula.
-        is_active=not is_family,
-        national_id=request.national_id.strip() if is_family else None,
+        is_active=True,
     )
     session.add(user)
     session.commit()
     session.refresh(user)
-
-    if user.role == UserRole.family:
-        fv = FamilyVerification(
-            user_id=user.id,
-            status=ProfileStatus.pending,
-            submitted_at=user.created_at,
-        )
-        session.add(fv)
-        session.commit()
 
     if user.role == UserRole.caregiver:
         profile = CaregiverProfile(
@@ -154,12 +139,6 @@ def login(request: LoginRequest, session: Session = Depends(get_session)):
         )
 
     if not user.is_active:
-        # Diferenciar cuenta familiar pendiente de verificación de cuenta desactivada por admin
-        if user.role == UserRole.family:
-            raise HTTPException(
-                status_code=403,
-                detail="Tu cuenta está pendiente de verificación. El administrador revisará tu cédula y te notificará cuando esté activa.",
-            )
         raise HTTPException(status_code=403, detail="Cuenta desactivada")
 
     token = create_access_token(data={
