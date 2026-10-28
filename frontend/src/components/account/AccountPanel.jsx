@@ -311,12 +311,12 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
 
   const sideNavItems = [
     { key: 'profile',     icon: 'person',            label: t('account.profile')     },
+    ...(user.role === 'family' ? [{ key: 'verification', icon: 'verified_user', label: 'Mi verificación' }] : []),
     ...(['caregiver', 'nurse'].includes(user.role) ? [{ key: 'professional-profile', icon: 'badge', label: 'Mi perfil profesional' }] : []),
     ...(['caregiver', 'nurse'].includes(user.role) ? [{ key: 'recognitions', icon: 'workspace_premium', label: 'Mis reconocimientos' }] : []),
     { key: 'security',    icon: 'lock',              label: t('account.security')    },
     { key: 'preferences', icon: 'tune',              label: t('account.preferences') },
     ...(user.role === 'family' ? [{ key: 'family', icon: 'group', label: t('account.myFamily') }] : []),
-    ...(user.role === 'family' ? [{ key: 'verification', icon: 'verified_user', label: 'Mi verificación' }] : []),
   ];
 
   return (
@@ -850,7 +850,7 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
         {activeTab === 'verification' && user.role === 'family' && (
           <div className="max-w-2xl">
             <div className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm p-6">
-              <div className="flex items-center gap-3 mb-6 pb-5 border-b border-[#c3c6d6]/30">
+              <div className="flex items-center gap-3 mb-4 pb-4 border-b border-[#c3c6d6]/30">
                 <span className="material-symbols-outlined text-[28px] text-[#0040a1]">verified_user</span>
                 <div>
                   <h3 className="text-[17px] font-bold text-[#1a1c1e]">Verificación de identidad</h3>
@@ -864,7 +864,7 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
                 <>
                   {/* Estado actual */}
                   {familyVerif && (
-                    <div className={`flex items-center gap-2 px-4 py-3 rounded-xl mb-5 text-[13px] font-semibold ${
+                    <div className={`flex items-center gap-2 px-4 py-3 rounded-xl mb-3 text-[13px] font-semibold ${
                       familyVerif.status === 'approved' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
                       familyVerif.status === 'rejected' ? 'bg-red-50 text-red-800 border border-red-200' :
                       familyVerif.has_document ? 'bg-amber-50 text-amber-800 border border-amber-200' :
@@ -884,7 +884,7 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
 
                   {/* Motivo de rechazo */}
                   {familyVerif?.status === 'rejected' && familyVerif.rejection_reason && (
-                    <div className="mb-5 p-3 rounded-xl bg-red-50 border border-red-200 text-[13px] text-red-800">
+                    <div className="mb-3 p-3 rounded-xl bg-red-50 border border-red-200 text-[13px] text-red-800">
                       <p className="font-bold mb-1">Motivo del rechazo:</p>
                       <p>{familyVerif.rejection_reason}</p>
                     </div>
