@@ -8,6 +8,7 @@ export default function AdminDashboard({ token }) {
   const { t, lang } = useLang();
   const [users, setUsers] = useState([]);
   const [pending, setPending] = useState([]);
+  const [pendingFamilies, setPendingFamilies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedProfile, setSelectedProfile] = useState(null);
   const [documentUrls, setDocumentUrls] = useState({});
@@ -65,17 +66,30 @@ export default function AdminDashboard({ token }) {
   const load = async () => {
     setLoading(true);
     try {
-      const [uRes, pRes] = await Promise.all([
+      const [uRes, pRes, fRes] = await Promise.all([
         fetch('/api/admin/users?limit=100', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/admin/profiles/pending', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/admin/family-verifications/pending', { headers: { Authorization: `Bearer ${token}` } }),
       ]);
       if (uRes.ok) setUsers(await uRes.json());
       if (pRes.ok) setPending(await pRes.json());
+      if (fRes.ok) setPendingFamilies(await fRes.json());
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
+  };
+
+  const reviewFamily = async (userId, status) => {
+    const reason = status === 'rejected' ? window.prompt('Indica el motivo del rechazo de la cédula:') : null;
+    if (status === 'rejected' && !reason?.trim()) return;
+    const res = await fetch(`/api/admin/family-verifications/${userId}/review`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ status, reason }),
+    });
+    if (res.ok) load();
   };
 
   const approve = async (id, status) => {
@@ -170,6 +184,76 @@ export default function AdminDashboard({ token }) {
       <h2 className="text-[22px] font-bold text-[#0040a1] mb-6 flex items-center gap-3">
         <span className="material-symbols-outlined text-[26px]">admin_panel_settings</span> {t('admin.title')}
       </h2>
+      {/* ── Familias pendientes de verificación ── */}
+      {pendingFamilies.length > 0 && (
+        <div className="mb-6">
+          <h3 className="font-bold text-[16px] text-[#0040a1] mb-3 flex items-center gap-2">
+            <span className="material-symbols-outlined text-[20px]">badge</span>
+            Cédulas familiares pendientes ({pendingFamilies.length})
+          </h3>
+          <div className="bg-white rounded-2xl border border-[#0040a1]/20 shadow-sm overflow-hidden">
+            <table className="w-full text-[13px]">
+              <thead className="bg-[#0040a1]/5 text-[#0040a1]">
+                <tr>
+                  {['Nombre', 'Email', 'Enviado', 'Documento', 'Acciones'].map(h => (
+                    <th key={h} className="px-4 py-3 text-left font-semibold">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {pendingFamilies.map(f => (
+                  <tr key={f.user_id} className="border-t border-[#0040a1]/10">
+                    <td className="px-4 py-3 font-medium">{f.full_name}</td>
+                    <td className="px-4 py-3 text-[#424654]">{f.email}</td>
+                    <td className="px-4 py-3 text-[#737785]">
+                      {f.submitted_at ? new Date(f.submitted_at).toLocaleDateString('es-CO') : '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <a
+                        href={f.document_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-[#0040a1] hover:underline text-[12px] font-semibold"
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          try {
+                            const res = await fetch(f.document_url, { headers: { Authorization: `Bearer ${token}` } });
+                            if (!res.ok) throw new Error();
+                            const url = URL.createObjectURL(await res.blob());
+                            window.open(url, '_blank');
+                          } catch {
+                            alert('No fue posible abrir el documento.');
+                          }
+                        }}
+                      >
+                        <span className="material-symbols-outlined text-[16px]">open_in_new</span>
+                        Ver cédula
+                      </a>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => reviewFamily(f.user_id, 'approved')}
+                          className="px-3 py-1 bg-green-500 text-white rounded-lg text-[12px] font-semibold hover:bg-green-600 transition-all"
+                        >
+                          Aprobar
+                        </button>
+                        <button
+                          onClick={() => reviewFamily(f.user_id, 'rejected')}
+                          className="px-3 py-1 bg-red-100 text-red-600 rounded-lg text-[12px] font-semibold hover:bg-red-200 transition-all"
+                        >
+                          Rechazar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {pending.length > 0 && (
         <div className="mb-6">
           <h3 className="font-bold text-[16px] text-amber-700 mb-3 flex items-center gap-2">

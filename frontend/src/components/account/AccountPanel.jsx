@@ -69,6 +69,13 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
   const [recognitions, setRecognitions] = useState(null);
   const [recognitionsError, setRecognitionsError] = useState('');
 
+  // ── Verificación de cédula (solo familia) ──────────────────
+  const [familyVerif, setFamilyVerif] = useState(null);
+  const [familyVerifLoading, setFamilyVerifLoading] = useState(false);
+  const [familyVerifUploading, setFamilyVerifUploading] = useState(false);
+  const [familyVerifMsg, setFamilyVerifMsg] = useState(null);
+  const cedFileRef = useRef(null);
+
   const availableLocalidades = useMemo(
     () => getLocalidadesForCity(BOGOTA_CITY),
     []
@@ -108,6 +115,16 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
       .catch(error => { if (active) setRecognitionsError(error.message); });
     return () => { active = false; };
   }, [user.role, token]);
+
+  useEffect(() => {
+    if (user.role !== 'family' || !token || activeTab !== 'verification') return;
+    setFamilyVerifLoading(true);
+    fetch('/api/family-verification/me', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => setFamilyVerif(data))
+      .catch(() => setFamilyVerif(null))
+      .finally(() => setFamilyVerifLoading(false));
+  }, [user.role, token, activeTab]);
 
   const handlePhotoChange = async (e) => {
     const file = e.target.files?.[0];
@@ -299,6 +316,7 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
     { key: 'security',    icon: 'lock',              label: t('account.security')    },
     { key: 'preferences', icon: 'tune',              label: t('account.preferences') },
     ...(user.role === 'family' ? [{ key: 'family', icon: 'group', label: t('account.myFamily') }] : []),
+    ...(user.role === 'family' ? [{ key: 'verification', icon: 'verified_user', label: 'Mi verificación' }] : []),
   ];
 
   return (
@@ -826,6 +844,145 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
         {/* ─ My Family (CRUD completo) ─ */}
         {activeTab === 'family' && user.role === 'family' && (
           <FamilyPatientPanel token={token} />
+        )}
+
+        {/* ─ Verificación de cédula (solo familia) ─ */}
+        {activeTab === 'verification' && user.role === 'family' && (
+          <div className="max-w-2xl">
+            <div className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm p-6">
+              <div className="flex items-center gap-3 mb-6 pb-5 border-b border-[#c3c6d6]/30">
+                <span className="material-symbols-outlined text-[28px] text-[#0040a1]">verified_user</span>
+                <div>
+                  <h3 className="text-[17px] font-bold text-[#1a1c1e]">Verificación de identidad</h3>
+                  <p className="text-[13px] text-[#737785] mt-0.5">Sube tu cédula para que un administrador la verifique. Una vez aprobada, podrás contratar servicios.</p>
+                </div>
+              </div>
+
+              {familyVerifLoading ? (
+                <div className="py-6 flex justify-center"><Spinner sm /></div>
+              ) : (
+                <>
+                  {/* Estado actual */}
+                  {familyVerif && (
+                    <div className={`flex items-center gap-2 px-4 py-3 rounded-xl mb-5 text-[13px] font-semibold ${
+                      familyVerif.status === 'approved' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
+                      familyVerif.status === 'rejected' ? 'bg-red-50 text-red-800 border border-red-200' :
+                      familyVerif.has_document ? 'bg-amber-50 text-amber-800 border border-amber-200' :
+                      'bg-[#f3f3f6] text-[#424654] border border-[#c3c6d6]/40'
+                    }`}>
+                      <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                        {familyVerif.status === 'approved' ? 'verified' :
+                         familyVerif.status === 'rejected' ? 'cancel' :
+                         familyVerif.has_document ? 'schedule' : 'upload_file'}
+                      </span>
+                      {familyVerif.status === 'approved' ? 'Identidad verificada — puedes contratar servicios' :
+                       familyVerif.status === 'rejected' ? 'Documento rechazado — sube un nuevo documento' :
+                       familyVerif.has_document ? 'Documento en revisión — te notificaremos el resultado' :
+                       'Sin documento — sube tu cédula para activar la contratación'}
+                    </div>
+                  )}
+
+                  {/* Motivo de rechazo */}
+                  {familyVerif?.status === 'rejected' && familyVerif.rejection_reason && (
+                    <div className="mb-5 p-3 rounded-xl bg-red-50 border border-red-200 text-[13px] text-red-800">
+                      <p className="font-bold mb-1">Motivo del rechazo:</p>
+                      <p>{familyVerif.rejection_reason}</p>
+                    </div>
+                  )}
+
+                  {/* Subir / reemplazar cédula */}
+                  {familyVerif?.status !== 'approved' && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between p-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC]">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${familyVerif?.has_document ? 'bg-emerald-50 text-emerald-600' : 'bg-[#f3f3f6] text-[#737785]'}`}>
+                            <span className="material-symbols-outlined" style={familyVerif?.has_document ? { fontVariationSettings: "'FILL' 1" } : {}}>
+                              {familyVerif?.has_document ? 'description' : 'badge'}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="text-[14px] font-semibold text-[#1a1c1e]">Cédula de ciudadanía</p>
+                            <p className="text-[12px] text-[#737785]">
+                              {familyVerif?.has_document ? 'Documento subido' : 'Pendiente de cargar'}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={familyVerifUploading}
+                          onClick={() => cedFileRef.current?.click()}
+                          className="flex items-center gap-2 px-4 py-2 rounded-lg border border-[#004099] text-[#004099] text-[14px] font-semibold hover:bg-[#004099]/5 transition-colors bg-white disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          {familyVerifUploading ? <Spinner sm /> : (
+                            <>
+                              <span className="material-symbols-outlined text-[18px]">{familyVerif?.has_document ? 'refresh' : 'upload'}</span>
+                              {familyVerif?.has_document ? 'Reemplazar' : 'Subir cédula'}
+                            </>
+                          )}
+                        </button>
+                        <input
+                          ref={cedFileRef}
+                          type="file"
+                          accept="application/pdf,image/jpeg,image/png"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            e.target.value = '';
+                            if (!file) return;
+                            if (!['application/pdf', 'image/jpeg', 'image/png'].includes(file.type)) {
+                              setFamilyVerifMsg({ type: 'err', text: 'Solo se aceptan PDF, JPEG o PNG.' });
+                              return;
+                            }
+                            if (file.size > 10 * 1024 * 1024) {
+                              setFamilyVerifMsg({ type: 'err', text: 'El archivo no puede superar 10 MB.' });
+                              return;
+                            }
+                            setFamilyVerifUploading(true);
+                            setFamilyVerifMsg(null);
+                            const formData = new FormData();
+                            formData.append('file', file);
+                            try {
+                              const res = await fetch('/api/family-verification/documents/cedula', {
+                                method: 'POST',
+                                headers: { Authorization: `Bearer ${token}` },
+                                body: formData,
+                              });
+                              if (!res.ok) {
+                                const d = await res.json().catch(() => ({}));
+                                throw new Error(d.detail || 'No fue posible subir el documento.');
+                              }
+                              const updated = await res.json();
+                              setFamilyVerif(updated);
+                              setFamilyVerifMsg({ type: 'ok', text: 'Cédula subida correctamente. El administrador la revisará pronto.' });
+                            } catch (err) {
+                              setFamilyVerifMsg({ type: 'err', text: err.message });
+                            } finally {
+                              setFamilyVerifUploading(false);
+                            }
+                          }}
+                        />
+                      </div>
+
+                      <p className="text-[12px] text-[#737785]">Formatos aceptados: PDF, JPEG o PNG. Máximo 10 MB.</p>
+
+                      {familyVerifMsg && (
+                        <p className={`text-[13px] font-medium ${familyVerifMsg.type === 'ok' ? 'text-emerald-700' : 'text-red-600'}`}>
+                          {familyVerifMsg.text}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Cédula aprobada: confirmar que ya puede contratar */}
+                  {familyVerif?.status === 'approved' && (
+                    <p className="text-[13px] text-emerald-700">
+                      Tu identidad ha sido verificada. Ya puedes contratar cuidadores y enfermeros.
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </div>
