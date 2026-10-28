@@ -314,94 +314,93 @@ export default function MedicationsPanel({ record, token, user, onBack }) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="px-6 py-4 border-b border-[#c3c6d6]/30 bg-white shrink-0">
-        <div className="flex items-center gap-3 mb-1">
+      {/* Barra unificada: volver + paciente + alertas + filtros + acciones */}
+      <div className="px-4 py-2.5 border-b border-[#c3c6d6]/30 bg-white shrink-0 flex flex-wrap items-center gap-x-4 gap-y-2">
+
+        {/* Izquierda: volver + nombre + alertas */}
+        <div className="flex items-center gap-2 min-w-0 flex-1">
           {onBack && (
-            <button onClick={onBack} className="text-[#0040a1] hover:underline flex items-center gap-1 text-[13px] font-semibold">
+            <button onClick={onBack} className="text-[#0040a1] hover:underline flex items-center gap-1 text-[13px] font-semibold shrink-0">
               <span className="material-symbols-outlined text-[18px]">arrow_back</span>
               Volver
             </button>
           )}
-          <h2 className="text-[18px] font-bold text-[#17324d] flex items-center gap-2">
-            <span className="material-symbols-outlined text-[#0040a1]">medication</span>
-            Medicamentos — {record.patient_name}
+          <h2 className="text-[15px] font-bold text-[#17324d] flex items-center gap-1.5 truncate">
+            <span className="material-symbols-outlined text-[#0040a1] text-[18px] shrink-0">medication</span>
+            <span className="truncate">{record.patient_name}</span>
+            <span className="text-[#737785] font-normal text-[13px] shrink-0">· {record.patient_age} a.</span>
           </h2>
-        </div>
-        <p className="text-[13px] text-[#536779]">
-          {record.patient_age} años
           {lowStockCount > 0 && (
-            <span className="ml-2 inline-flex items-center gap-1 text-red-700 font-semibold">
+            <span className="inline-flex items-center gap-1 text-red-700 font-semibold text-[12px] shrink-0">
               <span className="material-symbols-outlined text-[14px]">warning</span>
-              {lowStockCount} con stock bajo
+              {lowStockCount} stock bajo
             </span>
           )}
           {pendingCount > 0 && (
-            <span className="ml-2 inline-flex items-center gap-1 text-amber-700 font-semibold">
+            <span className="inline-flex items-center gap-1 text-amber-700 font-semibold text-[12px] shrink-0">
               <span className="material-symbols-outlined text-[14px]">pending</span>
-              {pendingCount} pendiente{pendingCount > 1 ? 's' : ''} de aprobación
+              {pendingCount} pendiente{pendingCount > 1 ? 's' : ''}
             </span>
           )}
-        </p>
-      </div>
-
-      {/* Toolbar */}
-      <div className="px-6 py-3 flex items-center justify-between gap-3 border-b border-[#c3c6d6]/20 bg-white shrink-0 flex-wrap">
-        {/* Filtros */}
-        <div className="flex gap-1 flex-wrap">
-          {[
-            { key: 'all',       label: 'Todos' },
-            { key: 'active',    label: 'Activos' },
-            { key: 'proposed',  label: 'Pendientes' },
-            { key: 'suspended', label: 'Suspendidos' },
-          ].map(f => (
-            <button
-              key={f.key}
-              onClick={() => setActiveFilter(f.key)}
-              className={`h-[30px] px-3 rounded-xl text-[12px] font-semibold transition-all ${
-                activeFilter === f.key
-                  ? 'bg-[#0040a1] text-white'
-                  : 'bg-[#f3f3f6] text-[#424654] hover:bg-[#dae2ff] hover:text-[#0040a1]'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
         </div>
 
-        {/* Acciones */}
-        <div className="flex gap-2">
-          {/* Botón agente conversacional — siempre visible para familia y profesionales */}
-          <button
-            onClick={() => setShowAgentChat(true)}
-            className="h-[34px] px-4 bg-gradient-to-r from-[#0040a1] to-[#1a5ccf] text-white rounded-xl text-[12px] font-bold hover:opacity-90 transition-all flex items-center gap-1.5"
-          >
-            <span className="material-symbols-outlined text-[15px]">smart_toy</span>
-            Asistente IA
-          </button>
-          {isFamily && (
+        {/* Derecha: filtros + botones de acción */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Filtros */}
+          <div className="flex gap-1">
+            {[
+              { key: 'all',       label: 'Todos'     },
+              { key: 'active',    label: 'Activos'   },
+              { key: 'proposed',  label: 'Pendientes'},
+              { key: 'suspended', label: 'Suspendidos'},
+            ].map(f => (
+              <button
+                key={f.key}
+                onClick={() => setActiveFilter(f.key)}
+                className={`h-[28px] px-2.5 rounded-lg text-[11px] font-semibold transition-all ${
+                  activeFilter === f.key
+                    ? 'bg-[#0040a1] text-white'
+                    : 'bg-[#f3f3f6] text-[#424654] hover:bg-[#dae2ff] hover:text-[#0040a1]'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Botones de acción */}
+          <div className="flex gap-1.5">
             <button
-              onClick={() => { setEditing(null); setModalError(''); setModalMode('create'); }}
-              className="h-[34px] px-4 bg-[#0040a1] text-white rounded-xl text-[12px] font-bold hover:bg-[#003080] transition-all flex items-center gap-1.5"
+              onClick={() => setShowAgentChat(true)}
+              className="h-[28px] px-3 bg-gradient-to-r from-[#0040a1] to-[#1a5ccf] text-white rounded-lg text-[11px] font-bold hover:opacity-90 transition-all flex items-center gap-1"
             >
-              <span className="material-symbols-outlined text-[15px]">add</span>
-              Agregar
+              <span className="material-symbols-outlined text-[14px]">smart_toy</span>
+              IA
             </button>
-          )}
-          {canPropose && (
-            <button
-              onClick={() => { setEditing(null); setModalError(''); setModalMode('propose'); }}
-              className="h-[34px] px-4 bg-[#f0f4ff] text-[#0040a1] border border-[#0040a1]/30 rounded-xl text-[12px] font-bold hover:bg-[#dae2ff] transition-all flex items-center gap-1.5"
-            >
-              <span className="material-symbols-outlined text-[15px]">add_circle</span>
-              Proponer
-            </button>
-          )}
+            {isFamily && (
+              <button
+                onClick={() => { setEditing(null); setModalError(''); setModalMode('create'); }}
+                className="h-[28px] px-3 bg-[#0040a1] text-white rounded-lg text-[11px] font-bold hover:bg-[#003080] transition-all flex items-center gap-1"
+              >
+                <span className="material-symbols-outlined text-[14px]">add</span>
+                Agregar
+              </button>
+            )}
+            {canPropose && (
+              <button
+                onClick={() => { setEditing(null); setModalError(''); setModalMode('propose'); }}
+                className="h-[28px] px-3 bg-[#f0f4ff] text-[#0040a1] border border-[#0040a1]/30 rounded-lg text-[11px] font-bold hover:bg-[#dae2ff] transition-all flex items-center gap-1"
+              >
+                <span className="material-symbols-outlined text-[14px]">add_circle</span>
+                Proponer
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Contenido */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-4">
         {error && (
           <p className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-[13px] text-red-700">{error}</p>
         )}
@@ -419,7 +418,7 @@ export default function MedicationsPanel({ record, token, user, onBack }) {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-4xl">
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
             {filtered.map(med => (
               <MedicationCard
                 key={med.id}
