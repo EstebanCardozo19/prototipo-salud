@@ -362,14 +362,14 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
     <div className="flex flex-col h-full">
       {/* ── Cabecera sticky — solo en tabs de búsqueda ── */}
       {activeTab !== 'my-requests' && (
-        <div className="px-6 pt-4 pb-3 border-b border-[#c3c6d6]/30 bg-white sticky top-0 z-20 shadow-sm">
+        <div className="px-3 sm:px-6 pt-3 pb-3 border-b border-[#c3c6d6]/30 bg-white sticky top-0 z-20 shadow-sm">
 
           {/* Fila 0: Accesos rápidos según los familiares del usuario */}
           {familyLocations.length > 0 && (
-            <div className="flex items-center gap-2 mb-3 overflow-x-auto pb-1 text-[12px]">
-              <span className="text-[11px] font-bold text-[#737785] uppercase tracking-wide shrink-0 flex items-center gap-1">
-                <span className="material-symbols-outlined text-[14px] text-[#0040a1]">favorite</span>
-                {t('geo.myFamilyLocations')}
+            <div className="flex items-center gap-1.5 mb-2 overflow-x-auto pb-1 text-[12px]">
+              <span className="text-[10px] font-bold text-[#737785] uppercase tracking-wide shrink-0 flex items-center gap-1">
+                <span className="material-symbols-outlined text-[13px] text-[#0040a1]">favorite</span>
+                <span className="hidden sm:inline">{t('geo.myFamilyLocations')}</span>
               </span>
               <button
                 type="button"
@@ -378,7 +378,7 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
                   setSelectedCity(BOGOTA_CITY);
                   setSelectedLocalidad('');
                 }}
-                className={`px-3 py-1 rounded-full font-semibold border transition-all shrink-0 ${
+                className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border transition-all shrink-0 ${
                   !selectedFamilyChip
                     ? 'bg-[#0040a1] text-white border-[#0040a1]'
                     : 'bg-[#f3f3f6] text-[#424654] border-transparent hover:border-[#0040a1]/30'
@@ -391,24 +391,24 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
                   key={rec.id}
                   type="button"
                   onClick={() => handleFamilyChipClick(rec)}
-                  className={`flex items-center gap-1.5 px-3 py-1 rounded-full font-semibold border transition-all shrink-0 ${
+                  className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border transition-all shrink-0 ${
                     selectedFamilyChip === rec.id
                       ? 'bg-[#0040a1] text-white border-[#0040a1] shadow-sm'
                       : 'bg-[#dae2ff]/40 text-[#0040a1] border-[#0040a1]/20 hover:bg-[#dae2ff]'
                   }`}
                 >
-                  <span className="material-symbols-outlined text-[13px]">location_on</span>
-                  <span>{rec.patient_name} ({rec.neighborhood ? `${rec.neighborhood}, ` : ''}{rec.city || 'Bogotá'})</span>
+                  <span className="material-symbols-outlined text-[12px]">location_on</span>
+                  <span className="truncate max-w-[120px] sm:max-w-none">{rec.patient_name}{rec.neighborhood ? ` · ${rec.neighborhood}` : ''}</span>
                 </button>
               ))}
             </div>
           )}
 
           {/* Fila 1: Buscador de texto libre */}
-          <form onSubmit={buscar} className="relative mb-3">
+          <form onSubmit={buscar} className="relative mb-2">
             <input
-              className="w-full h-[48px] pl-5 pr-[56px] rounded-2xl border border-[#c3c6d6] bg-white
-                              focus:border-[#0040a1] focus:ring-4 focus:ring-[#0040a1]/15 focus:outline-none text-[15px] shadow-sm"
+              className="w-full h-[42px] sm:h-[48px] pl-4 pr-[52px] rounded-2xl border border-[#c3c6d6] bg-white
+                              focus:border-[#0040a1] focus:ring-4 focus:ring-[#0040a1]/15 focus:outline-none text-[14px] sm:text-[15px] shadow-sm"
               placeholder={t('search.placeholder')}
               value={searchText}
               onChange={e => setSearchText(e.target.value)}
@@ -416,16 +416,16 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
             <button
               type="submit"
               disabled={loading}
-              className="absolute right-2 top-2 bottom-2 w-[40px] bg-[#0040a1] text-white rounded-xl flex items-center justify-center hover:bg-[#003080] transition-all active:scale-95"
+              className="absolute right-2 top-1.5 bottom-1.5 w-[36px] sm:w-[40px] bg-[#0040a1] text-white rounded-xl flex items-center justify-center hover:bg-[#003080] transition-all active:scale-95"
             >
-              <span className="material-symbols-outlined text-[20px]">search</span>
+              <span className="material-symbols-outlined text-[18px] sm:text-[20px]">search</span>
             </button>
           </form>
 
-          {/* Fila 2: Cobertura Bogotá + localidades + orden + filtros + vista */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* 1. Ciudad de cobertura fija */}
-            <div className="relative flex-1 min-w-[160px] max-w-[210px]">
+          {/* Fila 2: Localidad + orden + filtros + vista — compacta en móvil */}
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2.5">
+            {/* 1. Ciudad fija — oculta en móvil (no aporta info accionable) */}
+            <div className="relative hidden sm:flex flex-1 min-w-[160px] max-w-[210px]">
               <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[#0040a1] text-[17px] pointer-events-none">
                 location_city
               </span>
@@ -434,40 +434,36 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
               </div>
             </div>
 
-            {/* 2. Selector Dinámico de Localidad / Comuna (según la Ciudad seleccionada) */}
-            <div className="relative flex-1 min-w-[170px] max-w-[230px]">
-              <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[#0040a1]/70 text-[17px] pointer-events-none">
+            {/* 2. Selector de Localidad */}
+            <div className="relative flex-1 min-w-[130px] sm:min-w-[170px] max-w-[200px] sm:max-w-[230px]">
+              <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-[#0040a1]/70 text-[15px] sm:text-[17px] pointer-events-none">
                 pin_drop
               </span>
               <select
-                className="w-full h-[38px] pl-8 pr-7 rounded-xl border border-[#c3c6d6] bg-white appearance-none focus:border-[#0040a1] focus:outline-none text-[13px] font-medium cursor-pointer disabled:bg-[#f3f3f6] disabled:text-[#737785]"
+                className="w-full h-[34px] sm:h-[38px] pl-7 sm:pl-8 pr-6 rounded-xl border border-[#c3c6d6] bg-white appearance-none focus:border-[#0040a1] focus:outline-none text-[12px] sm:text-[13px] font-medium cursor-pointer disabled:bg-[#f3f3f6] disabled:text-[#737785]"
                 value={selectedLocalidad}
                 onChange={e => {
                   setSelectedLocalidad(e.target.value);
                   setSelectedFamilyChip(null);
                 }}
               >
-                <option value="">
-                  {t('geo.allLocalities')}
-                </option>
+                <option value="">{t('geo.allLocalities')}</option>
                 {availableLocalidades.map(l => (
-                  <option key={l} value={l}>
-                    {l}
-                  </option>
+                  <option key={l} value={l}>{l}</option>
                 ))}
               </select>
-              <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[#737785] text-[17px]">
+              <span className="material-symbols-outlined absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-[#737785] text-[15px]">
                 expand_more
               </span>
             </div>
 
-            {/* 3. Ordenar por */}
-            <div className="relative min-w-[140px] max-w-[170px]">
-              <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[#0040a1]/60 text-[17px] pointer-events-none">
+            {/* 3. Ordenar por — compacto en móvil */}
+            <div className="relative min-w-[110px] sm:min-w-[140px] max-w-[150px] sm:max-w-[170px]">
+              <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-[#0040a1]/60 text-[15px] sm:text-[17px] pointer-events-none">
                 sort
               </span>
               <select
-                className="w-full h-[38px] pl-8 pr-7 rounded-xl border border-[#c3c6d6] bg-white appearance-none focus:border-[#0040a1] focus:outline-none text-[13px] cursor-pointer"
+                className="w-full h-[34px] sm:h-[38px] pl-7 sm:pl-8 pr-6 rounded-xl border border-[#c3c6d6] bg-white appearance-none focus:border-[#0040a1] focus:outline-none text-[12px] sm:text-[13px] cursor-pointer"
                 value={filters.sortBy}
                 onChange={e => setFilters(f => ({ ...f, sortBy: e.target.value }))}
               >
@@ -476,62 +472,57 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
                 <option value="price_desc">{t('search.sortPriceDesc')}</option>
                 <option value="exp">{t('search.sortExp')}</option>
               </select>
-              <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[#737785] text-[17px]">
+              <span className="material-symbols-outlined absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-[#737785] text-[15px]">
                 expand_more
               </span>
             </div>
 
-            {/* 4. Botón Filtros Avanzados */}
+            {/* 4. Botón Filtros */}
             <button
               onClick={() => setShowFilters(v => !v)}
-              className={`h-[38px] px-3.5 rounded-xl font-semibold text-[13px] flex items-center gap-1.5 transition-all border shrink-0
+              className={`h-[34px] sm:h-[38px] px-2.5 sm:px-3.5 rounded-xl font-semibold text-[12px] sm:text-[13px] flex items-center gap-1 sm:gap-1.5 transition-all border shrink-0
                 ${
                   showFilters
                     ? 'bg-[#0040a1] text-white border-[#0040a1]'
                     : 'bg-white text-[#424654] border-[#c3c6d6] hover:border-[#0040a1]/40'
                 }`}
             >
-              <span className="material-symbols-outlined text-[17px]">tune</span>
-              {t('search.filters')}
+              <span className="material-symbols-outlined text-[16px] sm:text-[17px]">tune</span>
+              <span className="hidden sm:inline">{t('search.filters')}</span>
               {activeFilterCount > 0 && (
-                <span
-                  className={`text-[11px] font-bold w-4 h-4 rounded-full flex items-center justify-center
-                  ${showFilters ? 'bg-white text-[#0040a1]' : 'bg-[#0040a1] text-white'}`}
-                >
+                <span className={`text-[11px] font-bold w-4 h-4 rounded-full flex items-center justify-center ${showFilters ? 'bg-white text-[#0040a1]' : 'bg-[#0040a1] text-white'}`}>
                   {activeFilterCount}
                 </span>
               )}
             </button>
 
-            {/* 5. Switcher Vista Lista vs Mapa */}
+            {/* 5. Switcher Lista / Mapa */}
             <div className="flex bg-[#f3f3f6] p-0.5 rounded-xl border border-[#c3c6d6]/60 shrink-0 ml-auto">
               <button
                 type="button"
                 onClick={() => setViewMode('list')}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-all ${
-                  viewMode === 'list'
-                    ? 'bg-white text-[#0040a1] shadow-sm font-bold'
-                    : 'text-[#424654] hover:text-[#0040a1]'
+                className={`flex items-center gap-0.5 sm:gap-1 px-2 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-[12px] font-semibold transition-all ${
+                  viewMode === 'list' ? 'bg-white text-[#0040a1] shadow-sm font-bold' : 'text-[#424654] hover:text-[#0040a1]'
                 }`}
               >
-                <span className="material-symbols-outlined text-[16px]">grid_view</span>
-                {t('geo.viewList')}
+                <span className="material-symbols-outlined text-[15px] sm:text-[16px]">grid_view</span>
+                <span className="hidden sm:inline">{t('geo.viewList')}</span>
               </button>
               <button
                 type="button"
                 onClick={() => setViewMode('map')}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-all ${
-                  viewMode === 'map'
-                    ? 'bg-[#0040a1] text-white shadow-sm font-bold'
-                    : 'text-[#424654] hover:text-[#0040a1]'
+                className={`flex items-center gap-0.5 sm:gap-1 px-2 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-[12px] font-semibold transition-all ${
+                  viewMode === 'map' ? 'bg-[#0040a1] text-white shadow-sm font-bold' : 'text-[#424654] hover:text-[#0040a1]'
                 }`}
               >
-                <span className="material-symbols-outlined text-[16px]">map</span>
-                {t('geo.viewMap')}
+                <span className="material-symbols-outlined text-[15px] sm:text-[16px]">map</span>
+                <span className="hidden sm:inline">{t('geo.viewMap')}</span>
               </button>
             </div>
           </div>
-
+                    : 'text-[#424654] hover:text-[#0040a1]'
+                }`}
+              >
           {/* Panel de filtros expandible */}
           {showFilters && (
             <div className="mt-3 p-4 bg-[#f3f3f6] rounded-2xl border border-[#c3c6d6]/40">
