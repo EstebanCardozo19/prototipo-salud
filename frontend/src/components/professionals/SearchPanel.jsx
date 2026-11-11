@@ -362,26 +362,20 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
     <div className="flex flex-col h-full">
       {/* ── Cabecera sticky — solo en tabs de búsqueda ── */}
       {activeTab !== 'my-requests' && (
-        <div className="px-6 pt-4 pb-3 border-b border-[#c3c6d6]/30 bg-white sticky top-0 z-20 shadow-sm">
+        <div className="px-3 sm:px-6 pt-3 pb-3 border-b border-[#c3c6d6]/30 bg-white sticky top-0 z-20 shadow-sm">
 
-          {/* Fila 0: Accesos rápidos según los familiares del usuario */}
+          {/* Fila 0: Chips de familiares */}
           {familyLocations.length > 0 && (
-            <div className="flex items-center gap-2 mb-3 overflow-x-auto pb-1 text-[12px]">
+            <div className="flex items-center gap-2 mb-3 overflow-x-auto pb-1 text-[12px] no-scrollbar">
               <span className="text-[11px] font-bold text-[#737785] uppercase tracking-wide shrink-0 flex items-center gap-1">
                 <span className="material-symbols-outlined text-[14px] text-[#0040a1]">favorite</span>
-                {t('geo.myFamilyLocations')}
+                <span className="hidden sm:inline">{t('geo.myFamilyLocations')}</span>
               </span>
               <button
                 type="button"
-                onClick={() => {
-                  setSelectedFamilyChip(null);
-                  setSelectedCity(BOGOTA_CITY);
-                  setSelectedLocalidad('');
-                }}
-                className={`px-3 py-1 rounded-full font-semibold border transition-all shrink-0 ${
-                  !selectedFamilyChip
-                    ? 'bg-[#0040a1] text-white border-[#0040a1]'
-                    : 'bg-[#f3f3f6] text-[#424654] border-transparent hover:border-[#0040a1]/30'
+                onClick={() => { setSelectedFamilyChip(null); setSelectedCity(BOGOTA_CITY); setSelectedLocalidad(''); }}
+                className={`px-3 py-1 rounded-full font-semibold border transition-all shrink-0 text-[12px] ${
+                  !selectedFamilyChip ? 'bg-[#0040a1] text-white border-[#0040a1]' : 'bg-[#f3f3f6] text-[#424654] border-transparent hover:border-[#0040a1]/30'
                 }`}
               >
                 {t('geo.allCities')}
@@ -391,83 +385,82 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
                   key={rec.id}
                   type="button"
                   onClick={() => handleFamilyChipClick(rec)}
-                  className={`flex items-center gap-1.5 px-3 py-1 rounded-full font-semibold border transition-all shrink-0 ${
+                  className={`flex items-center gap-1 px-3 py-1 rounded-full font-semibold border transition-all shrink-0 text-[12px] max-w-[160px] ${
                     selectedFamilyChip === rec.id
                       ? 'bg-[#0040a1] text-white border-[#0040a1] shadow-sm'
                       : 'bg-[#dae2ff]/40 text-[#0040a1] border-[#0040a1]/20 hover:bg-[#dae2ff]'
                   }`}
                 >
-                  <span className="material-symbols-outlined text-[13px]">location_on</span>
-                  <span>{rec.patient_name} ({rec.neighborhood ? `${rec.neighborhood}, ` : ''}{rec.city || 'Bogotá'})</span>
+                  <span className="material-symbols-outlined text-[13px] shrink-0">location_on</span>
+                  <span className="truncate">{rec.patient_name}</span>
                 </button>
               ))}
             </div>
           )}
 
-          {/* Fila 1: Buscador de texto libre */}
-          <form onSubmit={buscar} className="relative mb-3">
-            <input
-              className="w-full h-[48px] pl-5 pr-[56px] rounded-2xl border border-[#c3c6d6] bg-white
-                              focus:border-[#0040a1] focus:ring-4 focus:ring-[#0040a1]/15 focus:outline-none text-[15px] shadow-sm"
-              placeholder={t('search.placeholder')}
-              value={searchText}
-              onChange={e => setSearchText(e.target.value)}
-            />
-            <button
-              type="submit"
-              disabled={loading}
-              className="absolute right-2 top-2 bottom-2 w-[40px] bg-[#0040a1] text-white rounded-xl flex items-center justify-center hover:bg-[#003080] transition-all active:scale-95"
-            >
-              <span className="material-symbols-outlined text-[20px]">search</span>
-            </button>
-          </form>
-
-          {/* Fila 2: Cobertura Bogotá + localidades + orden + filtros + vista */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* 1. Ciudad de cobertura fija */}
-            <div className="relative flex-1 min-w-[160px] max-w-[210px]">
-              <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[#0040a1] text-[17px] pointer-events-none">
-                location_city
-              </span>
-              <div className="w-full h-[38px] pl-8 pr-3 rounded-xl border border-[#c3c6d6] bg-[#f3f3f6] text-[#424654] text-[13px] font-semibold flex items-center">
-                {BOGOTA_CITY}
-              </div>
+          {/* Fila 1: Buscador + tabs móvil */}
+          <div className="flex items-center gap-2 mb-3">
+            {/* Tabs cuidadores/enfermeros — solo en móvil */}
+            <div className="flex sm:hidden bg-[#f3f3f6] rounded-xl p-0.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => onTabChange('caregivers')}
+                className={`h-[36px] px-3 rounded-lg text-[11px] font-bold transition-all ${activeTab === 'caregivers' ? 'bg-white text-[#0040a1] shadow-sm' : 'text-[#737785]'}`}
+              >
+                <span className="material-symbols-outlined text-[18px]">person</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onTabChange('nurses')}
+                className={`h-[36px] px-3 rounded-lg text-[11px] font-bold transition-all ${activeTab === 'nurses' ? 'bg-white text-[#0040a1] shadow-sm' : 'text-[#737785]'}`}
+              >
+                <span className="material-symbols-outlined text-[18px]">medical_services</span>
+              </button>
             </div>
 
-            {/* 2. Selector Dinámico de Localidad / Comuna (según la Ciudad seleccionada) */}
-            <div className="relative flex-1 min-w-[170px] max-w-[230px]">
-              <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[#0040a1]/70 text-[17px] pointer-events-none">
+            <form onSubmit={buscar} className="relative flex-1">
+              <input
+                className="w-full h-[44px] pl-4 pr-[50px] rounded-2xl border border-[#c3c6d6] bg-white
+                                focus:border-[#0040a1] focus:ring-4 focus:ring-[#0040a1]/15 focus:outline-none text-[14px] shadow-sm"
+                placeholder={t('search.placeholder')}
+                value={searchText}
+                onChange={e => setSearchText(e.target.value)}
+              />
+              <button
+                type="submit"
+                disabled={loading}
+                className="absolute right-2 top-1.5 bottom-1.5 w-[36px] bg-[#0040a1] text-white rounded-xl flex items-center justify-center hover:bg-[#003080] transition-all active:scale-95"
+              >
+                <span className="material-symbols-outlined text-[18px]">search</span>
+              </button>
+            </form>
+          </div>
+
+          {/* Fila 2: Localidad + orden + filtros + vista — scroll horizontal en móvil */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+            {/* Localidad */}
+            <div className="relative shrink-0 w-[150px] sm:flex-1 sm:min-w-[150px] sm:max-w-[220px]">
+              <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-[#0040a1]/70 text-[16px] pointer-events-none">
                 pin_drop
               </span>
               <select
-                className="w-full h-[38px] pl-8 pr-7 rounded-xl border border-[#c3c6d6] bg-white appearance-none focus:border-[#0040a1] focus:outline-none text-[13px] font-medium cursor-pointer disabled:bg-[#f3f3f6] disabled:text-[#737785]"
+                className="w-full h-[36px] pl-7 pr-6 rounded-xl border border-[#c3c6d6] bg-white appearance-none focus:border-[#0040a1] focus:outline-none text-[12px] font-medium cursor-pointer"
                 value={selectedLocalidad}
-                onChange={e => {
-                  setSelectedLocalidad(e.target.value);
-                  setSelectedFamilyChip(null);
-                }}
+                onChange={e => { setSelectedLocalidad(e.target.value); setSelectedFamilyChip(null); }}
               >
-                <option value="">
-                  {t('geo.allLocalities')}
-                </option>
+                <option value="">{t('geo.allLocalities')}</option>
                 {availableLocalidades.map(l => (
-                  <option key={l} value={l}>
-                    {l}
-                  </option>
+                  <option key={l} value={l}>{l}</option>
                 ))}
               </select>
-              <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[#737785] text-[17px]">
-                expand_more
-              </span>
+              <span className="material-symbols-outlined absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-[#737785] text-[15px]">expand_more</span>
             </div>
 
-            {/* 3. Ordenar por */}
-            <div className="relative min-w-[140px] max-w-[170px]">
-              <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[#0040a1]/60 text-[17px] pointer-events-none">
-                sort
-              </span>
+            {/* Ordenar por */}
+            <div className="relative shrink-0 w-[120px] sm:min-w-[130px] sm:max-w-[160px]">
+              <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-[#0040a1]/60 text-[16px] pointer-events-none">sort</span>
               <select
-                className="w-full h-[38px] pl-8 pr-7 rounded-xl border border-[#c3c6d6] bg-white appearance-none focus:border-[#0040a1] focus:outline-none text-[13px] cursor-pointer"
+                className="w-full h-[36px] pl-7 pr-6 rounded-xl border border-[#c3c6d6] bg-white appearance-none focus:border-[#0040a1] focus:outline-none text-[12px] cursor-pointer"
                 value={filters.sortBy}
                 onChange={e => setFilters(f => ({ ...f, sortBy: e.target.value }))}
               >
@@ -476,62 +469,40 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
                 <option value="price_desc">{t('search.sortPriceDesc')}</option>
                 <option value="exp">{t('search.sortExp')}</option>
               </select>
-              <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[#737785] text-[17px]">
-                expand_more
-              </span>
+              <span className="material-symbols-outlined absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-[#737785] text-[15px]">expand_more</span>
             </div>
 
-            {/* 4. Botón Filtros Avanzados */}
+            {/* Filtros avanzados */}
             <button
               onClick={() => setShowFilters(v => !v)}
-              className={`h-[38px] px-3.5 rounded-xl font-semibold text-[13px] flex items-center gap-1.5 transition-all border shrink-0
-                ${
-                  showFilters
-                    ? 'bg-[#0040a1] text-white border-[#0040a1]'
-                    : 'bg-white text-[#424654] border-[#c3c6d6] hover:border-[#0040a1]/40'
-                }`}
+              className={`h-[36px] px-3 rounded-xl font-semibold text-[12px] flex items-center gap-1 transition-all border shrink-0 ${
+                showFilters ? 'bg-[#0040a1] text-white border-[#0040a1]' : 'bg-white text-[#424654] border-[#c3c6d6] hover:border-[#0040a1]/40'
+              }`}
             >
-              <span className="material-symbols-outlined text-[17px]">tune</span>
-              {t('search.filters')}
+              <span className="material-symbols-outlined text-[16px]">tune</span>
+              <span className="hidden sm:inline">{t('search.filters')}</span>
               {activeFilterCount > 0 && (
-                <span
-                  className={`text-[11px] font-bold w-4 h-4 rounded-full flex items-center justify-center
-                  ${showFilters ? 'bg-white text-[#0040a1]' : 'bg-[#0040a1] text-white'}`}
-                >
+                <span className={`text-[11px] font-bold w-4 h-4 rounded-full flex items-center justify-center ${showFilters ? 'bg-white text-[#0040a1]' : 'bg-[#0040a1] text-white'}`}>
                   {activeFilterCount}
                 </span>
               )}
             </button>
 
-            {/* 5. Switcher Vista Lista vs Mapa */}
+            {/* Vista lista/mapa — siempre al final */}
             <div className="flex bg-[#f3f3f6] p-0.5 rounded-xl border border-[#c3c6d6]/60 shrink-0 ml-auto">
-              <button
-                type="button"
-                onClick={() => setViewMode('list')}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-all ${
-                  viewMode === 'list'
-                    ? 'bg-white text-[#0040a1] shadow-sm font-bold'
-                    : 'text-[#424654] hover:text-[#0040a1]'
-                }`}
+              <button type="button" onClick={() => setViewMode('list')}
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${viewMode === 'list' ? 'bg-white text-[#0040a1] shadow-sm font-bold' : 'text-[#424654] hover:text-[#0040a1]'}`}
               >
-                <span className="material-symbols-outlined text-[16px]">grid_view</span>
-                {t('geo.viewList')}
+                <span className="material-symbols-outlined text-[15px]">grid_view</span>
+                <span className="hidden sm:inline">{t('geo.viewList')}</span>
               </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('map')}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-all ${
-                  viewMode === 'map'
-                    ? 'bg-[#0040a1] text-white shadow-sm font-bold'
-                    : 'text-[#424654] hover:text-[#0040a1]'
-                }`}
+              <button type="button" onClick={() => setViewMode('map')}
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${viewMode === 'map' ? 'bg-[#0040a1] text-white shadow-sm font-bold' : 'text-[#424654] hover:text-[#0040a1]'}`}
               >
-                <span className="material-symbols-outlined text-[16px]">map</span>
-                {t('geo.viewMap')}
+                <span className="material-symbols-outlined text-[15px]">map</span>
+                <span className="hidden sm:inline">{t('geo.viewMap')}</span>
               </button>
             </div>
-          </div>
-
           {/* Panel de filtros expandible */}
           {showFilters && (
             <div className="mt-3 p-4 bg-[#f3f3f6] rounded-2xl border border-[#c3c6d6]/40">
@@ -725,7 +696,7 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
       )}
 
       {/* ── Contenido Principal (Lista / Mapa / Mis Solicitudes) ── */}
-      <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-[#f3f3f6]/50">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-6 md:p-8 bg-[#f3f3f6]/50">
         {loading && activeTab !== 'my-requests' && (
           <div className="flex flex-col items-center py-16 text-[#424654]">
             <Spinner />
@@ -1025,7 +996,7 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
                 )}
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-5">
                 {activeTab === 'caregivers'
                   ? currentList.map((cg, i) => (
                       <CaregiverCard

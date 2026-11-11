@@ -293,3 +293,7 @@
   .landing #servicios, .landing #quienes-somos { padding-top: 5rem; padding-bottom: 5rem; }
   .landing #quienes-somos > div:first-child > div:first-child img { height: 21rem; }
 }
+
+/* Ocultar scrollbar manteniendo funcionalidad de scroll */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

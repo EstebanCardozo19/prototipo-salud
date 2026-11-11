@@ -91,7 +91,7 @@ export default function ProfessionalCard({
         onClick={() => setShowDetail(true)}
         onKeyDown={e => e.key === 'Enter' && setShowDetail(true)}
         className="professional-card animate-fade-in-up bg-white border border-[#c3c6d6]/50
-                   hover:border-[#0040a1]/50 hover:shadow-xl hover:scale-[1.02] rounded-2xl p-5
+                   hover:border-[#0040a1]/50 hover:shadow-xl hover:scale-[1.02] rounded-2xl p-4 sm:p-5
                    shadow-sm transition-all duration-300 flex flex-col gap-3 relative
                    overflow-hidden group cursor-pointer outline-none
                    focus-visible:ring-2 focus-visible:ring-[#0040a1]/40"
@@ -104,14 +104,14 @@ export default function ProfessionalCard({
         <div className="flex items-start gap-4">
           {photoUrl ? (
             <img src={getAssetUrl(photoUrl)} alt={name}
-              className="w-16 h-16 rounded-2xl object-cover shrink-0 border border-[#c3c6d6]/30 shadow-sm" />
+              className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl object-cover shrink-0 border border-[#c3c6d6]/30 shadow-sm" />
           ) : (
-            <div className="w-16 h-16 rounded-2xl bg-[#dae2ff] text-[#0040a1] flex items-center justify-center text-xl font-bold shrink-0 border border-[#c3c6d6]/30">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-[#dae2ff] text-[#0040a1] flex items-center justify-center text-lg sm:text-xl font-bold shrink-0 border border-[#c3c6d6]/30">
               {initials}
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <h2 className="text-[17px] leading-tight font-bold text-[#1a1c1e] group-hover:text-[#0040a1] transition-colors truncate">
+            <h2 className="text-[15px] sm:text-[17px] leading-tight font-bold text-[#1a1c1e] group-hover:text-[#0040a1] transition-colors line-clamp-2">
               {name}
             </h2>
             <div className="flex flex-wrap items-center gap-2 mt-1.5">
@@ -140,7 +140,7 @@ export default function ProfessionalCard({
         </div>
 
         {/* ── Precio ── */}
-        <div className="text-[22px] font-bold text-[#0040a1] flex items-baseline gap-1">
+        <div className="text-[18px] sm:text-[22px] font-bold text-[#0040a1] flex items-baseline gap-1">
           ${Number(price || 0).toLocaleString('es-CO')}
           <span className="text-[13px] font-normal text-[#424654]">{priceUnit}</span>
         </div>
@@ -244,20 +244,22 @@ export default function ProfessionalCard({
           <button
             type="button"
             onClick={() => setShowDetail(true)}
-            className="flex-1 h-[40px] border border-[#0040a1] text-[#0040a1] rounded-xl font-semibold text-[13px] hover:bg-[#dae2ff] transition-all flex items-center justify-center gap-1.5"
+            className="flex-1 h-[38px] sm:h-[40px] border border-[#0040a1] text-[#0040a1] rounded-xl font-semibold text-[12px] sm:text-[13px] hover:bg-[#dae2ff] transition-all flex items-center justify-center gap-1"
           >
-            <span className="material-symbols-outlined text-[16px]">info</span>
-            Ver perfil
+            <span className="material-symbols-outlined text-[15px]">info</span>
+            <span className="hidden sm:inline">Ver perfil</span>
+            <span className="sm:hidden">Perfil</span>
           </button>
           <button
             type="button"
             onClick={() => token ? setShowBooking(true) : null}
-            className="flex-1 h-[40px] bg-[#0040a1] text-white rounded-xl font-bold text-[13px] hover:bg-[#003080] transition-all flex items-center justify-center gap-1.5 shadow-md disabled:opacity-50"
+            className="flex-1 h-[38px] sm:h-[40px] bg-[#0040a1] text-white rounded-xl font-bold text-[12px] sm:text-[13px] hover:bg-[#003080] transition-all flex items-center justify-center gap-1 shadow-md disabled:opacity-50"
             disabled={!token}
             title={token ? t('professional.requestService') : t('professional.loginToRequest')}
           >
-            <span className="material-symbols-outlined text-[16px]">calendar_add_on</span>
-            {t('professional.requestService')}
+            <span className="material-symbols-outlined text-[15px]">calendar_add_on</span>
+            <span className="hidden sm:inline">{t('professional.requestService')}</span>
+            <span className="sm:hidden">Solicitar</span>
           </button>
         </div>
       </div>
