@@ -179,18 +179,18 @@ export default function AuthScreen({ onLogin, initialTab = 'login', onBack }) {
   const labelCls = `${LABEL_CLASS} text-[13px]`;
 
   return (
-    <div className="min-h-screen bg-[#f3f3f6] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#f3f3f6] flex items-center justify-center p-3 sm:p-4">
       <div className="w-full max-w-[420px] bg-white rounded-2xl shadow-lg overflow-hidden">
-        <div className="relative bg-[#0040a1] px-8 py-7 text-white text-center">
+        <div className="relative bg-[#0040a1] px-5 sm:px-8 py-5 sm:py-7 text-white text-center">
           {onBack && <button type="button" onClick={onBack} aria-label="Volver al inicio" className="absolute left-4 top-4 rounded-full p-1 hover:bg-white/10"><span className="material-symbols-outlined">arrow_back</span></button>}
-          <span className="material-symbols-outlined text-[40px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+          <span className="material-symbols-outlined text-[36px] sm:text-[40px]" style={{ fontVariationSettings: "'FILL' 1" }}>
             favorite
           </span>
-          <h1 className="text-[22px] font-bold mt-2">{t('auth.title')}</h1>
-          <p className="text-white/70 text-[13px] mt-1">{t('auth.subtitle')}</p>
+          <h1 className="text-[20px] sm:text-[22px] font-bold mt-2">{t('auth.title')}</h1>
+          <p className="text-white/70 text-[12px] sm:text-[13px] mt-1">{t('auth.subtitle')}</p>
         </div>
 
-        <div className="p-8">
+        <div className="p-5 sm:p-8">
           {/* Selector de idioma */}
           <div className="flex justify-end mb-4">
             <button

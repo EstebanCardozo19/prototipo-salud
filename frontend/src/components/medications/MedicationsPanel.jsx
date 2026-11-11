@@ -314,10 +314,9 @@ export default function MedicationsPanel({ record, token, user, onBack }) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Barra unificada: volver + paciente + alertas + filtros + acciones */}
-      <div className="px-4 py-2.5 border-b border-[#c3c6d6]/30 bg-white shrink-0 flex flex-wrap items-center gap-x-4 gap-y-2">
-
-        {/* Izquierda: volver + nombre + alertas */}
+      {/* Barra top: nombre + alertas */}
+      <div className="px-4 py-2.5 border-b border-[#c3c6d6]/30 bg-white shrink-0 flex items-center gap-3 flex-wrap">
+        {/* Nombre + alertas */}
         <div className="flex items-center gap-2 min-w-0 flex-1">
           {onBack && (
             <button onClick={onBack} className="text-[#0040a1] hover:underline flex items-center gap-1 text-[13px] font-semibold shrink-0">
@@ -345,13 +344,13 @@ export default function MedicationsPanel({ record, token, user, onBack }) {
         </div>
 
         {/* Derecha: filtros + botones de acción */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Filtros */}
-          <div className="flex gap-1">
+        <div className="flex items-center gap-2 flex-wrap ml-auto">
+          {/* Filtros con scroll */}
+          <div className="flex gap-1 overflow-x-auto no-scrollbar">
             {[
-              { key: 'all',       label: 'Todos'     },
-              { key: 'active',    label: 'Activos'   },
-              { key: 'proposed',  label: 'Pendientes'},
+              { key: 'all',       label: 'Todos'      },
+              { key: 'active',    label: 'Activos'    },
+              { key: 'proposed',  label: 'Pendientes' },
               { key: 'suspended', label: 'Suspendidos'},
             ].map(f => (
               <button
@@ -418,7 +417,7 @@ export default function MedicationsPanel({ record, token, user, onBack }) {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
             {filtered.map(med => (
               <MedicationCard
                 key={med.id}

@@ -320,10 +320,10 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
   ];
 
   return (
-    <div className="flex h-full bg-[#f3f3f6] overflow-hidden">
+    <div className="flex flex-col md:flex-row h-full bg-[#f3f3f6] overflow-hidden">
 
-      {/* ── Sidebar ─────────────────────────────────────────── */}
-      <div className="w-[220px] shrink-0 bg-white border-r border-[#c3c6d6]/40 flex flex-col py-8 px-4 gap-6">
+      {/* ── Sidebar — solo en md+ ─────────────────────────── */}
+      <div className="hidden md:flex w-[220px] shrink-0 bg-white border-r border-[#c3c6d6]/40 flex-col py-8 px-4 gap-6">
         {/* Avatar y nombre */}
         <div className="flex flex-col items-center gap-2 pb-6 border-b border-[#c3c6d6]/40">
           <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
@@ -339,21 +339,12 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
               </div>
             )}
             <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-              {uploadingPhoto
-                ? <Spinner sm />
-                : <span className="material-symbols-outlined text-white text-[20px]">photo_camera</span>}
+              {uploadingPhoto ? <Spinner sm /> : <span className="material-symbols-outlined text-white text-[20px]">photo_camera</span>}
             </div>
           </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            className="hidden"
-            onChange={handlePhotoChange}
-          />
+          <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handlePhotoChange} />
           <p className="font-bold text-[15px] text-[#1a1c1e] text-center leading-tight">{user.full_name}</p>
           <p className="text-[12px] text-[#737785]">{user.email}</p>
-          {/* Chip de ciudad preferida en sidebar */}
           {user.role === 'family' && prefCity && (
             <div className="flex items-center gap-1 text-[11px] bg-[#dae2ff] text-[#0040a1] px-2.5 py-0.5 rounded-full font-semibold mt-0.5">
               <span className="material-symbols-outlined text-[12px]">location_on</span>
@@ -361,17 +352,11 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
             </div>
           )}
         </div>
-
-        {/* Nav items */}
         <nav className="flex flex-col gap-1">
           {sideNavItems.map(item => (
-            <button
-              key={item.key}
-              onClick={() => setActiveTab(item.key)}
+            <button key={item.key} onClick={() => setActiveTab(item.key)}
               className={`flex items-center gap-3 px-4 h-[42px] rounded-xl text-[14px] font-semibold transition-all text-left ${
-                activeTab === item.key
-                  ? 'bg-[#f3f3f6] text-[#0040a1]'
-                  : 'text-[#424654] hover:bg-[#f3f3f6] hover:text-[#0040a1]'
+                activeTab === item.key ? 'bg-[#f3f3f6] text-[#0040a1]' : 'text-[#424654] hover:bg-[#f3f3f6] hover:text-[#0040a1]'
               }`}
             >
               <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
@@ -379,13 +364,43 @@ export default function AccountPanel({ user, token, onUserUpdate }) {
             </button>
           ))}
         </nav>
+      </div>
 
+      {/* ── Tabs horizontales — solo en móvil ──────────────── */}
+      <div className="md:hidden bg-white border-b border-[#c3c6d6]/40 shrink-0">
+        {/* Avatar compacto */}
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-[#c3c6d6]/20">
+          <div className="relative cursor-pointer shrink-0" onClick={() => fileInputRef.current?.click()}>
+            {photoUrl
+              ? <img src={getAssetUrl(photoUrl)} alt={user.full_name} className="w-10 h-10 rounded-full object-cover border-2 border-[#0040a1]/20" />
+              : <div className="w-10 h-10 rounded-full bg-[#0040a1] text-white flex items-center justify-center font-bold">{initials}</div>
+            }
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-[14px] text-[#1a1c1e] truncate">{user.full_name}</p>
+            <p className="text-[11px] text-[#737785] truncate">{user.email}</p>
+          </div>
+          {uploadingPhoto && <Spinner sm />}
+        </div>
+        {/* Tabs con scroll horizontal */}
+        <div className="flex overflow-x-auto no-scrollbar px-2 py-2 gap-1">
+          {sideNavItems.map(item => (
+            <button key={item.key} onClick={() => setActiveTab(item.key)}
+              className={`flex items-center gap-1.5 px-3 h-[34px] rounded-xl text-[12px] font-semibold transition-all shrink-0 ${
+                activeTab === item.key ? 'bg-[#0040a1] text-white' : 'bg-[#f3f3f6] text-[#424654] hover:bg-[#dae2ff] hover:text-[#0040a1]'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[16px]">{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ── Contenido principal ──────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto p-8">
-        <h2 className="text-[26px] font-bold text-[#0040a1] mb-8 flex items-center gap-3">
-          <span className="material-symbols-outlined text-[28px]">manage_accounts</span>
+      <div className="flex-1 overflow-y-auto p-4 sm:p-8">
+        <h2 className="text-[20px] sm:text-[26px] font-bold text-[#0040a1] mb-5 sm:mb-8 flex items-center gap-3">
+          <span className="material-symbols-outlined text-[22px] sm:text-[28px]">manage_accounts</span>
           {t('account.title')}
         </h2>
 

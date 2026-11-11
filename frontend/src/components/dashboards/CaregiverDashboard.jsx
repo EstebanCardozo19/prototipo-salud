@@ -171,7 +171,7 @@ export default function CaregiverDashboard({ user, token, initialTab = 'profile'
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* ─── Tabs ── */}
-      {showTabs && <div className="flex border-b border-[#c3c6d6]/40 bg-white shrink-0 px-6 pt-6 gap-1">
+      {showTabs && <div className="flex border-b border-[#c3c6d6]/40 bg-white shrink-0 px-3 sm:px-6 pt-4 sm:pt-6 gap-1">
         {[
           { id: 'profile',  icon: 'account_circle', label: 'Mi Perfil' },
           { id: 'services', icon: 'calendar_month',  label: 'Mis Servicios' },
@@ -179,17 +179,17 @@ export default function CaregiverDashboard({ user, token, initialTab = 'profile'
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-[13px] font-semibold border-b-2 transition-all whitespace-nowrap ${
+            className={`flex items-center gap-1.5 px-3 sm:px-4 py-2.5 text-[12px] sm:text-[13px] font-semibold border-b-2 transition-all whitespace-nowrap ${
               activeTab === tab.id ? 'border-[#0040a1] text-[#0040a1]' : 'border-transparent text-[#737785] hover:text-[#424654]'
             }`}
           >
-            <span className="material-symbols-outlined text-[17px]">{tab.icon}</span>
+            <span className="material-symbols-outlined text-[16px] sm:text-[17px]">{tab.icon}</span>
             {tab.label}
           </button>
         ))}
       </div>}
 
-      <div className="flex-1 overflow-y-auto p-6 sm:p-8">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8">
 
         {/* ══ TAB: PERFIL ══ */}
         {activeTab === 'profile' && (
