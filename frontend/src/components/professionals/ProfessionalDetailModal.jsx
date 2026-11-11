@@ -181,7 +181,7 @@ export default function ProfessionalDetailModal({ professional, token, reviews =
     <>
       {/* Overlay a pantalla completa, centrado con padding que respeta la TopBar */}
       <div
-        className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+        className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4"
         style={{ background: 'rgba(10,15,30,0.70)', backdropFilter: 'blur(8px)' }}
         onClick={e => { if (e.target === e.currentTarget) onClose(); }}
       >

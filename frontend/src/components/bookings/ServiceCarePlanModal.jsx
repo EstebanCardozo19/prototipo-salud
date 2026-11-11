@@ -122,8 +122,8 @@ export default function ServiceCarePlanModal({ booking, user, token, onClose }) 
     date ? date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : null;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#071426]/60 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#071426]/60 p-2 sm:p-4 backdrop-blur-sm">
+      <div className="flex max-h-[95vh] sm:max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
 
         {/* Header */}
         <header className="flex items-start justify-between border-b border-[#dce3eb] px-6 py-4 shrink-0">
