@@ -19,6 +19,8 @@ export default function NotificationCenter({ token, role, onNavigate, onOpenMess
   const [isOpen, setIsOpen] = useState(false);
   const [pushMessage, setPushMessage] = useState('');
   const containerRef = useRef(null);
+  const buttonRef = useRef(null);
+  const [panelPos, setPanelPos] = useState({ top: 0, right: 0 });
 
   const loadNotifications = async () => {
     try {
@@ -92,7 +94,17 @@ export default function NotificationCenter({ token, role, onNavigate, onOpenMess
   return (
     <div ref={containerRef} className="relative flex items-center gap-0.5">
       {/* Campana */}
-      <button type="button" onClick={() => setIsOpen(open => !open)} title="Notificaciones" aria-label="Notificaciones" aria-expanded={isOpen} className="relative p-1.5 hover:bg-white/10 rounded-full transition-colors shrink-0">
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => {
+          if (!isOpen && buttonRef.current) {
+            const rect = buttonRef.current.getBoundingClientRect();
+            setPanelPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
+          }
+          setIsOpen(open => !open);
+        }}
+        title="Notificaciones" aria-label="Notificaciones" aria-expanded={isOpen} className="relative p-1.5 hover:bg-white/10 rounded-full transition-colors shrink-0">
         <span className="material-symbols-outlined text-[22px]">notifications</span>
         {unreadCount > 0 && <span className="absolute -right-0.5 -top-0.5 min-w-4 h-4 px-1 flex items-center justify-center rounded-full bg-[#ffcf4d] text-[10px] leading-none font-bold text-[#1a1c1e]">{unreadCount > 9 ? '9+' : unreadCount}</span>}
       </button>
@@ -104,20 +116,20 @@ export default function NotificationCenter({ token, role, onNavigate, onOpenMess
 
       {isOpen && (
         <>
-          {/* Backdrop solo en móvil */}
+          {/* Backdrop — oscuro en móvil, transparente en desktop para cerrar al click fuera */}
           <div
-            className="md:hidden fixed inset-0 z-[98] bg-black/30"
+            className="fixed inset-0 z-[9998] bg-black/30 md:bg-transparent"
             onClick={() => setIsOpen(false)}
           />
 
-          {/* Panel — bottom sheet en móvil, dropdown en desktop */}
-          <section className={[
-            'z-[99] overflow-hidden bg-white text-[#1a1c1e] shadow-2xl border border-[#dae2ff]',
-            // Desktop: dropdown anclado arriba-derecha del botón
-            'md:absolute md:right-0 md:top-[calc(100%+12px)] md:rounded-2xl md:w-[380px]',
-            // Móvil: bottom sheet fijo, ocupa todo el ancho
-            'fixed bottom-0 left-0 right-0 rounded-t-2xl md:rounded-2xl',
-          ].join(' ')}>
+          {/* Panel — siempre fixed para escapar del overflow-hidden del layout padre */}
+          <section
+            style={
+              window.innerWidth >= 768
+                ? { position: 'fixed', top: panelPos.top, right: panelPos.right, width: 380 }
+                : { position: 'fixed', bottom: 0, left: 0, right: 0 }
+            }
+            className="z-[9999] overflow-hidden bg-white text-[#1a1c1e] shadow-2xl border border-[#dae2ff] flex flex-col rounded-t-2xl md:rounded-2xl">
 
             {/* Handle visible solo en móvil */}
             <div className="md:hidden flex justify-center pt-2.5 pb-1">

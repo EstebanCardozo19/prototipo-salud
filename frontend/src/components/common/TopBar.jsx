@@ -27,7 +27,7 @@ export default function TopBar({ user, token, activeNav, onNav, onLogout, onOpen
         ...(['family', 'caregiver', 'nurse'].includes(user.role)
           ? [{ key: 'medications', label: 'Medicamentos' }]
           : []),
-        { key: 'my-requests', label: t('nav.myRequests') },
+        { key: 'my-requests', label: ['caregiver', 'nurse'].includes(user.role) ? 'Mis servicios' : t('nav.myRequests') },
         { key: 'account', label: t('nav.myAccount') },
       ];
 
