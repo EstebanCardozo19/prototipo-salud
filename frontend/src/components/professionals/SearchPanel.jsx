@@ -503,6 +503,7 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
                 <span className="hidden sm:inline">{t('geo.viewMap')}</span>
               </button>
             </div>
+          </div>
           {/* Panel de filtros expandible */}
           {showFilters && (
             <div className="mt-3 p-4 bg-[#f3f3f6] rounded-2xl border border-[#c3c6d6]/40">
