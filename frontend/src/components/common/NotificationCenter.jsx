@@ -88,20 +88,103 @@ export default function NotificationCenter({ token, role, onNavigate, onOpenMess
 
   const unreadCount = notifications.filter(item => !item.is_read).length;
   const unreadMessages = notifications.filter(item => item.type === 'message' && !item.is_read).length;
-  return <div ref={containerRef} className="relative flex items-center gap-0.5">
-    <button type="button" onClick={() => setIsOpen(open => !open)} title="Notificaciones" aria-label="Notificaciones" aria-expanded={isOpen} className="relative p-1.5 hover:bg-white/10 rounded-full transition-colors shrink-0">
-      <span className="material-symbols-outlined text-[22px]">notifications</span>
-      {unreadCount > 0 && <span className="absolute -right-0.5 -top-0.5 min-w-4 h-4 px-1 flex items-center justify-center rounded-full bg-[#ffcf4d] text-[10px] leading-none font-bold text-[#1a1c1e]">{unreadCount > 9 ? '9+' : unreadCount}</span>}
-    </button>
-    <button type="button" onClick={() => onOpenMessages?.()} title="Mensajes" aria-label="Mensajes" className="relative rounded-full p-1.5 transition-colors hover:bg-white/10 shrink-0">
-      <span className="material-symbols-outlined text-[22px]">forum</span>
-      {unreadMessages > 0 && <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#8df1e3] px-1 text-[10px] font-bold leading-none text-[#003070]">{unreadMessages > 9 ? '9+' : unreadMessages}</span>}
-    </button>
-    {isOpen && <section className="absolute right-0 top-[calc(100%+12px)] z-[100] w-[min(380px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-[#dae2ff] bg-white text-[#1a1c1e] shadow-2xl">
-      <header className="flex items-center justify-between border-b border-[#e7eaf3] px-4 py-3"><div><h2 className="text-[15px] font-bold">Notificaciones</h2><p className="text-[11px] text-[#737785]">{unreadCount ? `${unreadCount} sin leer` : 'Estás al día'}</p></div>{unreadCount > 0 && <button type="button" onClick={markAllRead} className="text-[12px] font-semibold text-[#0040a1] hover:underline">Marcar todo leído</button>}</header>
-      {['caregiver', 'nurse'].includes(role) && <div className="border-b border-[#e7eaf3] px-4 py-2"><button type="button" onClick={enablePush} className="text-[12px] font-semibold text-[#0040a1] hover:underline">Activar recordatorios push</button>{pushMessage && <p className="mt-1 text-[11px] text-[#5d6170]">{pushMessage}</p>}</div>}
-      <div className="max-h-[420px] overflow-y-auto">
-        {!notifications.length ? <div className="px-6 py-10 text-center text-[#737785]"><span className="material-symbols-outlined text-[34px] text-[#c3c6d6]">notifications_off</span><p className="mt-2 text-[13px]">No tienes notificaciones.</p></div> : notifications.map(notification => <button type="button" key={notification.id} onClick={() => markRead(notification)} className={`flex w-full gap-3 border-b border-[#f0f1f6] px-4 py-3 text-left transition-colors hover:bg-[#f7f9ff] ${notification.is_read ? '' : 'bg-[#eef4ff]'}`}><span className={`material-symbols-outlined mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[17px] ${notification.is_read ? 'bg-[#f1f2f6] text-[#737785]' : 'bg-[#dae2ff] text-[#0040a1]'}`}>{TYPE_ICON[notification.type] || 'notifications'}</span><span className="min-w-0 flex-1"><span className="flex items-center gap-2"><strong className="truncate text-[13px]">{notification.title}</strong>{!notification.is_read && <i className="h-2 w-2 shrink-0 rounded-full bg-[#0040a1]" />}</span><span className="mt-0.5 block text-[12px] leading-4 text-[#5d6170]">{notification.body}</span><time className="mt-1 block text-[10px] text-[#8a8e9d]">{formatDate(notification.created_at)}</time></span></button>)}</div>
-    </section>}
-  </div>;
+
+  return (
+    <div ref={containerRef} className="relative flex items-center gap-0.5">
+      {/* Campana */}
+      <button type="button" onClick={() => setIsOpen(open => !open)} title="Notificaciones" aria-label="Notificaciones" aria-expanded={isOpen} className="relative p-1.5 hover:bg-white/10 rounded-full transition-colors shrink-0">
+        <span className="material-symbols-outlined text-[22px]">notifications</span>
+        {unreadCount > 0 && <span className="absolute -right-0.5 -top-0.5 min-w-4 h-4 px-1 flex items-center justify-center rounded-full bg-[#ffcf4d] text-[10px] leading-none font-bold text-[#1a1c1e]">{unreadCount > 9 ? '9+' : unreadCount}</span>}
+      </button>
+      {/* Mensajes */}
+      <button type="button" onClick={() => onOpenMessages?.()} title="Mensajes" aria-label="Mensajes" className="relative rounded-full p-1.5 transition-colors hover:bg-white/10 shrink-0">
+        <span className="material-symbols-outlined text-[22px]">forum</span>
+        {unreadMessages > 0 && <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#8df1e3] px-1 text-[10px] font-bold leading-none text-[#003070]">{unreadMessages > 9 ? '9+' : unreadMessages}</span>}
+      </button>
+
+      {isOpen && (
+        <>
+          {/* Backdrop solo en móvil */}
+          <div
+            className="md:hidden fixed inset-0 z-[98] bg-black/30"
+            onClick={() => setIsOpen(false)}
+          />
+
+          {/* Panel — bottom sheet en móvil, dropdown en desktop */}
+          <section className={[
+            'z-[99] overflow-hidden bg-white text-[#1a1c1e] shadow-2xl border border-[#dae2ff]',
+            // Desktop: dropdown anclado arriba-derecha del botón
+            'md:absolute md:right-0 md:top-[calc(100%+12px)] md:rounded-2xl md:w-[380px]',
+            // Móvil: bottom sheet fijo, ocupa todo el ancho
+            'fixed bottom-0 left-0 right-0 rounded-t-2xl md:rounded-2xl',
+          ].join(' ')}>
+
+            {/* Handle visible solo en móvil */}
+            <div className="md:hidden flex justify-center pt-2.5 pb-1">
+              <div className="w-10 h-1 rounded-full bg-[#c3c6d6]" />
+            </div>
+
+            <header className="flex items-center justify-between border-b border-[#e7eaf3] px-4 py-3">
+              <div>
+                <h2 className="text-[15px] font-bold">Notificaciones</h2>
+                <p className="text-[11px] text-[#737785]">{unreadCount ? `${unreadCount} sin leer` : 'Estás al día'}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                {unreadCount > 0 && (
+                  <button type="button" onClick={markAllRead} className="text-[12px] font-semibold text-[#0040a1] hover:underline">
+                    Marcar todo leído
+                  </button>
+                )}
+                {/* Cerrar visible solo en móvil */}
+                <button type="button" onClick={() => setIsOpen(false)} className="md:hidden p-1 rounded-full hover:bg-[#f3f3f6]">
+                  <span className="material-symbols-outlined text-[20px] text-[#737785]">close</span>
+                </button>
+              </div>
+            </header>
+
+            {['caregiver', 'nurse'].includes(role) && (
+              <div className="border-b border-[#e7eaf3] px-4 py-2">
+                <button type="button" onClick={enablePush} className="text-[12px] font-semibold text-[#0040a1] hover:underline">
+                  Activar recordatorios push
+                </button>
+                {pushMessage && <p className="mt-1 text-[11px] text-[#5d6170]">{pushMessage}</p>}
+              </div>
+            )}
+
+            {/* Lista — altura adaptable según dispositivo */}
+            <div className="max-h-[60vh] md:max-h-[420px] overflow-y-auto">
+              {!notifications.length ? (
+                <div className="px-6 py-10 text-center text-[#737785]">
+                  <span className="material-symbols-outlined text-[34px] text-[#c3c6d6]">notifications_off</span>
+                  <p className="mt-2 text-[13px]">No tienes notificaciones.</p>
+                </div>
+              ) : notifications.map(notification => (
+                <button
+                  type="button"
+                  key={notification.id}
+                  onClick={() => markRead(notification)}
+                  className={`flex w-full gap-3 border-b border-[#f0f1f6] px-4 py-3 text-left transition-colors hover:bg-[#f7f9ff] ${notification.is_read ? '' : 'bg-[#eef4ff]'}`}
+                >
+                  <span className={`material-symbols-outlined mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[17px] ${notification.is_read ? 'bg-[#f1f2f6] text-[#737785]' : 'bg-[#dae2ff] text-[#0040a1]'}`}>
+                    {TYPE_ICON[notification.type] || 'notifications'}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-2">
+                      <strong className="truncate text-[13px]">{notification.title}</strong>
+                      {!notification.is_read && <i className="h-2 w-2 shrink-0 rounded-full bg-[#0040a1]" />}
+                    </span>
+                    <span className="mt-0.5 block text-[12px] leading-4 text-[#5d6170]">{notification.body}</span>
+                    <time className="mt-1 block text-[10px] text-[#8a8e9d]">{formatDate(notification.created_at)}</time>
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Spacer para el safe-area en móviles con notch */}
+            <div className="md:hidden h-safe-bottom pb-2" />
+          </section>
+        </>
+      )}
+    </div>
+  );
 }
