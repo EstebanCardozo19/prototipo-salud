@@ -125,7 +125,7 @@ export default function MainScreen({ user, token, onLogout, onUnauthorized, onUs
             <CaregiverDashboard user={user} token={token} initialTab="services" showTabs={false} />
           </div>
           {activeNav !== 'my-requests' && (
-            <div className="w-[320px] shrink-0">
+            <div className="hidden lg:block w-[320px] shrink-0">
               <ProfessionalPanel user={user} token={token} />
             </div>
           )}
@@ -142,7 +142,7 @@ export default function MainScreen({ user, token, onLogout, onUnauthorized, onUs
             <NurseDashboard user={user} token={token} initialTab="services" showTabs={false} />
           </div>
           {activeNav !== 'my-requests' && (
-            <div className="w-[320px] shrink-0">
+            <div className="hidden lg:block w-[320px] shrink-0">
               <ProfessionalPanel user={user} token={token} />
             </div>
           )}

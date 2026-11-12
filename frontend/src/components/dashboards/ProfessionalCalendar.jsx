@@ -62,7 +62,7 @@ export default function ProfessionalCalendar({ token }) {
       </div>
       {loading
         ? <div className="py-20 flex flex-col items-center gap-3"><Spinner /><p className="text-[14px] text-[#737785]">{t('common.loading')}</p></div>
-        : <div className="grid xl:grid-cols-[minmax(0,1fr)_300px] gap-5">
+        : <div className="grid lg:grid-cols-[minmax(0,1fr)_280px] xl:grid-cols-[minmax(0,1fr)_300px] gap-5">
             <CalendarSchedule bookings={calendarItems} statusClasses={STATUS}
               renderLabel={item => item.source === 'appointment' ? item.appointment_type : (item.patient_name || item.family_name || '—')}
               onSelect={setSelected} />

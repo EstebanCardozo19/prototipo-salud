@@ -63,7 +63,7 @@ export default function AvailabilityManager({ token }) {
     } catch (requestError) { setError(requestError.message); }
   };
 
-  return <section className="h-full overflow-y-auto bg-[#f3f3f6]/50 p-6 md:p-8">
+  return <section className="h-full overflow-y-auto bg-[#f3f3f6]/50 p-4 sm:p-6 md:p-8">
     <div className="max-w-5xl mx-auto grid lg:grid-cols-[360px_1fr] gap-6">
       <div className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm p-5 h-fit">
         <p className="text-[12px] font-bold uppercase tracking-[.12em] text-[#006a61]">Perfil profesional</p>

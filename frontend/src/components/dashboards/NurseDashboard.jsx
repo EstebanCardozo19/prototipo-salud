@@ -212,7 +212,7 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
                 )}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                   <div className="lg:col-span-4 flex flex-col gap-6">
-                  <div className="bg-white rounded-lg border border-[#E2E8F0] shadow-sm p-8 flex flex-col h-full">
+                  <div className="bg-white rounded-lg border border-[#E2E8F0] shadow-sm p-4 sm:p-6 lg:p-8 flex flex-col h-full">
                     <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#F1F5F9] text-[#002b6c]">
                       <span className="material-symbols-outlined">badge</span>
                       <h2 className="text-[20px] leading-[28px] font-semibold">Mi Perfil de Enfermería</h2>
@@ -226,7 +226,7 @@ export default function NurseDashboard({ user, token, initialTab = 'profile', sh
                         {ratingCount > 0 && <p className="text-[12px] text-[#434652] mt-1 font-medium">{ratingCount} calificaciones</p>}
                       </div>
                       {ratingCount === 0 && (
-                        <div className="text-right max-w-[140px]">
+                        <div className="text-right max-w-full sm:max-w-[140px]">
                           <p className="text-[12px] text-[#D97706] font-medium">Tu calificación cambiará cuando recibas reseñas por tus servicios.</p>
                         </div>
                       )}

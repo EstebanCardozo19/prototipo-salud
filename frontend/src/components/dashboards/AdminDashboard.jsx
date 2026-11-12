@@ -180,7 +180,7 @@ export default function AdminDashboard({ token }) {
   }
 
   return (
-    <div className="p-8 overflow-y-auto h-full">
+    <div className="p-4 sm:p-6 md:p-8 overflow-y-auto h-full">
       <h2 className="text-[22px] font-bold text-[#0040a1] mb-6 flex items-center gap-3">
         <span className="material-symbols-outlined text-[26px]">admin_panel_settings</span> {t('admin.title')}
       </h2>
@@ -192,6 +192,7 @@ export default function AdminDashboard({ token }) {
             Cédulas familiares pendientes ({pendingFamilies.length})
           </h3>
           <div className="bg-white rounded-2xl border border-[#0040a1]/20 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
             <table className="w-full text-[13px]">
               <thead className="bg-[#0040a1]/5 text-[#0040a1]">
                 <tr>
@@ -250,6 +251,7 @@ export default function AdminDashboard({ token }) {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       )}
@@ -260,6 +262,7 @@ export default function AdminDashboard({ token }) {
             <span className="material-symbols-outlined text-[20px]">pending</span> {t('admin.pendingProfiles')} ({pending.length})
           </h3>
           <div className="bg-white rounded-2xl border border-amber-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
             <table className="w-full text-[13px]">
               <thead className="bg-amber-50 text-amber-800">
                 <tr>
@@ -294,6 +297,7 @@ export default function AdminDashboard({ token }) {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       )}
@@ -327,7 +331,7 @@ export default function AdminDashboard({ token }) {
               id="admin-role-filter"
               value={roleFilter}
               onChange={event => setRoleFilter(event.target.value)}
-              className="h-[42px] min-w-[150px] px-3 rounded-xl border border-[#c3c6d6] bg-white text-[#424654] text-[14px] focus:border-[#0040a1] focus:ring-2 focus:ring-[#0040a1]/15 focus:outline-none"
+              className="h-[42px] w-full sm:w-auto sm:min-w-[150px] px-3 rounded-xl border border-[#c3c6d6] bg-white text-[#424654] text-[14px] focus:border-[#0040a1] focus:ring-2 focus:ring-[#0040a1]/15 focus:outline-none"
             >
               <option value="all">Todos los roles</option>
               {['family', 'caregiver', 'nurse', 'admin'].map(role => (
@@ -339,7 +343,7 @@ export default function AdminDashboard({ token }) {
               id="admin-status-filter"
               value={statusFilter}
               onChange={event => setStatusFilter(event.target.value)}
-              className="h-[42px] min-w-[150px] px-3 rounded-xl border border-[#c3c6d6] bg-white text-[#424654] text-[14px] focus:border-[#0040a1] focus:ring-2 focus:ring-[#0040a1]/15 focus:outline-none"
+              className="h-[42px] w-full sm:w-auto sm:min-w-[150px] px-3 rounded-xl border border-[#c3c6d6] bg-white text-[#424654] text-[14px] focus:border-[#0040a1] focus:ring-2 focus:ring-[#0040a1]/15 focus:outline-none"
             >
               <option value="all">Todos los estados</option>
               <option value="active">Activos</option>
@@ -349,6 +353,7 @@ export default function AdminDashboard({ token }) {
         </div>
       </div>
       <div className="bg-white rounded-2xl border border-[#c3c6d6]/40 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full text-[13px]">
           <thead className="bg-[#f3f3f6] text-[#424654]">
             <tr>
@@ -411,10 +416,11 @@ export default function AdminDashboard({ token }) {
             )}
           </tbody>
         </table>
+        </div>
       </div>
       {selectedProfile && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: 'rgba(10,15,30,0.65)', backdropFilter: 'blur(8px)' }}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
             <div className="flex justify-between gap-4 border-b border-[#e2e8f0] pb-4 mb-5">
               <div><p className="text-[12px] font-bold text-[#0040a1] uppercase">Solicitud de verificación</p><h3 className="text-xl font-bold text-[#1a1c1e]">{selectedProfile.full_name}</h3><p className="text-sm text-[#424654]">{selectedProfile.email} · {selectedProfile.role === 'nurse' ? 'Enfermero/a' : 'Cuidador/a'}</p></div>
               <button onClick={() => { setSelectedProfile(null); releaseDocumentUrls(); }} className="text-[#424654] hover:text-[#1a1c1e]"><span className="material-symbols-outlined">close</span></button>

@@ -107,7 +107,7 @@ export default function FamilyCalendar({ token, onOpenAppointments }) {
               </div>
             </div>
 
-            <div className="grid xl:grid-cols-[minmax(0,1fr)_300px] gap-5">
+            <div className="grid lg:grid-cols-[minmax(0,1fr)_280px] xl:grid-cols-[minmax(0,1fr)_300px] gap-5">
               <CalendarSchedule bookings={calendarItems} statusClasses={statusClasses}
                 renderLabel={item => item.source === 'appointment' ? item.appointment_type : (item.professional_name || '—')}
                 onSelect={setSelected} />
