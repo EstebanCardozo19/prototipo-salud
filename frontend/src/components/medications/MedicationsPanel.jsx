@@ -271,12 +271,20 @@ export default function MedicationsPanel({ record, token, user, onBack }) {
 
   const handleDelete = async id => {
     try {
-      await fetch(`/api/medications/${id}`, {
+      const res = await fetch(`/api/medications/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.detail || 'No fue posible eliminar el medicamento.');
+        setConfirmDelete(null);
+        return;
+      }
       setMeds(prev => prev.filter(m => m.id !== id));
-    } catch { /* silencioso */ }
+    } catch (err) {
+      setError('Error de conexión al eliminar el medicamento.');
+    }
     setConfirmDelete(null);
   };
 
