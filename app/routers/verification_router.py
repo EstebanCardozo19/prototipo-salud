@@ -38,11 +38,17 @@ def verification_for(user, session):
     return item
 
 def can_modify_document(status: ProfileStatus, submitted_at: Optional[datetime], document_type: VerificationDocumentType) -> bool:
-    """Un borrador se edita libremente; una solicitud enviada solo admite soportes adicionales."""
+    """Un borrador se edita libremente; una solicitud enviada solo admite soportes adicionales.
+    
+    Los certificados adicionales siempre se pueden agregar, incluso tras la aprobación,
+    ya que no afectan el estado de verificación.
+    """
+    if document_type == VerificationDocumentType.additional_certificate:
+        return True
     if status == ProfileStatus.approved:
         return False
     if status == ProfileStatus.pending and submitted_at is not None:
-        return document_type == VerificationDocumentType.additional_certificate
+        return False
     return True
 
 def serialize(item, session):
@@ -62,9 +68,7 @@ async def upload(document_type: VerificationDocumentType, file: UploadFile = Fil
     if document_type not in allowed_documents: raise HTTPException(400, 'Documento no permitido para este rol')
     item = verification_for(current_user, session)
     if not can_modify_document(item.status, item.submitted_at, document_type):
-        if item.status == ProfileStatus.approved:
-            raise HTTPException(409, 'La solicitud ya fue aprobada y sus documentos no se pueden modificar')
-        raise HTTPException(409, 'Durante la revisión solo puede adjuntar certificados o títulos adicionales')
+        raise HTTPException(409, 'La solicitud ya fue aprobada y sus documentos requeridos no se pueden modificar')
     document_name = (document_name or '').strip() or None
     if document_type in {VerificationDocumentType.training, VerificationDocumentType.nursing_degree, VerificationDocumentType.additional_certificate} and not document_name:
         raise HTTPException(400, 'Indique el nombre del certificado o título')

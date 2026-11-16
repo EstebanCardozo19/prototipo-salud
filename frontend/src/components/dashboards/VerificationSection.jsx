@@ -42,9 +42,8 @@ export default function VerificationSection({ token, className = '' }) {
     [verification],
   );
   const canEdit = !verification?.submitted_at || verification.status === 'rejected';
-  // Los soportes adicionales no reemplazan documentos requeridos. Se pueden
-  // seguir adjuntando mientras el administrador revisa la solicitud.
-  const canAddAdditionalCertificate = canEdit || verification?.status === 'pending';
+  // Los certificados adicionales siempre se pueden subir (el backend también lo permite ahora).
+  const canAddAdditionalCertificate = true;
   const status = STATUS[verification?.status] || { label: 'Borrador', className: 'bg-[#f3f3f6] text-[#424654]', icon: 'edit_note' };
   const hasDocumentName = documentType => Boolean((documentNames[documentType] || '').trim());
 
@@ -135,7 +134,13 @@ export default function VerificationSection({ token, className = '' }) {
           <span className="material-symbols-outlined text-[28px]">verified_user</span>
           <div>
             <h2 className="text-[20px] leading-[28px] font-semibold">Verificación profesional</h2>
-            <p className="text-[14px] text-[#434652] mt-1">Carga los documentos requeridos y envía la solicitud para que un administrador valide tu perfil.</p>
+            <p className="text-[14px] text-[#434652] mt-1">
+              {verification?.status === 'approved'
+                ? 'Tu perfil está verificado. Puedes seguir adjuntando certificados adicionales cuando quieras.'
+                : verification?.status === 'pending' && verification?.submitted_at
+                ? 'Tu solicitud está en revisión. El administrador validará tu perfil pronto.'
+                : 'Carga los documentos requeridos y envía la solicitud para que un administrador valide tu perfil.'}
+            </p>
           </div>
         </div>
         <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold ${status.className}`}>
