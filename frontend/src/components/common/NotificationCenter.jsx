@@ -41,8 +41,15 @@ export default function NotificationCenter({ token, role, onNavigate, onOpenMess
     const closeOnOutsideClick = event => {
       if (containerRef.current && !containerRef.current.contains(event.target)) setIsOpen(false);
     };
+    const closeOnEsc = event => {
+      if (event.key === 'Escape') setIsOpen(false);
+    };
     document.addEventListener('mousedown', closeOnOutsideClick);
-    return () => document.removeEventListener('mousedown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEsc);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEsc);
+    };
   }, []);
 
   const markRead = async notification => {
