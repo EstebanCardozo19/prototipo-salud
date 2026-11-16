@@ -19,7 +19,7 @@ from app.database import get_session
 from app.models import (
     Booking, BookingStatus, ClinicalRecord,
     MedicationFrequency, MedicationStatus,
-    PatientMedication, User, UserRole,
+    MedicationReminderDelivery, PatientMedication, User, UserRole,
 )
 
 router = APIRouter(prefix="/api/medications", tags=["Medicamentos del paciente"])
@@ -269,6 +269,14 @@ def delete_medication(
     if not med:
         raise HTTPException(status_code=404, detail="Medicamento no encontrado")
     _get_own_record(med.clinical_record_id, current_user, session)
+    # Eliminar primero los recordatorios asociados para evitar el error de FK.
+    reminders = session.exec(
+        select(MedicationReminderDelivery).where(
+            MedicationReminderDelivery.patient_medication_id == medication_id
+        )
+    ).all()
+    for reminder in reminders:
+        session.delete(reminder)
     session.delete(med)
     session.commit()
 
