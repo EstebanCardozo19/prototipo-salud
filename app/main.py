@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
 from contextlib import asynccontextmanager
 
-from app.models import User, CaregiverProfile, ClinicalRecord, ClinicalRecordDocument, NurseProfile, Booking, Availability, Review, ProfessionalRecognition, ProfessionalVerification, FamilyVerification, VerificationDocument, ServiceChatMessage, ServiceCarePlan, ProfessionalAssistantAuditLog, Notification, PushSubscription, MedicationReminderDelivery, MedicalAppointment, AppointmentReminderDelivery, PatientMedication, CancelledServiceComment, CancelledServiceCommentReport  # noqa: F401
+from app.models import User, CaregiverProfile, ClinicalRecord, ClinicalRecordDocument, NurseProfile, Booking, Availability, Review, ProfessionalRecognition, ProfessionalVerification, FamilyVerification, VerificationDocument, ServiceChatMessage, ServiceCarePlan, ServiceNote, ProfessionalAssistantAuditLog, Notification, PushSubscription, MedicationReminderDelivery, MedicalAppointment, AppointmentReminderDelivery, PatientMedication, CancelledServiceComment, CancelledServiceCommentReport  # noqa: F401
 from app.database import engine
 from app.database import get_session
 from sqlmodel import Session
@@ -265,6 +265,21 @@ async def lifespan(app: FastAPI):
             )
         """))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_family_verifications_user_id ON family_verifications (user_id)"))
+        # Notas del servicio (texto + archivos adjuntos del profesional).
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS service_notes (
+                id SERIAL PRIMARY KEY,
+                booking_id INTEGER NOT NULL REFERENCES bookings(id),
+                professional_user_id INTEGER NOT NULL REFERENCES users(id),
+                note_text VARCHAR(3000),
+                original_filename VARCHAR(255),
+                stored_filename VARCHAR(255),
+                content_type VARCHAR(100),
+                size_bytes INTEGER,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_service_notes_booking_id ON service_notes (booking_id)"))
         conn.commit()
     _migrate_sensitive_data()
     # Cierra automáticamente los servicios aprobados 30 minutos después de su hora

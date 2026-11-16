@@ -188,3 +188,148 @@ def ask_documentary_assistant(
 
     parts.append("⚠️ Este asistente no diagnostica, prescribe ni reemplaza la valoración del profesional tratante.")
     return AssistantResponse(response="\n\n".join(parts), emergency_detected=False, escalation_created=False)
+
+
+# ── Notas del servicio (texto + archivos adjuntos) ──────────────────────────
+
+import uuid
+from pathlib import Path
+from fastapi import File, Form, UploadFile
+from fastapi.responses import FileResponse
+from app.models import ServiceNote
+
+NOTES_DIR = Path("private_uploads/service_notes")
+NOTES_DIR.mkdir(parents=True, exist_ok=True)
+
+ALLOWED_NOTE_TYPES = {"application/pdf", "image/jpeg", "image/png", "image/webp"}
+
+
+class ServiceNoteResponse(BaseModel):
+    id: int
+    booking_id: int
+    note_text: Optional[str] = None
+    original_filename: Optional[str] = None
+    content_type: Optional[str] = None
+    size_bytes: Optional[int] = None
+    created_at: Optional[datetime] = None
+    download_url: Optional[str] = None
+
+
+def _serialize_note(note: ServiceNote) -> ServiceNoteResponse:
+    return ServiceNoteResponse(
+        id=note.id,
+        booking_id=note.booking_id,
+        note_text=note.note_text,
+        original_filename=note.original_filename,
+        content_type=note.content_type,
+        size_bytes=note.size_bytes,
+        created_at=note.created_at,
+        download_url=f"/api/service-care-plans/notes/{note.id}/download" if note.stored_filename else None,
+    )
+
+
+@router.get("/{booking_id}/notes", response_model=List[ServiceNoteResponse])
+def list_notes(
+    booking_id: int,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Lista las notas/archivos del servicio. Accesible por el profesional asignado y la familia."""
+    _active_booking_for_participant(booking_id, current_user, session)
+    notes = session.exec(
+        select(ServiceNote).where(ServiceNote.booking_id == booking_id).order_by(ServiceNote.created_at)
+    ).all()
+    return [_serialize_note(n) for n in notes]
+
+
+@router.post("/{booking_id}/notes", response_model=ServiceNoteResponse, status_code=201)
+async def create_note(
+    booking_id: int,
+    note_text: Optional[str] = Form(default=None),
+    file: Optional[UploadFile] = File(default=None),
+    current_user: User = Depends(require_role(UserRole.caregiver, UserRole.nurse)),
+    session: Session = Depends(get_session),
+):
+    """El profesional añade una nota de texto y/o un archivo adjunto al servicio."""
+    booking = _active_booking_for_participant(booking_id, current_user, session)
+    if booking.professional_user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Solo el profesional asignado puede añadir notas")
+
+    if not note_text and not file:
+        raise HTTPException(status_code=422, detail="Debes escribir una nota o adjuntar un archivo")
+
+    stored_filename = None
+    original_filename = None
+    content_type = None
+    size_bytes = None
+
+    if file and file.filename:
+        if file.content_type not in ALLOWED_NOTE_TYPES:
+            raise HTTPException(status_code=415, detail="Solo se aceptan PDF, JPEG, PNG o WEBP")
+        content = await file.read()
+        if len(content) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="El archivo no puede superar 10 MB")
+        ext = {
+            "application/pdf": ".pdf",
+            "image/jpeg": ".jpg",
+            "image/png": ".png",
+            "image/webp": ".webp",
+        }[file.content_type]
+        stored_filename = f"{booking_id}_{uuid.uuid4().hex}{ext}"
+        (NOTES_DIR / stored_filename).write_bytes(content)
+        original_filename = file.filename[:255]
+        content_type = file.content_type
+        size_bytes = len(content)
+
+    note = ServiceNote(
+        booking_id=booking_id,
+        professional_user_id=current_user.id,
+        note_text=(note_text or "").strip() or None,
+        original_filename=original_filename,
+        stored_filename=stored_filename,
+        content_type=content_type,
+        size_bytes=size_bytes,
+    )
+    session.add(note)
+    session.commit()
+    session.refresh(note)
+    return _serialize_note(note)
+
+
+@router.delete("/notes/{note_id}", status_code=204)
+def delete_note(
+    note_id: int,
+    current_user: User = Depends(require_role(UserRole.caregiver, UserRole.nurse)),
+    session: Session = Depends(get_session),
+):
+    """El profesional elimina una nota propia."""
+    note = session.get(ServiceNote, note_id)
+    if not note:
+        raise HTTPException(status_code=404, detail="Nota no encontrada")
+    if note.professional_user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="No autorizado")
+    if note.stored_filename:
+        path = NOTES_DIR / note.stored_filename
+        if path.exists():
+            path.unlink()
+    session.delete(note)
+    session.commit()
+
+
+@router.get("/notes/{note_id}/download")
+def download_note_file(
+    note_id: int,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Descarga el archivo adjunto de una nota. Accesible por el profesional y la familia del booking."""
+    note = session.get(ServiceNote, note_id)
+    if not note:
+        raise HTTPException(status_code=404, detail="Nota no encontrada")
+    _active_booking_for_participant(note.booking_id, current_user, session)
+    if not note.stored_filename:
+        raise HTTPException(status_code=404, detail="Esta nota no tiene archivo adjunto")
+    path = NOTES_DIR / note.stored_filename
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Archivo no disponible")
+    return FileResponse(path, media_type=note.content_type, filename=note.original_filename)

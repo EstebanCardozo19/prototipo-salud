@@ -444,6 +444,26 @@ class ServiceCarePlan(SQLModel, table=True):
     )
 
 
+class ServiceNote(SQLModel, table=True):
+    """Nota o archivo adjunto del profesional durante un servicio activo."""
+    __tablename__ = "service_notes"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    booking_id: int = Field(foreign_key="bookings.id", nullable=False, index=True)
+    professional_user_id: int = Field(foreign_key="users.id", nullable=False, index=True)
+    # Texto libre de la nota (opcional si se sube un archivo)
+    note_text: Optional[str] = Field(default=None, max_length=3000)
+    # Archivo adjunto (PDF o imagen)
+    original_filename: Optional[str] = Field(default=None, max_length=255)
+    stored_filename: Optional[str] = Field(default=None, max_length=255)
+    content_type: Optional[str] = Field(default=None, max_length=100)
+    size_bytes: Optional[int] = Field(default=None)
+    created_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), server_default=func.now())
+    )
+
+
 # ============================================================
 # Auditoría de acceso del asistente profesional
 # ============================================================
