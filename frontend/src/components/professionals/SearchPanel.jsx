@@ -857,6 +857,14 @@ export default function SearchPanel({ user, token, activeTab, onTabChange }) {
                         </span>
                       </div>
                       <div className="flex flex-wrap gap-3 text-[13px] text-[#424654] bg-[#f9f9fc] rounded-xl px-4 py-2.5 border border-[#c3c6d6]/30">
+                        {b.patient_name && (
+                          <span className="flex items-center gap-1.5 font-semibold text-[#0040a1]">
+                            <span className="material-symbols-outlined text-[16px] text-[#0040a1]/60">
+                              person
+                            </span>
+                            {b.patient_name}
+                          </span>
+                        )}
                         <span className="flex items-center gap-1.5">
                           <span className="material-symbols-outlined text-[16px] text-[#0040a1]/60">
                             calendar_today
