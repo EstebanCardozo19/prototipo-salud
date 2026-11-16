@@ -15,6 +15,8 @@ export default function AdminDashboard({ token }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [userDocs, setUserDocs] = useState(null); // { userId, documents, status }
+  const [loadingDocs, setLoadingDocs] = useState(false);
   const objectUrls = useRef([]);
 
   const filteredUsers = useMemo(() => {
@@ -78,6 +80,34 @@ export default function AdminDashboard({ token }) {
       console.error(e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openUserDocs = async (userId) => {
+    setLoadingDocs(true);
+    setUserDocs({ userId, documents: [], status: null });
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/verification-documents`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = res.ok ? await res.json() : { documents: [], status: null };
+      setUserDocs({ userId, ...data });
+    } catch {
+      setUserDocs({ userId, documents: [], status: null });
+    } finally {
+      setLoadingDocs(false);
+    }
+  };
+
+  const openDocFile = async (downloadUrl, filename) => {
+    try {
+      const res = await fetch(downloadUrl, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error('No fue posible abrir el documento.');
+      const url = URL.createObjectURL(await res.blob());
+      objectUrls.current.push(url);
+      window.open(url, '_blank');
+    } catch (err) {
+      alert(err.message);
     }
   };
 
@@ -390,6 +420,15 @@ export default function AdminDashboard({ token }) {
                         Ver documentos y autorizar
                       </button>
                     )}
+                    {!pendingProfilesByUserId.has(u.id) && ['caregiver', 'nurse'].includes(u.role) && (
+                      <button
+                        type="button"
+                        onClick={() => openUserDocs(u.id)}
+                        className="px-3 py-1 border border-[#0040a1]/30 text-[#0040a1] rounded-lg text-[12px] font-semibold hover:bg-[#dae2ff] transition-all"
+                      >
+                        Ver docs
+                      </button>
+                    )}
                     <button
                       onClick={() => updateUserName(u)}
                       className="px-3 py-1 border border-[#0040a1] text-[#0040a1] rounded-lg text-[12px] font-semibold hover:bg-[#0040a1]/5 transition-all"
@@ -432,6 +471,59 @@ export default function AdminDashboard({ token }) {
             <h4 className="font-bold text-[#1a1c1e] mt-6 mb-3">Documentos adjuntos ({selectedProfile.documents.length})</h4>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">{selectedProfile.documents.map(documentItem => <div key={documentItem.id} className="border border-[#e2e8f0] rounded-xl overflow-hidden bg-white"><div className="h-36 bg-[#f3f3f6] flex items-center justify-center">{documentUrls[documentItem.id] ? <img src={documentUrls[documentItem.id]} alt={documentItem.document_name || documentItem.document_type} className="w-full h-full object-contain" /> : <span className="material-symbols-outlined text-[40px] text-[#737785]">description</span>}</div><div className="p-3"><p className="font-semibold truncate">{documentItem.document_name || documentItem.document_type}</p><p className="text-[11px] text-[#737785] truncate mb-2">{documentItem.original_filename}</p><button onClick={() => downloadDocument(documentItem)} className="text-[12px] text-[#0040a1] font-semibold hover:underline">Descargar / abrir</button></div></div>)}</div>
             <div className="flex gap-3 mt-6"><button onClick={() => approve(selectedProfile.id, 'approved')} className="px-4 py-2 bg-green-500 text-white rounded-lg text-[13px] font-semibold hover:bg-green-600">{t('admin.approve')}</button><button onClick={() => approve(selectedProfile.id, 'rejected')} className="px-4 py-2 bg-red-100 text-red-600 rounded-lg text-[13px] font-semibold hover:bg-red-200">{t('admin.reject')}</button></div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de documentos de cualquier profesional */}
+      {userDocs && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+          style={{ background: 'rgba(10,15,30,0.65)', backdropFilter: 'blur(8px)' }}
+          onClick={e => { if (e.target === e.currentTarget) setUserDocs(null); }}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5">
+            <div className="flex justify-between items-center border-b border-[#e2e8f0] pb-3 mb-4">
+              <div>
+                <h3 className="text-[17px] font-bold text-[#1a1c1e]">Documentos de verificación</h3>
+                {userDocs.status && (
+                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full mt-1 inline-block ${
+                    userDocs.status === 'approved' ? 'bg-green-100 text-green-800' :
+                    userDocs.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                    'bg-amber-100 text-amber-800'
+                  }`}>{userDocs.status === 'approved' ? 'Verificado' : userDocs.status === 'rejected' ? 'Rechazado' : 'En revisión'}</span>
+                )}
+              </div>
+              <button onClick={() => setUserDocs(null)} className="text-[#737785] hover:text-[#1a1c1e]">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            {loadingDocs ? (
+              <div className="flex justify-center py-10"><Spinner /></div>
+            ) : userDocs.documents.length === 0 ? (
+              <p className="text-center text-[#737785] py-8">Este usuario no tiene documentos subidos.</p>
+            ) : (
+              <div className="grid sm:grid-cols-2 gap-3">
+                {userDocs.documents.map(doc => (
+                  <div key={doc.id} className="border border-[#e2e8f0] rounded-xl overflow-hidden bg-white">
+                    <div className="h-32 bg-[#f3f3f6] flex items-center justify-center">
+                      <span className="material-symbols-outlined text-[42px] text-[#737785]">description</span>
+                    </div>
+                    <div className="p-3">
+                      <p className="font-semibold text-[13px] truncate">{doc.document_name || doc.document_type}</p>
+                      <p className="text-[11px] text-[#737785] truncate mb-2">{doc.original_filename}</p>
+                      <button
+                        onClick={() => openDocFile(doc.download_url, doc.original_filename)}
+                        className="text-[12px] text-[#0040a1] font-semibold hover:underline flex items-center gap-1"
+                      >
+                        <span className="material-symbols-outlined text-[15px]">open_in_new</span>
+                        Ver / descargar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

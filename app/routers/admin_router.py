@@ -206,3 +206,36 @@ def review_family(
         rejection_reason=fv.rejection_reason,
         document_url=f"/api/family-verification/documents/{u.id}/download",
     )
+
+
+@router.get('/users/{user_id}/verification-documents')
+def get_user_documents(
+    user_id: int,
+    current_user: User = Depends(require_role(UserRole.admin)),
+    session: Session = Depends(get_session),
+):
+    """Devuelve los documentos de verificación de cualquier usuario profesional."""
+    u = session.get(User, user_id)
+    if not u:
+        raise HTTPException(404, 'Usuario no encontrado')
+    verification = session.exec(
+        select(ProfessionalVerification).where(ProfessionalVerification.user_id == user_id)
+    ).first()
+    if not verification:
+        return {'documents': [], 'status': None}
+    docs = session.exec(
+        select(VerificationDocument).where(VerificationDocument.verification_id == verification.id)
+    ).all()
+    return {
+        'status': verification.status.value,
+        'documents': [
+            {
+                'id': d.id,
+                'document_type': d.document_type.value,
+                'document_name': d.document_name,
+                'original_filename': d.original_filename,
+                'download_url': f'/api/verification/documents/{d.id}/download',
+            }
+            for d in docs
+        ],
+    }

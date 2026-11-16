@@ -37,6 +37,19 @@ export default function VerificationSection({ token, className = '' }) {
   const [documentNames, setDocumentNames] = useState({});
   const inputRefs = useRef({});
 
+  const openDocument = async (url, filename) => {
+    try {
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error('No fue posible abrir el documento.');
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      window.open(objectUrl, '_blank');
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
+    } catch (err) {
+      error(err.message);
+    }
+  };
+
   const documentsByType = useMemo(
     () => Object.fromEntries((verification?.documents || []).map(document => [document.document_type, document])),
     [verification],
@@ -173,7 +186,7 @@ export default function VerificationSection({ token, className = '' }) {
                 <div>
                   <h3 className="text-[14px] font-semibold text-[#1a1c1e]">{document?.document_name || DOCUMENT_LABELS[documentType] || documentType}</h3>
                   {document
-                    ? <a href={document.download_url} target="_blank" rel="noreferrer" className="text-[12px] text-[#004099] hover:underline block truncate">{document.original_filename}</a>
+                    ? <button type="button" onClick={() => openDocument(document.download_url, document.original_filename)} className="text-[12px] text-[#004099] hover:underline block truncate text-left">{document.original_filename}</button>
                     : <p className="text-[12px] text-[#434652]">Pendiente de cargar</p>}
                 </div>
               </div>
@@ -193,9 +206,9 @@ export default function VerificationSection({ token, className = '' }) {
         <h3 className="text-[14px] font-semibold text-[#1a1c1e] mb-2">Certificados o títulos adicionales</h3>
         <p className="text-[12px] text-[#434652] mb-4">Puedes adjuntar todos los certificados, cursos o títulos adicionales que tengas. No son obligatorios para enviar la solicitud.</p>
         {(verification.documents || []).filter(document => document.document_type === 'additional_certificate').map(document => (
-          <a key={document.id} href={document.download_url} target="_blank" rel="noreferrer" className="mb-2 flex items-center gap-1 text-[12px] text-[#004099] underline">
+          <button key={document.id} type="button" onClick={() => openDocument(document.download_url, document.original_filename)} className="mb-2 flex items-center gap-1 text-[12px] text-[#004099] underline text-left">
             <span className="material-symbols-outlined text-[15px]">description</span>{document.document_name || document.original_filename}
-          </a>
+          </button>
         ))}
         {canAddAdditionalCertificate && <div className="flex gap-4 mt-2">
           <input value={documentNames.additional_certificate || ''} onChange={event => setDocumentNames(current => ({ ...current, additional_certificate: event.target.value }))} maxLength="150" placeholder="Ej.: Curso de primeros auxilios" className="flex-1 border border-[#c3c6d4] rounded-md px-4 py-2 text-[14px] outline-none focus:border-[#004099] bg-white" />
