@@ -277,7 +277,7 @@ export default function MedicationsPanel({ record, token, user, onBack }) {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(data.detail || 'No fue posible eliminar el medicamento.');
+        setError(data.detail || `Error ${res.status}: No fue posible eliminar el medicamento.`);
         setConfirmDelete(null);
         return;
       }
