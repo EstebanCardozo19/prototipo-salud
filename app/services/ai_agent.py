@@ -103,14 +103,17 @@ def _normalizar_texto(texto: str) -> str:
 def _respuesta_segura_local(mensaje_usuario: str) -> str | None:
     """Responde localmente preguntas de alcance y seguridad del asistente.
 
-    Estas consultas no requieren una búsqueda ni una llamada al proveedor de IA. Así
-    el chat sigue respondiendo aunque SAI, los embeddings o la base de datos fallen.
+    Solo intercepta mensajes que preguntan explícitamente sobre las capacidades
+    o limitaciones del asistente. NO intercepta mensajes donde se mencionan
+    medicamentos, dosis o tratamientos como parte de la descripción del paciente.
     """
     mensaje = _normalizar_texto(mensaje_usuario)
+    # Solo se activa si la pregunta es sobre el propio asistente
     temas_limitacion = (
         "limitacion", "que puedes hacer", "que no puedes", "puedes diagnosticar",
         "diagnostica", "diagnostico", "diagnosticar", "prescribir", "prescribe",
-        "medicamento", "medicacion", "dosis", "tratamiento", "garantizar",
+        "puedes recetar", "puedes recomendar medicamento", "puedes cambiar",
+        "puedes suspender", "garantizar", "garantiza",
         "decision final", "quien decide", "quien toma la decision", "mas adecuado",
         "mas apropiado", "mejor cuidador", "mejor enfermero",
     )

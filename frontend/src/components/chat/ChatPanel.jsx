@@ -268,22 +268,35 @@ export default function ChatPanel({ user, token, onUnauthorized }) {
 
       {/* Input */}
       <div className="p-4 border-t border-[#c3c6d6]/30 bg-white shrink-0">
-        <form onSubmit={enviar} className="relative flex items-center">
-          <input
-            className="w-full h-[46px] pl-4 pr-12 rounded-xl border border-[#c3c6d6] bg-[#f3f3f6]
+        <form onSubmit={enviar} className="relative flex items-end gap-2">
+          <textarea
+            className="flex-1 min-h-[46px] max-h-[140px] pl-4 pr-3 py-3 rounded-xl border border-[#c3c6d6] bg-[#f3f3f6]
                        focus:bg-white focus:border-[#0040a1] focus:ring-2 focus:ring-[#0040a1]/15
-                       focus:outline-none text-[14px] transition-all"
+                       focus:outline-none text-[14px] transition-all resize-none overflow-y-auto leading-snug"
             placeholder={t('chat.placeholder')}
             value={input}
-            onChange={e => setInput(e.target.value)}
+            rows={1}
+            onChange={e => {
+              setInput(e.target.value);
+              // Auto-crecer: resetear altura y recalcular según contenido
+              e.target.style.height = 'auto';
+              e.target.style.height = Math.min(e.target.scrollHeight, 140) + 'px';
+            }}
+            onKeyDown={e => {
+              // Enter sin Shift envía; Shift+Enter inserta salto de línea
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                if (!loading && input.trim()) enviar(e);
+              }
+            }}
             disabled={loading}
           />
           <button
             type="submit"
             disabled={loading || !input.trim()}
-            className="absolute right-2 w-[34px] h-[34px] bg-[#0040a1] text-white rounded-lg
+            className="shrink-0 w-[38px] h-[38px] bg-[#0040a1] text-white rounded-xl
                        flex items-center justify-center hover:bg-[#003080] transition-all
-                       disabled:opacity-40 active:scale-95"
+                       disabled:opacity-40 active:scale-95 mb-0.5"
           >
             <span className="material-symbols-outlined text-[17px]">send</span>
           </button>
