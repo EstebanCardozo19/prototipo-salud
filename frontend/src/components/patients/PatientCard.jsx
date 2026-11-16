@@ -13,6 +13,18 @@ export default function PatientCard({ record, token, onEdit, onDelete }) {
   const fileInputRef = useRef(null);
   const mobility = getMobilityLabel(record.mobility_level, lang);
 
+  const openDocument = async (url, filename) => {
+    try {
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error('No fue posible abrir el documento.');
+      const objectUrl = URL.createObjectURL(await res.blob());
+      window.open(objectUrl, '_blank');
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
+    } catch (err) {
+      setDocumentError(err.message);
+    }
+  };
+
   const loadDocuments = async () => {
     setLoadingDocuments(true);
     try {
@@ -165,7 +177,7 @@ export default function PatientCard({ record, token, onEdit, onDelete }) {
                 {documents.map(document => (
                   <div key={document.id} className="flex items-center gap-2 rounded-lg border border-[#c3c6d6]/40 bg-white px-3 py-2">
                     <span className="material-symbols-outlined text-[#0040a1] text-[19px]">{document.content_type === 'application/pdf' ? 'picture_as_pdf' : 'image'}</span>
-                    <a href={document.download_url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate text-[12px] font-semibold text-[#0040a1] hover:underline">{document.original_filename}</a>
+                    <button type="button" onClick={() => openDocument(document.download_url, document.original_filename)} className="min-w-0 flex-1 truncate text-[12px] font-semibold text-[#0040a1] hover:underline text-left">{document.original_filename}</button>
                     <button type="button" onClick={() => deleteDocument(document)} className="text-red-500 hover:text-red-700" title="Eliminar archivo"><span className="material-symbols-outlined text-[18px]">delete</span></button>
                   </div>
                 ))}

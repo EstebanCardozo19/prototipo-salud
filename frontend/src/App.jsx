@@ -31,6 +31,19 @@ export default function App() {
     setPublicView('home');
   };
 
+  // Evita que el botón "atrás" del navegador saque al usuario de la SPA.
+  // La app no usa router — toda la navegación es estado interno. Si el browser
+  // registra un entry de historia (por window.open, blob URL, etc.) y el usuario
+  // presiona atrás, re-insertamos el estado actual para que no recargue la página.
+  useEffect(() => {
+    const handlePopState = () => {
+      window.history.pushState(null, '', window.location.pathname);
+    };
+    window.history.pushState(null, '', window.location.pathname);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   useEffect(() => {
     if (!token) return;
 
