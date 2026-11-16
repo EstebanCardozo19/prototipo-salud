@@ -81,8 +81,8 @@ export default function TopBar({ user, token, activeNav, onNav, onLogout, onOpen
             <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>
               account_circle
             </span>
-            <span className="max-w-[140px] truncate">
-              {user.full_name} — {getRoleLabel(user.role, lang)}
+            <span className="whitespace-nowrap">
+              {user.full_name.trim().split(/\s+/).slice(0, 2).join(' ')}
             </span>
           </div>
           {/* Icono usuario solo en móvil */}
