@@ -31,15 +31,23 @@ export default function App() {
     setPublicView('home');
   };
 
-  // Evita que el botón "atrás" del navegador saque al usuario de la SPA.
-  // La app no usa router — toda la navegación es estado interno. Si el browser
-  // registra un entry de historia (por window.open, blob URL, etc.) y el usuario
-  // presiona atrás, re-insertamos el estado actual para que no recargue la página.
+  // Evita que el botón "atrás" del navegador saque al usuario de la SPA
+  // sin romper la navegación interna. Cada cambio de sección empuja un estado
+  // al historial del browser. Al presionar atrás, popstate llama a handleNav
+  // con la sección anterior registrada en el estado.
   useEffect(() => {
-    const handlePopState = () => {
-      window.history.pushState(null, '', window.location.pathname);
+    const handlePopState = (event) => {
+      const section = event.state?.section;
+      if (section) {
+        // El estado guardado tiene la sección — se delega a MainScreen via evento
+        window.dispatchEvent(new CustomEvent('app:navigate', { detail: { section } }));
+      } else {
+        // No hay estado guardado → volver al estado neutro sin salir
+        window.history.pushState({ section: null }, '', window.location.pathname);
+      }
     };
-    window.history.pushState(null, '', window.location.pathname);
+    // Estado inicial
+    window.history.replaceState({ section: null }, '', window.location.pathname);
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);

@@ -17,9 +17,22 @@ export default function PatientCard({ record, token, onEdit, onDelete }) {
     try {
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) throw new Error('No fue posible abrir el documento.');
-      const objectUrl = URL.createObjectURL(await res.blob());
-      window.open(objectUrl, '_blank');
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
+      const blob = await res.blob();
+      // Crear un blob con tipo explícito para que el browser pueda abrirlo
+      const typedBlob = new Blob([blob], { type: blob.type || 'application/octet-stream' });
+      const objectUrl = URL.createObjectURL(typedBlob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      // Para PDF/imágenes abrir en nueva pestaña; para otros, descargar
+      if (blob.type === 'application/pdf' || blob.type.startsWith('image/')) {
+        a.click();
+      } else {
+        a.download = filename || 'documento';
+        a.click();
+      }
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 15000);
     } catch (err) {
       setDocumentError(err.message);
     }

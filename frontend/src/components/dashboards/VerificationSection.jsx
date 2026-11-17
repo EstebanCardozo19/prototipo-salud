@@ -42,9 +42,18 @@ export default function VerificationSection({ token, className = '' }) {
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) throw new Error('No fue posible abrir el documento.');
       const blob = await res.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      window.open(objectUrl, '_blank');
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
+      const typedBlob = new Blob([blob], { type: blob.type || 'application/octet-stream' });
+      const objectUrl = URL.createObjectURL(typedBlob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      if (blob.type === 'application/pdf' || blob.type.startsWith('image/')) {
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+      } else {
+        a.download = filename || 'documento';
+      }
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 15000);
     } catch (err) {
       error(err.message);
     }

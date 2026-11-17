@@ -103,9 +103,17 @@ export default function AdminDashboard({ token }) {
     try {
       const res = await fetch(downloadUrl, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) throw new Error('No fue posible abrir el documento.');
-      const url = URL.createObjectURL(await res.blob());
-      objectUrls.current.push(url);
-      window.open(url, '_blank');
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(new Blob([blob], { type: blob.type || 'application/octet-stream' }));
+      objectUrls.current.push(objectUrl);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      if (blob.type === 'application/pdf' || blob.type.startsWith('image/')) {
+        a.target = '_blank'; a.rel = 'noopener noreferrer';
+      } else {
+        a.download = filename || 'documento';
+      }
+      a.click();
     } catch (err) {
       alert(err.message);
     }

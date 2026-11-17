@@ -13,13 +13,30 @@ import MedicationsScreen from '../medications/MedicationsScreen';
 // ─── MainScreen ──────────────────────────────────────────────
 export default function MainScreen({ user, token, onLogout, onUnauthorized, onUserUpdate }) {
   const { t } = useLang();
-  const [activeNav, setActiveNav] = useState(
-    user.role === 'admin' ? 'users' : user.role === 'family' ? 'caregivers' : 'account'
-  );
+  const defaultNav = user.role === 'admin' ? 'users' : user.role === 'family' ? 'caregivers' : 'account';
+  const [activeNav, setActiveNav] = useState(defaultNav);
   const [serviceChats, setServiceChats] = useState(null);
   const [chatOpen, setChatOpen] = useState(false); // toggle chat en móvil
 
-  const handleNav = (key) => setActiveNav(key);
+  // Empuja cada cambio de sección al historial del browser.
+  // El evento 'app:navigate' lo despacha App.jsx cuando el usuario presiona atrás.
+  const handleNav = (key) => {
+    if (key !== activeNav) {
+      window.history.pushState({ section: key }, '', window.location.pathname);
+    }
+    setActiveNav(key);
+  };
+
+  useEffect(() => {
+    const onAppNav = (e) => {
+      const section = e.detail?.section;
+      if (section) setActiveNav(section);
+      else setActiveNav(defaultNav);
+    };
+    window.addEventListener('app:navigate', onAppNav);
+    return () => window.removeEventListener('app:navigate', onAppNav);
+  }, [defaultNav]);
+
   const handleOpenMessages = (bookingId) => setServiceChats({ initialBookingId: bookingId });
 
   const serviceChatsModal = serviceChats && (
