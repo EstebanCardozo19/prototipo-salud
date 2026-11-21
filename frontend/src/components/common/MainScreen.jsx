@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLang } from '../../contexts/LangContext';
 import TopBar from './TopBar';
 import SearchPanel from '../professionals/SearchPanel';
